@@ -443,15 +443,8 @@ flowchart TD
 传入`-m 消息内容`参数，直接执行，输出结果。
 
 - 输出结束后也输出`--session xxxxxxxx`参考参数，用于接续对话上下文。（Session管理部分见下文）
-- 使用`ratatui`渲染。
-- 使用ratatui的`Viewport::Inline`模式，非全屏TUI。
-  - 按行渲染输出，不切换到alternate screen（全屏）。
-  - 保留终端历史记录，TUI在当前光标下方显示。
 
 ### B. 终端REPL
-
-- 使用ratatui的`Viewport::Inline`模式，非全屏TUI。
-  - REPL界面不占用全屏，保留终端历史记录。
 
 - 在A的输出内容下方，添加输入框和状态显示。
   - 输入框：上下左右边框线宽1字符。支持多行输入。`Shift+Enter`换行，`Ctrl+hjkl`移动光标。
@@ -484,8 +477,8 @@ flowchart TD
 
 ### 要求
 
-- 模式A和B都使用`ratatui`的`Viewport::Inline`模式（非全屏TUI），不使用alternate screen（全屏模式）。
-- 模式A和B共享渲染逻辑。
+- 模式A和B都使用`ratatui`，且共享消息内容渲染逻辑。
+  - 使用`ratatui`的`Viewport::Inline`模式（非全屏TUI）。
 - 以下逻辑要求分离至不同crate：
   - 核心执行逻辑
   - 终端输出逻辑
