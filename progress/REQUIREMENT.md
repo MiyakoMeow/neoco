@@ -174,6 +174,11 @@ content = "xxx"
   - 使用转场工具`workflow:<option>`触发下游节点（`workflow:pass`表示无条件传递）。
   - 边条件：`select`触发时计数器+1，`require`要求计数器>0才能执行。
   - 转场时需带上`message`参数传递信息内容。
+  - **增强条件系统（表达式引擎）**：支持复杂的表达式条件，基于`rhai`引擎实现：
+    - 表达式语法：支持算术运算、比较运算、逻辑运算、变量引用
+    - 变量系统：工作流Session存储全局变量，节点Session存储局部变量
+    - 内置函数：支持字符串处理、数值计算、数组操作等常用函数
+    - 条件示例：`if: approval_count >= 2 AND quality_score > 0.7`
 
 - 节点选项：
   - new-session表示为该节点创建一个新的节点Session（归属于工作流Session），而非复用已有节点Session
@@ -184,9 +189,28 @@ content = "xxx"
 - 节点Session：工作流Session的子Session，存储节点执行上下文
 - `new-session`创建的节点Session自动关联到工作流Session
 
-- 使用示例：
-  - 定义PRD流程
-  - 执行/审阅循环流程
+#### 工作流组合与复用
+
+- **子工作流（Sub-workflow）**：支持将工作流作为节点嵌入其他工作流
+  - 子工作流定义在独立的目录中，拥有自己的配置、Agent和提示词
+  - 子工作流执行时创建独立的工作流Session，与父工作流Session关联
+  - 子工作流可接收父工作流传递的参数，并返回执行结果
+
+- **参数化工作流模板**：支持创建可配置的工作流模板
+  - 模板定义：在工作流根目录添加`template.toml`，声明参数和默认值
+  - 参数传递：实例化时提供参数值，替换模板中的占位符
+  - 条件参数化：条件表达式可使用模板参数，实现动态条件
+  - 示例：创建可配置的代码审查工作流，参数包括最少审查人数、质量阈值等
+
+- **工作流库与共享**：
+  - 支持从Git仓库或其他源导入工作流模板
+  - 提供工作流模板注册和发现机制
+  - 支持工作流模板版本管理
+
+#### 使用示例
+
+- 定义PRD流程
+- 执行/审阅循环流程
 
 #### 重要概念：双层结构区分
 
@@ -469,6 +493,32 @@ flowchart TD
   - 输入框：上下左右边框线宽1字符。支持多行输入。`Shift+Enter`换行，`Ctrl+hjkl`移动光标。
   - 状态显示：固定1行。
 
+#### 工作流与Agent树可视化
+
+- **工作流状态显示**：在状态显示区域下方添加工作流可视化面板
+  - 显示当前工作流图结构，高亮当前活动节点
+  - 显示节点状态：等待、执行中、成功、失败、跳过
+  - 显示边条件状态：计数器值、表达式求值结果
+  - 支持缩放和平移，适应复杂工作流
+
+- **Agent树形结构显示**：在消息历史区域右侧添加Agent树面板
+  - 树状显示当前节点内的Agent层级关系
+  - 显示每个Agent的状态：活跃、等待、完成、错误
+  - 显示Agent间通信关系和消息统计
+  - 支持展开/折叠节点，查看详细状态
+
+- **交互操作**：
+  - 点击工作流节点：查看节点详细信息和执行历史
+  - 点击Agent节点：查看Agent消息记录和工具调用历史
+  - 快捷键：`Ctrl+w`切换工作流面板，`Ctrl+a`切换Agent树面板
+  - 实时更新：工作流状态变化时自动刷新显示
+
+- **命令扩展**：
+  - `/workflow status`：显示工作流详细状态
+  - `/workflow graph`：导出工作流图为Mermaid或图片
+  - `/agents tree`：显示Agent树详细结构
+  - `/agents stats`：显示Agent执行统计信息
+
 #### 命令系统
 
 - 输入框为空时输入`/`，出现命令补全提示。
@@ -489,7 +539,24 @@ flowchart TD
 3. **状态暴露**: 提供HTTP API查询Session状态和进度
 4. **多前端支持**: 支持CLI、Web UI、IDE插件等多种前端
 
-与ZeroClaw的主要区别:
+- **工作流状态API**：提供RESTful/gRPC接口查询工作流执行状态
+  - `GET /api/v1/workflows/{workflow_id}/status`：获取工作流整体状态
+  - `GET /api/v1/workflows/{workflow_id}/graph`：获取工作流图结构（Mermaid/JSON格式）
+  - `GET /api/v1/workflows/{workflow_id}/nodes/{node_id}/status`：获取节点详细状态
+  - `GET /api/v1/workflows/{workflow_id}/variables`：获取工作流变量和表达式求值结果
+  - `POST /api/v1/workflows/{workflow_id}/control`：控制工作流执行（暂停、继续、终止）
+- **Agent树查询API**：提供Agent层级结构查询接口
+  - `GET /api/v1/sessions/{session_id}/agents/tree`：获取Agent树形结构
+  - `GET /api/v1/sessions/{session_id}/agents/{agent_id}/messages`：获取Agent消息历史
+  - `GET /api/v1/sessions/{session_id}/agents/{agent_id}/tools`：获取Agent工具调用记录
+  - `GET /api/v1/sessions/{session_id}/agents/stats`：获取Agent执行统计信息
+- **实时事件流**：通过WebSocket/Server-Sent Events推送状态变更
+  - 工作流节点状态变更事件
+  - Agent状态变更事件
+  - 工具调用开始/完成事件
+  - 条件表达式求值结果事件
+
+- 与ZeroClaw的主要区别:
 
 - ZeroClaw是通用自动化工具，Neco专注于AI Agent协作
 - Neco的Session管理更复杂（支持智能体树）
