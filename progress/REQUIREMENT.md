@@ -21,7 +21,7 @@
 
 现有的主流AI Agent应用，如Claude Code等各类编码工具、OpenClaw等，在多智能体协作方面，仅提供了以下功能：
 
-#YW|- 见上文规则1-3
+见上文规则1-3
 ### 工作流固定问题
 
 当前许多开发者、企业等，已经开发出了Agent独有的工作流，例如：
@@ -87,7 +87,7 @@
 - 通用格式：`~/.local/neco/(session_id)/(agent_ulid).toml`
 - 非工作流模式：session_id = 顶层 Session ID，agent_ulid = Agent ULID（第一个 Agent 时两者相同）
 - 工作流模式：session_id = Workflow Session ID，agent_ulid = Node Session ID（即节点 Agent 的 ULID）
-#XX|- **Session ID与Agent ULID的关系**：见上文规则1-3
+  - **Session ID与Agent ULID的关系**：见上文规则1-3
 
 #### 消息内容存储
 

@@ -176,7 +176,6 @@ pub struct SubAgentConfig {
 ### 创建行为
 
 1. **Agent 定义查找**：
-
    - **优先级 1**：`workflows/<workflow_name>/agents/<agent_name>.md`（工作流特定）
      - 仅在 SubAgent 创建工作于某个工作流节点内时生效
      - 允许工作流自定义特定 Agent 行为
@@ -196,7 +195,6 @@ pub struct SubAgentConfig {
    - 子 Agent 生命周期由父 Agent 管理
    - 父 Agent 终止时，子 Agent 自动终止
    - 子 Agent 完成后，结果返回父 Agent
-
 ---
 
 ## 上下级通信机制
