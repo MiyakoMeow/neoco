@@ -311,17 +311,18 @@ AIMB| }
 # 模型组定义
 [model_groups.think]
 models = ["zhipuai/glm-4.7"]
+strategy = "failover"  # 失败时切换到下一个模型
 # 对应 model_providers.zhipuai （完全匹配）
 
 [model_groups.balanced]
 models = ["zhipuai/glm-4.7", "minimax-cn/MiniMax-M2.5"]
-
+strategy = "round_robin"  # 轮询使用多个模型
 [model_groups.act]
 models = ["zhipuai/glm-4.7-flashx"]
-
+strategy = "priority"  # 按优先级顺序选择
 [model_groups.image]
 models = ["zhipuai/glm-4.6v"]
-
+strategy = "failover"
 # 以下设置应内置于代码中
 [model_providers.zhipuai]
 type = "openai" # 使用OpenAI Chat接口
