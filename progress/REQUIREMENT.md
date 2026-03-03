@@ -160,7 +160,7 @@ content = "xxx"
 
 #### SubAgent创建行为
 
-- 可以指定使用的Agent（来自配置目录的`agents`下的Agent定义）。
+- 可以指定使用的Agent（来自配置目录或工作流目录的`agents`下的Agent定义）。
 - 默认可以覆盖`model`、`model_group`、`prompts`等字段。
 
 ### 自定义工作流
@@ -238,29 +238,50 @@ Neco系统中存在**两个独立的层次结构**，它们在不同层面运作
 
 ## 工具注意事项
 
-- 工具名应小写。以下工具名默认转换成小写格式。
+- 工具名应小写。
 
-### 1、read
+### 工具列表
 
-- 读取文件
-- 实现 Hashline 技术。Agent 读到的每一行代码，末尾都会打上一个强绑定的内容哈希值，格式类似下文的`AKVK`，称为“行哈希”。
+- 分隔符统一使用`::`。
+
+- `activate`：激活内容，见上文。
+  - `mcp`
+  - `skill`
+- `fs`
+  1. `read`
+  2. `write`：完全重写
+  3. `edit`：编辑已有文件
+  4. `delete`：删除文件
+- `mcp`
+  - `xxx`：对应配置文件`mcp_servers.xxx`。
+- `question`：用于向用户提问。仅限REPL运行模式下的非no-ask模式可用。
+
+### 工具：读取文件
+
+- 工具名：`fs::read`。
+
+#### Hashline
+
+- 实现 Hashline 技术。Agent 读到的每一行代码，末尾都会打上一个强绑定的内容哈希值。
+  - 格式类似下文的`AKVK`，称为“行哈希”。
 
 ```text
-AKVK| function hello() {
-VNXJ|   return "world";
-AIMB| }
+AKVK|function hello() {
+VNXJ|  return "world";
+AIMB|}
 ```
 
 - 假设当前行号为`N`，则每一行的哈希值来源于：
   - 将第`MAX(N-4,1)`行到第`N`行的内容合并为一个字符串，再计算哈希值。
   - 使用xxHash方法和`xxhash-rust`这个crate。
-- 以上示例仅供格式参考，实际生成的哈希值不一定要与此相同。
 
-### 2、edit
+- 特别注意：在工具介绍中，将Hashline机制解释清楚。
 
-- 编辑文件
+### 工具：编辑文件
+
+- 工具名：`fs::edit`。
 - 传入开始行哈希和结束行哈希（都是闭区间），以及修改后的内容。
-  - 选择匹配的第一行。
+  - 冲突时，选择匹配的第一行。
 
 ---
 
@@ -290,14 +311,21 @@ AIMB| }
 ```toml
 
 # 模型组定义
-[model_groups.think]
+[model_groups.frontier]
 models = ["zhipuai/glm-4.7"]
 # 对应 model_providers.zhipuai （完全匹配）
+
+[model_groups.smart]
+models = ["zhipuai/glm-4.7?reasoning_effort=high"]
+# 可以在这里配置模型调用参数，语法与URL参数类似
+
+[model_groups.review]
+models = ["zhipuai/glm-4.7?reasoning_effort=high&temperature=0.1"]
 
 [model_groups.balanced]
 models = ["zhipuai/glm-4.7", "minimax-cn/MiniMax-M2.5"]
 
-[model_groups.act]
+[model_groups.fast]
 models = ["zhipuai/glm-4.7-flashx"]
 
 [model_groups.image]
@@ -496,9 +524,7 @@ flowchart TD
 ## 错误处理机制
 
 1. **模型调用错误**:
-   - 网络错误: 自动重试3次，每次间隔指数退避（1s, 2s, 4s）
-   - API错误（4xx）: 不重试，直接返回错误给Agent
-   - API错误（5xx）: 重试3次
+   - 网络错误、API错误等: 自动重试3次，每次间隔指数退避（1s, 2s, 4s）
    - 所有重试失败后，尝试model_group中的下一个模型
 
 2. **工具调用错误**:
