@@ -77,14 +77,14 @@ flowchart TD
 工作流节点**不**使用`nodes`目录。Mermaid图中的节点名称直接对应Agent定义：
 
 **查找优先级**：
-1. `workflows/xxx/agents/`（工作流特定，优先）
-2. `~/.config/neco/agents/`（全局配置，后备）
+1. `workflows/xxx/agents/<agent_name>.md`（工作流特定，优先）
+2. `~/.config/neco/agents/<agent_name>.md`（全局配置，后备）
 
 同名Agent：工作流特定覆盖全局配置
 
 **示例**：
-- Mermaid图中的`WRITE_PRD`节点 → 查找`agents/write-prd.md`
-- Mermaid图中的`REVIEW_PRD`节点 → 查找`agents/review.md`
+- Mermaid图中的`WRITE_PRD`节点 → 查找`workflows/xxx/agents/write-prd.md`
+- Mermaid图中的`REVIEW_PRD`节点 → 查找`workflows/xxx/agents/review.md`
 
 ### 工作流目录结构
 

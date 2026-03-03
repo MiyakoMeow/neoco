@@ -38,8 +38,6 @@ pub enum SelectionStrategy {
 - `priority` - 按优先级顺序选择（TECH-Model.md 扩展）
 
 ```toml
-
-```toml
 # 模型组定义
 [model_groups.think]
 models = ["zhipuai/glm-4.7", "deepseek/deepseek-chat"]
@@ -55,7 +53,7 @@ strategy = "priority"
 
 [model_groups.image]
 models = ["zhipuai/glm-4.6v"]
-strategy = "priority"
+strategy = "failover"
 
 # 模型提供商配置
 [model_providers.zhipuai]
@@ -210,6 +208,9 @@ pub enum ModelError {
 
     #[error("All models failed in group: {0}")]
     AllModelsFailed(String),   // 模型组中所有模型都失败
+    
+    #[error("Group not found: {0}")]
+    GroupNotFound(String),    // 模型组未找到
 }
 
 impl ModelError {
@@ -243,8 +244,8 @@ pub struct RetryStrategy {
 }
 
 // 执行流程：
-// 第1次：初始尝试（失败）→ 等待1s → 第2次：第1次重试（失败）→ 等待2s → 第3次：第2次重试
-// 若第3次成功，则不再继续
+// 执行流程：
+// 第1次：初始尝试（失败）→ 等待1s → 第2次：第1次重试 → 等待2s → 第3次：第2次重试（最后）
 
 impl RetryStrategy {
     pub async fn execute_with_retry<F, T>(
@@ -286,7 +287,7 @@ impl RetryStrategy {
 ```
 第1次失败 ──> 等待 1s ──> 第2次尝试
 第2次失败 ──> 等待 2s ──> 第3次尝试
-第3次失败 ──> 等待 4s ──> 第4次尝试（最后）
+第3次失败 ──> 等待 4s ──> 第4次尝试
 ```
 
 ---
@@ -460,7 +461,6 @@ impl Default for ToolExecutor {
             timeout: Duration::from_secs(30),        // 默认30秒超时（与REQUIREMENT一致）
         }
     }
-}
     pub async fn execute_parallel(
         &self,
         tool_calls: Vec<ToolCall>,

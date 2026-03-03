@@ -166,7 +166,7 @@ Neco 采用双层架构分离任务编排与任务执行：
 
 ### 基础层
 
-```
+```text
 neco-core/         # 核心逻辑、trait 定义、公共数据结构
 neco-session/      # Session 管理、消息持久化
 neco-config/       # 配置加载、验证、热加载
@@ -174,7 +174,7 @@ neco-config/       # 配置加载、验证、热加载
 
 ### 功能层
 
-```
+```text
 neco-model/        # 模型提供商接口、模型组管理、重试机制
 neco-agent/        # Agent 执行逻辑、SubAgent 管理、父子通信
 neco-workflow/     # 工作流定义、DAG 执行引擎、节点转场控制
@@ -184,7 +184,7 @@ neco-context/      # 上下文压缩算法、触发条件管理
 
 ### 接口层
 
-```
+```text
 neco-cli/          # 命令行参数解析、直接 IO 模式
 neco-tui/          # ratatui 界面实现、REPL 交互
 neco-daemon/       # 系统服务实现、IPC 通信、HTTP API
@@ -229,7 +229,7 @@ neco-daemon/       # 系统服务实现、IPC 通信、HTTP API
 
 ### 主要数据流
 
-```
+```text
 用户输入 → 用户接口模块 → 工作流引擎模块
     ↓              ↓            ↓
     ↓         Agent 执行模块 → 模型调用模块
@@ -241,7 +241,7 @@ neco-daemon/       # 系统服务实现、IPC 通信、HTTP API
 
 ### Session 数据流
 
-```
+```text
 用户输入 → Agent 消息列表 → 模型上下文 → 模型响应 → 新消息
     ↓ ↓           ↓              ↓           ↓
  Session 持久化  压缩触发     工具调用结果  SubAgent 通信

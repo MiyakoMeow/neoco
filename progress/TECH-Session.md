@@ -142,8 +142,10 @@ Session ID:             01HF1234567890ABCDEF123456
 │   ├── (node_session_id_2).toml              # 节点2的Agent消息
 │   ├── (node_session_id_3).toml              # 节点3的Agent消息
 │   └── workflow_state.toml                   # 工作流全局状态
-├── (standalone_session_id_1).toml            # 独立Session（非工作流）
-├── (standalone_session_id_2).toml
+├── (standalone_session_id_1)/                  # 独立Session目录（非工作流）
+│   └── (agent_ulid).toml                        # Agent消息文件
+├── (standalone_session_id_2)/                  # 独立Session目录（非工作流）
+│   └── (agent_ulid).toml                        # Agent消息文件
 └── ...
 ```
 
@@ -168,7 +170,8 @@ Session ID:             01HF1234567890ABCDEF123456
 │   ├── 01HF1234567890ABCDEF123456.toml   # 根Agent（与Session ID相同）
 │   ├── 01HG2345678901BCDEF234567.toml    # 子Agent 1
 │   └── 01HH3456789012CDEF345678.toml     # 子Agent 2
-└── 01HI4567890123DEF45678901.toml        # 独立Session（非工作流）
+└── 01HI4567890123DEF45678901/               # 独立Session目录（非工作流）
+    └── agent_01HI.toml                        # Agent消息文件
 ```
 
 ---

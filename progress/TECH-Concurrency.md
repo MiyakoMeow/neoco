@@ -331,10 +331,6 @@ pub struct AsyncModelClient {
 }
 ```
 
-    client: reqwest::Client,
-    retry_policy: RetryPolicy,
-}
-```
 
 ```rust
 pub struct AsyncModelClient {
@@ -359,10 +355,14 @@ impl AsyncModelClient {
 
                     last_error = Some(e);
 
+                    // 检查是否是最后一次尝试
+                    if attempt + 1 == self.retry_policy.max_attempts {
+                        return Err(e);
+                    }
+
                     // 指数退避
                     let delay = self.retry_policy.calculate_delay(attempt);
                     tokio::time::sleep(delay).await;
-                }
             }
         }
 
@@ -730,12 +730,11 @@ pub struct NecoDaemon {
 }
 
 impl NecoDaemon {
-    impl NecoDaemon {
     pub async fn run(self) -> Result<(), DaemonError> {
         // 使用Arc包装以便在多个async块中共享
         let ipc_server = Arc::new(self.ipc_server);
         let http_server = Arc::new(self.http_server);
-        let scheduler = Arc::new(self.scheduler);
+
         
         // 启动 IPC 服务器
         let ipc_handle = {
@@ -753,13 +752,6 @@ impl NecoDaemon {
             })
         };
 
-        // 启动任务调度器
-        let scheduler_handle = {
-            let sched = Arc::clone(&scheduler);
-            tokio::spawn(async move {
-                sched.run().await
-            })
-        };
 
         // 优雅关闭处理
         tokio::select! {

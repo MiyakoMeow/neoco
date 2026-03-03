@@ -21,11 +21,7 @@
 
 现有的主流AI Agent应用，如Claude Code等各类编码工具、OpenClaw等，在多智能体协作方面，仅提供了以下功能：
 
-- 创建一个子Agent。
-- 子Agent任务完成后，接收输出。
-
-当出现异常情况，如任务执行时间过长/偏航等，无法第一时间纠正。
-
+#YW|- 见上文规则1-3
 ### 工作流固定问题
 
 当前许多开发者、企业等，已经开发出了Agent独有的工作流，例如：
@@ -56,7 +52,7 @@
 
 - 部分模型有图像/语言识别能力。
 - 有多个提供者可选，或有同一提供者的多个API Key，希望循环使用模型，实现负载均衡或避免中断。
-  - 当出现异常，该模型最大尝试3次（包括初始请求），失败时自动重试，指数退避：1s, 2s, 4s均失败时，自动尝试下一个可选模型，或当前模型的下一个API Key。
+  - 当出现异常，该模型总尝试3次（包含首次请求），退避间隔为1s、2s均失败时，自动尝试下一个可选模型，或当前模型的下一个API Key。
 
 ### 模型调用
 
@@ -91,11 +87,7 @@
 - 通用格式：`~/.local/neco/(session_id)/(agent_ulid).toml`
 - 非工作流模式：session_id = 顶层 Session ID，agent_ulid = Agent ULID（第一个 Agent 时两者相同）
 - 工作流模式：session_id = Workflow Session ID，agent_ulid = Node Session ID（即节点 Agent 的 ULID）
-- **Session ID与Agent ULID的关系**：
-  - Session ID是顶级容器的ULID，在创建Session时生成
-  - Agent ULID是每个Agent实例的ULID，在Agent开始对话时生成（第一个Agent除外，其使用Session ID）
-  - 第一个Agent（最上层）的Agent ULID与Session ID相同
-- Session ID使用ULID（Universally Unique Lexicographically Sortable Identifier）。使用`ulid`这个crate。
+#XX|- **Session ID与Agent ULID的关系**：见上文规则1-3
 
 #### 消息内容存储
 
@@ -516,9 +508,9 @@ flowchart TD
 ## 错误处理机制
 
 1. **模型调用错误**:
-   - 网络错误: 最大尝试3次（包括初始请求），失败时自动重试，每次间隔指数退避（1s, 2s, 4s）
+   - 网络错误: 总尝试3次（包含首次请求），失败时自动重试，退避间隔为1s、2s
    - API错误（4xx）: 不重试，直接返回错误给Agent
-   - API错误（5xx）: 重试3次
+   - API错误（5xx）: 重试3次（包含首次请求）
    - 所有重试失败后，尝试model_group中的下一个模型
 
 2. **工具调用错误**:
