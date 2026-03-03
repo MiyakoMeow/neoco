@@ -385,6 +385,8 @@ prompts:
 
 - 工作流根路径：`workflows/xxx/`
 
+- 类似配置目录，可以单独为工作流配置`neco.toml`、`prompts`、`agents`、`skills`等。
+
 #### 参考：PRD工作流
 
 - 相对工作流根路径的路径：`workflow.mermaid`
@@ -411,7 +413,7 @@ flowchart TD
   2. `~/.config/neco/agents/`（全局配置，后备）
   同名Agent：工作流特定覆盖全局配置
 
-- 此时，工作流目录或配置目录的`agents`目录，应该有：
+- 此时，根据该PRD工作流节点配置，工作流目录或配置目录的`agents`目录，应该有：
   1. `write-prd.md`
   2. `write-tech-doc.md`
   3. `write-impl.md`
@@ -460,7 +462,7 @@ flowchart TD
 - ZeroClaw是通用自动化工具，Neco专注于AI Agent协作
 - Neco的Session管理更复杂（支持智能体树）
 
-### 要求
+### 用户接口要求
 
 - 模式A和B都使用`ratatui`，且共享消息内容渲染逻辑。
   - 使用`ratatui`的`Viewport::Inline`模式（非全屏TUI）。
@@ -468,6 +470,26 @@ flowchart TD
   - 核心执行逻辑
   - 终端输出逻辑
   - 后台Agent与外部接口
+
+---
+
+## 总体架构设计
+
+- 尽可能保持可扩展性。
+- 避免多个类型具有相同功能。
+
+### 总体架构设计参考
+
+- [ZeroClaw](https://github.com/zeroclaw-labs/zeroclaw)
+- [OpenFang](https://github.com/RightNow-AI/openfang)
+
+---
+
+## 权限隔离设计
+
+### 权限隔离设计参考
+
+- [OpenFang](https://github.com/RightNow-AI/openfang)
 
 ---
 
