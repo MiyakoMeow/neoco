@@ -54,17 +54,10 @@ pub trait UserInterface: Send + Sync {
     async fn get_input(&mut self) -> Result<UserInput, UiError>;
     
     /// 渲染输出
-    async fn render_output(
-        &mut self,
-        output: AgentOutput,
-    ) -> Result<(), UiError>;
+    async fn render_output(&mut self, output: AgentOutput) -> Result<(), UiError>;
     
     /// 向用户提问
-    async fn ask_user(
-        &mut self,
-        question: &str,
-        options: Option<Vec<String>>,
-    ) -> Result<String, UiError>;
+    async fn ask_user(&mut self, question: &str, options: Option<Vec<String>>) -> Result<String, UiError>;
     
     /// 清理资源
     async fn shutdown(&mut self) -> Result<(), UiError>;
@@ -130,14 +123,18 @@ pub struct CliArgs {
     
     /// Session ID（接续对话）
     #[arg(short, long)]
+    #[arg(conflicts_with = "agent")]
+    #[arg(conflicts_with = "workflow")]
     session: Option<String>,
     
     /// Agent定义
     #[arg(short, long)]
+    #[arg(conflicts_with = "session")]
     agent: Option<String>,
     
     /// 工作流
     #[arg(short, long)]
+    #[arg(conflicts_with = "session")]
     workflow: Option<String>,
     
     /// 工作目录
@@ -165,10 +162,7 @@ impl CliInterface {
         Ok(())
     }
     
-    async fn run_direct(
-        &self,
-        message: String,
-    ) -> Result<(), UiError> {
+    async fn run_direct(&self, message: String) -> Result<(), UiError> {
         // TODO: 创建或加载Session
         // TODO: 根据session_id决定是加载现有session还是创建新session
         // TODO: 创建SessionType::Direct类型的session
@@ -224,9 +218,7 @@ pub enum EventResult {
 }
 
 impl ReplInterface {
-    pub fn new(
-        session_manager: Arc<SessionManager>,
-    ) -> Result<Self, UiError> {
+    pub fn new(session_manager: Arc<SessionManager>) -> Result<Self, UiError> {
         // TODO: 启用终端原始模式（禁用行缓冲）
         // TODO: 创建Crossterm后端
         // TODO: 创建Terminal实例
@@ -272,10 +264,7 @@ impl ReplInterface {
     }
     
     /// 处理按键事件
-    async fn handle_key_event(
-        &mut self,
-        key: event::KeyEvent,
-    ) -> Result<EventResult, UiError> {
+    async fn handle_key_event(&mut self, key: event::KeyEvent) -> Result<EventResult, UiError> {
         // TODO: 根据按键和修饰键执行相应操作
         // TODO: Ctrl+C: 退出REPL
         // TODO: Shift+Enter: 多行输入换行
@@ -299,10 +288,7 @@ impl ReplInterface {
     }
     
     /// 处理命令
-    async fn handle_command(
-        &mut self,
-        input: String,
-    ) -> Result<(), UiError> {
+    async fn handle_command(&mut self, input: String) -> Result<(), UiError> {
         // TODO: 解析命令和参数
         // TODO: /new: 创建新的REPL session
         // TODO: /exit: 退出当前session
@@ -346,12 +332,7 @@ impl ReplInterface {
         String::new()
     }
     
-    fn render_agent_node(
-        &self,
-        session: &Session,
-        ulid: &AgentUlid,
-        prefix: &str,
-    ) -> Result<String, UiError> {
+    fn render_agent_node(&self, session: &Session, ulid: &AgentUlid, prefix: &str) -> Result<String, UiError> {
         // TODO: 获取Agent节点信息
         let agent_info = session.get_agent(ulid)
             .map_err(|e| UiError::Session(e))?;
@@ -499,10 +480,7 @@ Workflow: PRD工作流 | Nodes: 2/6 | Agents: 3 运行中, 1 完成 | 14:32:05
 ```rust
 impl ReplInterface {
     /// 处理工作流命令
-    pub async fn handle_workflow_command(
-        &mut self,
-        args: &[&str],
-    ) -> Result<(), UiError> {
+    pub async fn handle_workflow_command(&mut self, args: &[&str]) -> Result<(), UiError> {
         match args[0] {
             "status" => self.show_workflow_status().await?,
             "graph" => self.export_workflow_graph().await?,
@@ -512,10 +490,7 @@ impl ReplInterface {
     }
     
     /// 处理Agent命令
-    pub async fn handle_agent_command(
-        &mut self,
-        args: &[&str],
-    ) -> Result<(), UiError> {
+    pub async fn handle_agent_command(&mut self, args: &[&str]) -> Result<(), UiError> {
         match args[0] {
             "tree" => self.show_agent_tree().await?,
             "stats" => self.show_agent_stats().await?,
@@ -741,10 +716,7 @@ pub struct ControlResponse {
 }
 
 /// 创建Session
-async fn create_session(
-    State(state): State<AppState>,
-    Json(req): Json<CreateSessionRequest>,
-) -> Result<Json<SessionResponse>, ApiError> {
+async fn create_session(State(state): State<AppState>, Json(req): Json<CreateSessionRequest>) -> Result<Json<SessionResponse>, ApiError> {
     // 验证请求
     if req.message.is_none() && req.agent_config.is_none() {
         return Err(ApiError::BadRequest("message or agent_config required".to_string()));
@@ -764,10 +736,7 @@ async fn create_session(
 }
 
 /// 获取工作流状态
-async fn get_workflow_status(
-    State(state): State<AppState>,
-    Path(workflow_id): Path<String>,
-) -> Result<Json<WorkflowStatusResponse>, ApiError> {
+async fn get_workflow_status(State(state): State<AppState>, Path(workflow_id): Path<String>) -> Result<Json<WorkflowStatusResponse>, ApiError> {
     // 验证workflow_id格式
     if workflow_id.is_empty() {
         return Err(ApiError::BadRequest("workflow_id cannot be empty".to_string()));
@@ -788,11 +757,7 @@ async fn get_workflow_status(
 }
 
 /// 控制工作流
-async fn control_workflow(
-    State(state): State<AppState>,
-    Path(workflow_id): Path<String>,
-    Json(req): Json<ControlRequest>,
-) -> Result<Json<ControlResponse>, ApiError> {
+async fn control_workflow(State(state): State<AppState>, Path(workflow_id): Path<String>, Json(req): Json<ControlRequest>) -> Result<Json<ControlResponse>, ApiError> {
     // 验证workflow_id
     if workflow_id.is_empty() {
         return Err(ApiError::BadRequest("workflow_id cannot be empty".to_string()));

@@ -143,9 +143,9 @@ impl MessageIdAllocator {
     
     /// 获取下一个消息ID
     pub fn next_id(&self) -> Result<u64, Error> {
-        // 检查溢出：u64::MAX 已达到则返回错误
+        // 检查溢出：u64::MAX - 1 已达到则返回错误（fetch_add会溢出）
         let current = self.counter.load(Ordering::SeqCst);
-        if current >= u64::MAX {
+        if current >= u64::MAX - 1 {
             return Err(Error::MessageIdOverflow);
         }
         // 使用fetch_add原子操作递增counter，返回之前的值
@@ -165,6 +165,10 @@ pub struct McpServerId(String);
 /// Skill标识符
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct SkillId(String);
+
+/// 工具标识符
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct ToolId(String);
 
 /// Agent实例
 pub struct Agent {
