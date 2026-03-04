@@ -99,22 +99,13 @@ impl FromStr for ModelRef {
     type Err = ConfigError;
     
     fn from_str(s: &str) -> Result<Self, Self::Err> {
+        // TODO: 实现 ModelRef 的解析逻辑
         // 解析格式: "provider/model?temperature=0.1&reasoning_effort=high"
-        let (provider_model, query) = s.split_once('?').unwrap_or((s, ""));
-        let (provider_id, model_name) = provider_model
-            .split_once('/')
-            .ok_or(ConfigError::InvalidModelRef)?;
-        
-        let params = querystring::querify(query)
-            .into_iter()
-            .map(|(k, v)| (k.to_string(), v.to_string()))
-            .collect();
-        
-        Ok(ModelRef {
-            provider_id: provider_id.to_string(),
-            model_name: model_name.to_string(),
-            params,
-        })
+        // 1. 分割查询字符串和路径部分
+        // 2. 分割提供商ID和模型名称
+        // 3. 解析查询参数到 HashMap
+        // 4. 返回 ModelRef 实例
+        unimplemented!()
     }
 }
 ```
@@ -171,18 +162,19 @@ pub enum ApiKeyConfig {
 impl ApiKeyConfig {
     /// 获取API密钥
     pub fn get_key(&self) -> Result<SecretString, ConfigError> {
+        // TODO: 实现API密钥获取逻辑
+        // 1. 根据配置类型（单环境变量、环境变量列表、直接值）
+        // 2. 尝试获取环境变量或使用直接值
+        // 3. 返回 SecretString 或错误
         match self {
-            ApiKeyConfig::Env(var) => env::var(var)
-                .map(SecretString::new)
-                .map_err(|_| ConfigError::EnvVarNotFound(var.clone())),
+            ApiKeyConfig::Env(var) => {
+                // TODO: 从环境变量获取密钥
+                unimplemented!()
+            },
             ApiKeyConfig::EnvList(vars) => {
-                for var in vars {
-                    if let Ok(key) = env::var(var) {
-                        return Ok(SecretString::new(key));
-                    }
-                }
-                Err(ConfigError::NoEnvVarFound)
-            }
+                // TODO: 遍历环境变量列表，找到第一个可用的
+                unimplemented!()
+            },
             ApiKeyConfig::Direct(key) => Ok(key.clone()),
         }
     }
@@ -202,6 +194,7 @@ pub struct RetryConfig {
 
 impl Default for RetryConfig {
     fn default() -> Self {
+        // TODO: 设置合理的重试默认值
         Self {
             max_retries: 3,
             initial_backoff: Duration::from_secs(1),
@@ -251,18 +244,18 @@ pub enum McpTransport {
 impl McpServer {
     /// 判断是否使用stdio模式
     pub fn is_stdio(&self) -> bool {
-        matches!(self.transport, McpTransport::Stdio { .. })
+        // TODO: 检查传输类型是否为 Stdio
+        // 使用模式匹配判断 transport 类型
+        unimplemented!()
     }
     
     /// 获取bearer token（HTTP模式）
     pub fn get_bearer_token(&self) -> Option<String> {
-        match &self.transport {
-            McpTransport::Http { bearer_token_env, .. } => {
-                bearer_token_env.as_ref()
-                    .and_then(|env| std::env::var(env).ok())
-            }
-            _ => None,
-        }
+        // TODO: 获取HTTP模式的bearer token
+        // 1. 检查传输类型是否为Http
+        // 2. 如果有bearer_token_env环境变量，尝试获取其值
+        // 3. 返回token或None
+        unimplemented!()
     }
 }
 ```
@@ -312,17 +305,11 @@ pub struct ToolsConfig {
 impl ToolsConfig {
     /// 获取工具超时（最长前缀匹配）
     pub fn get_timeout(&self, tool_id: &str) -> Duration {
-        let mut best_match: Option<(&str, Duration)> = None;
-        
-        for (prefix, duration) in &self.timeouts {
-            if tool_id.starts_with(prefix) {
-                if best_match.map_or(true, |(best_prefix, _)| prefix.len() > best_prefix.len()) {
-                    best_match = Some((prefix, *duration));
-                }
-            }
-        }
-        
-        best_match.map_or(self.default_timeout, |(_, d)| d)
+        // TODO: 实现工具超时获取逻辑
+        // 1. 遍历所有timeout前缀配置
+        // 2. 找到与tool_id匹配的最长前缀
+        // 3. 返回对应的超时时间，若无匹配则返回默认超时
+        unimplemented!()
     }
 }
 
@@ -370,6 +357,10 @@ pub struct ConfigMerger;
 impl ConfigMerger {
     /// 合并两个配置值
     pub fn merge(base: &mut Value, override_: Value) {
+        // TODO: 实现配置合并逻辑
+        // 1. 处理对象类型的递归合并
+        // 2. 处理数组类型的特殊追加语法（+前缀）
+        // 3. 处理标量类型的直接替换
         match (base, override_) {
             // 都是对象：递归合并
             (Value::Object(base_map), Value::Object(override_map)) => {
@@ -456,6 +447,7 @@ pub struct ConfigValidator;
 impl ConfigValidator {
     /// 验证完整配置
     pub fn validate(config: &NecoConfig) -> Result<(), ConfigError> {
+        // TODO: 实现配置验证逻辑
         // 1. 验证模型组引用有效性
         Self::validate_model_groups(config)?;
         
@@ -472,6 +464,10 @@ impl ConfigValidator {
     }
     
     fn validate_model_groups(config: &NecoConfig) -> Result<(), ConfigError> {
+        // TODO: 实现模型组验证逻辑
+        // 1. 遍历所有模型组
+        // 2. 验证每个模型引用的格式和有效性
+        // 3. 检查引用的提供商是否存在
         for (group_name, group) in &config.model_groups {
             for model_ref_str in &group.models {
                 let model_ref = model_ref_str.parse::<ModelRef>()
@@ -494,6 +490,10 @@ impl ConfigValidator {
     }
     
     fn validate_providers(config: &NecoConfig) -> Result<(), ConfigError> {
+        // TODO: 实现提供商验证逻辑
+        // 1. 遍历所有模型提供商
+        // 2. 验证API密钥可访问性
+        // 3. 记录警告而非错误（非阻塞）
         for (name, provider) in &config.model_providers {
             // 验证API密钥可访问
             match provider.api_key.get_key() {
@@ -539,22 +539,27 @@ pub struct ConfigManager {
 impl ConfigManager {
     /// 获取当前配置（只读）
     pub fn get_config(&self) -> Arc<NecoConfig> {
-        self.config.read().unwrap().clone()
+        // TODO: 实现线程安全的配置获取
+        // 1. 获取读锁
+        // 2. 克隆配置
+        // 3. 释放锁并返回
+        unimplemented!()
     }
     
     /// 更新配置（热重载）
     pub fn update_config(&self, new_config: NecoConfig) -> Result<(), ConfigError> {
-        // 验证新配置
+        // TODO: 实现配置热重载逻辑
+        // 1. 验证新配置
         ConfigValidator::validate(&new_config)?;
         
-        // 计算变更
+        // 2. 计算配置差异
         let old_config = self.get_config();
         let changes = Self::diff_configs(&old_config, &new_config);
         
-        // 更新配置
+        // 3. 更新内部配置
         *self.config.write().unwrap() = Arc::new(new_config);
         
-        // 通知订阅者
+        // 4. 通知订阅者变更
         let _ = self.change_tx.send(ConfigChange { changes });
         
         Ok(())
@@ -562,6 +567,8 @@ impl ConfigManager {
     
     /// 订阅配置变更
     pub fn subscribe_changes(&self) -> broadcast::Receiver<ConfigChange> {
+        // TODO: 实现配置变更订阅功能
+        // 返回变更通知的广播接收器
         self.change_tx.subscribe()
     }
 }
@@ -647,6 +654,15 @@ default_timeout = 30
 ```rust
 use neco_config::{ConfigLoader, ConfigManager};
 
+// TODO: 实现配置加载和使用逻辑
+// 1. 创建配置加载器并指定配置目录
+// 2. 加载配置文件并处理错误
+// 3. 访问模型组、提供商等配置项
+// 4. 解析模型引用并获取提供商信息
+// 5. 获取API密钥和工具超时等运行时配置
+
+// TODO: 代码示例实现
+/*
 // 加载配置
 let config = ConfigLoader::new()
     .with_config_dir("~/.config/neco")
@@ -669,6 +685,7 @@ let api_key = provider.api_key.get_key()?;
 
 // 获取工具超时
 let timeout = config.system.tools.get_timeout("fs::read");
+*/
 ```
 
 ## 8. 错误类型

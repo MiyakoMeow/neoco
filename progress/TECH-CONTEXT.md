@@ -74,13 +74,7 @@ pub struct ContextConfig {
 
 impl Default for ContextConfig {
     fn default() -> Self {
-        Self {
-            auto_compact_enabled: true,
-            auto_compact_threshold: 0.9, // 90%
-            compact_model_group: "fast".to_string(),
-            keep_recent_messages: 3,
-            compact_prompt: DEFAULT_COMPACT_PROMPT.to_string(),
-        }
+        // TODO: 实现默认配置
     }
 }
 
@@ -165,11 +159,7 @@ impl ContextCompressionService {
         config: ContextConfig,
         token_counter: Arc<dyn TokenCounter>,
     ) -> Self {
-        Self {
-            model_client,
-            config,
-            token_counter,
-        }
+        // TODO: 实现服务构造函数
     }
     
     /// 检查是否需要压缩
@@ -178,15 +168,7 @@ impl ContextCompressionService {
         messages: &[Message],
         context_window: usize,
     ) -> bool {
-        if !self.config.auto_compact_enabled {
-            return false;
-        }
-        
-        let total_tokens = self.estimate_tokens(messages);
-        let threshold = (context_window as f64 * 
-            self.config.auto_compact_threshold) as usize;
-        
-        total_tokens > threshold
+        // TODO: 实现压缩条件检查逻辑
     }
     
     /// 执行压缩
@@ -197,42 +179,28 @@ impl ContextCompressionService {
     ) -> Result<CompactResult, CompactError> {
         let start_time = Instant::now();
         
-        // 1. 分离要保留和要压缩的消息
-        let (to_preserve, to_compress) = self.split_messages(
-            messages,
-            strategy
-        );
+        // TODO: 1. 分离要保留和要压缩的消息
+        let (to_preserve, to_compress) = // TODO: 实现消息分离
+        ;
         
-        // 2. 计算原始token数
-        let before_tokens = self.estimate_tokens(messages);
+        // TODO: 2. 计算原始token数
+        let before_tokens = // TODO: 实现token估算
+        ;
         
-        // 3. 生成摘要
+        // TODO: 3. 生成摘要
         let summary = self.generate_summary(to_compress).await?;
         
-        // 4. 构建摘要消息
-        let summary_message = Message {
-            id: 0, // 由Session重新分配
-            role: Role::System,
-            content: format!(
-                "[上下文摘要]\n{}\n\n[最近消息见下文]",
-                summary
-            ),
-            tool_calls: None,
-            tool_call_id: None,
-            timestamp: Utc::now(),
-            metadata: Some(MessageMetadata {
-                prompt_tokens: 0,
-                completion_tokens: 0,
-                total_tokens: 0,
-            }),
-        };
+        // TODO: 4. 构建摘要消息
+        let summary_message = // TODO: 实现摘要消息构造
+        ;
         
-        // 5. 构建新的消息列表
-        let mut new_messages = vec![summary_message.clone()];
-        new_messages.extend(to_preserve.iter().cloned());
+        // TODO: 5. 构建新的消息列表
+        let mut new_messages = // TODO: 实现新消息列表构造
+        ;
         
-        // 6. 计算节省的token
-        let after_tokens = self.estimate_tokens(&new_messages);
+        // TODO: 6. 计算节省的token
+        let after_tokens = // TODO: 实现token计算
+        ;
         let saved = before_tokens.saturating_sub(after_tokens);
         
         Ok(CompactResult {
@@ -266,61 +234,22 @@ impl ContextCompressionService {
         messages: &[Message],
         strategy: CompactStrategy,
     ) -> (Vec<Message>, Vec<Message>) {
+        // TODO: 根据策略实现消息分割逻辑
         match strategy {
             CompactStrategy::KeepRecent { count } => {
-                let split_point = messages.len().saturating_sub(count);
-                let to_compress = messages[..split_point].to_vec();
-                let to_preserve = messages[split_point..].to_vec();
-                (to_preserve, to_compress)
+                // TODO: 实现保留最近N条消息策略
             }
             
             CompactStrategy::KeepImportant => {
-                // 保留：
-                // - 所有系统消息
-                // - 第一条用户消息
-                // - 最近N条消息
-                let mut to_preserve = Vec::new();
-                let mut to_compress = Vec::new();
-                
-                // 找到第一条用户消息
-                let first_user_idx = messages.iter()
-                    .position(|m| m.role == Role::User);
-                
-                for (i, msg) in messages.iter().enumerate() {
-                    let should_preserve = msg.role == Role::System
-                        || Some(i) == first_user_idx
-                        || i >= messages.len() - self.config.keep_recent_messages;
-                    
-                    if should_preserve {
-                        to_preserve.push(msg.clone());
-                    } else {
-                        to_compress.push(msg.clone());
-                    }
-                }
-                
-                (to_preserve, to_compress)
+                // TODO: 实现保留重要消息策略（系统消息、第一条用户消息、最近N条）
             }
             
             CompactStrategy::SmartSelect => {
-                // 基于消息重要性智能选择
-                // 这里可以实现更复杂的算法
-                self.split_messages(
-                    messages,
-                    CompactStrategy::KeepImportant
-                )
+                // TODO: 实现智能选择策略
             }
             
             CompactStrategy::FullSummary => {
-                // 只保留系统消息，其他全部压缩
-                let to_preserve: Vec<_> = messages.iter()
-                    .filter(|m| m.role == Role::System)
-                    .cloned()
-                    .collect();
-                let to_compress: Vec<_> = messages.iter()
-                    .filter(|m| m.role != Role::System)
-                    .cloned()
-                    .collect();
-                (to_preserve, to_compress)
+                // TODO: 实现全部压缩策略
             }
         }
     }
@@ -340,10 +269,10 @@ impl ContextCompressionService {
             return Ok(String::new());
         }
         
-        // 构建压缩请求
+        // TODO: 构建压缩请求上下文
         let context = self.build_compression_context(messages);
         
-        // 调用压缩模型（关闭thinking和工具）
+        // TODO: 调用压缩模型（关闭thinking和工具）
         let request = ChatRequest {
             model: String::new(), // 由model_client填充
             messages: vec![
@@ -374,6 +303,7 @@ impl ContextCompressionService {
             extra_params: HashMap::new(),
         };
         
+        // TODO: 处理模型响应
         let response = self.model_client
             .chat_completion(request)
             .await
@@ -393,6 +323,7 @@ impl ContextCompressionService {
     ) -> String {
         let mut context = String::new();
         
+        // TODO: 构建压缩上下文字符串
         for msg in messages {
             let role_str = match msg.role {
                 Role::System => "System",
@@ -439,6 +370,7 @@ pub struct TiktokenCounter {
 
 impl TiktokenCounter {
     pub fn new(model: &str) -> Result<Self, TokenError> {
+        // TODO: 实现tiktoken初始化
         let bpe = tiktoken_rs::get_bpe_from_model(model)?;
         Ok(Self { bpe })
     }
@@ -458,7 +390,7 @@ impl TokenCounter for TiktokenCounter {
         &self,
         message: &Message
     ) -> usize {
-        // OpenAI的消息格式token计算
+        // TODO: 实现OpenAI消息格式token计算
         let mut tokens = 4; // 每个消息的基础token
         
         tokens += self.bpe.encode_with_special_tokens(
@@ -499,7 +431,7 @@ impl TokenCounter for SimpleCounter {
         &self,
         message: &Message
     ) -> usize {
-        // 粗略估算：平均每个token 4个字符
+        // TODO: 实现粗略token估算（平均每个token 4个字符）
         let content_len = message.content.len();
         let tool_calls_len = message.tool_calls.as_ref()
             .map(|tc| tc.iter()
@@ -527,23 +459,23 @@ impl Session {
         let agent = self.agents.get(&agent_ulid)
             .ok_or(SessionError::AgentNotFound)?;
         
-        // 获取模型上下文窗口大小
+        // TODO: 获取模型上下文窗口大小
         let context_window = self.get_model_context_window(
             &agent.config.model_group
         );
         
-        // 检查是否需要压缩
+        // TODO: 检查是否需要压缩
         if compression_service.should_compact(
             &agent.messages,
             context_window
         ) {
-            // 执行压缩
+            // TODO: 执行压缩
             let result = compression_service.compact(
                 &agent.messages,
                 CompactStrategy::KeepImportant
             ).await?;
             
-            // 应用压缩结果
+            // TODO: 应用压缩结果
             self.apply_compact_result(agent_ulid, &result).await?;
             
             Ok(Some(result))
@@ -561,10 +493,10 @@ impl Session {
         let agent = self.agents.get_mut(&agent_ulid)
             .ok_or(SessionError::AgentNotFound)?;
         
-        // 构建新的消息列表
+        // TODO: 构建新的消息列表
         let mut new_messages = vec![result.summary_message.clone()];
         
-        // 添加保留的消息
+        // TODO: 添加保留的消息
         for preserved_id in &result.preserved_ids {
             if let Some(msg) = agent.messages.iter()
                 .find(|m| m.id == *preserved_id) {
@@ -572,15 +504,15 @@ impl Session {
             }
         }
         
-        // 重新分配消息ID
+        // TODO: 重新分配消息ID
         for (i, msg) in new_messages.iter_mut().enumerate() {
             msg.id = i as u64 + 1;
         }
         
-        // 更新Agent消息
+        // TODO: 更新Agent消息
         agent.messages = new_messages;
         
-        // 保存到存储
+        // TODO: 保存到存储
         self.storage.save_agent(agent).await?;
         
         Ok(())
@@ -596,11 +528,13 @@ impl Session {
         let agent = self.agents.get(&agent_ulid)
             .ok_or(SessionError::AgentNotFound)?;
         
+        // TODO: 执行压缩
         let result = compression_service.compact(
             &agent.messages,
             strategy
         ).await?;
         
+        // TODO: 应用压缩结果
         self.apply_compact_result(agent_ulid, &result).await?;
         
         Ok(result)
@@ -627,6 +561,7 @@ impl UiRenderer {
         &self,
         result: &CompactResult,
     ) {
+        // TODO: 实现压缩通知渲染
         println!(
             "📦 上下文已压缩: {} messages → {} messages | Saved {} tokens ({:.1}%)",
             result.original_count,
@@ -648,21 +583,21 @@ pub async fn handle_compact_command(
     agent_ulid: AgentUlid,
     args: &str,
 ) -> Result<(), CommandError> {
-    // 解析策略
+    // TODO: 解析压缩策略
     let strategy = match args {
         "--full" => CompactStrategy::FullSummary,
         "--smart" => CompactStrategy::SmartSelect,
         _ => CompactStrategy::KeepImportant,
     };
     
-    // 执行压缩
+    // TODO: 执行压缩
     let result = session.manual_compact(
         &self.compression_service,
         agent_ulid,
         strategy
     ).await?;
     
-    // 显示结果
+    // TODO: 显示压缩结果
     self.render_compact_notification(&result);
     
     Ok(())
@@ -713,6 +648,7 @@ pub struct BackgroundCompaction {
 
 impl BackgroundCompaction {
     pub async fn run(mut self) {
+        // TODO: 实现后台压缩任务逻辑
         while let Some(request) = self.queue.recv().await {
             match self.service.compact(
                 &request.messages,
@@ -743,6 +679,7 @@ impl CompactCache {
     pub fn get(&self,
         messages_hash: &str
     ) -> Option<CompactResult> {
+        // TODO: 实现压缩缓存获取逻辑
         self.cache.read().unwrap()
             .get(messages_hash)
             .cloned()
@@ -753,6 +690,7 @@ impl CompactCache {
         messages_hash: String,
         result: CompactResult
     ) {
+        // TODO: 实现压缩缓存存储逻辑
         self.cache.write().unwrap()
             .insert(messages_hash, result);
     }

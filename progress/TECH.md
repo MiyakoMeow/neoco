@@ -671,38 +671,97 @@ sequenceDiagram
 /// 可配置的组件
 pub trait Configurable {
     type Config;
-    fn configure(config: Self::Config) -> Self;
+    fn configure(config: Self::Config) -> Self {
+        // TODO: 实现配置逻辑
+        todo!()
+    }
 }
 
 /// Agent能力提供者
 #[async_trait]
 pub trait AgentCapability: Send + Sync {
-    async fn execute(&self, input: AgentInput) -> Result<AgentOutput, AgentError>;
+    async fn execute(&self, input: AgentInput) -> Result<AgentOutput, AgentError> {
+        // TODO: 实现Agent执行逻辑
+        // - 解析输入消息
+        // - 构建上下文
+        // - 调用模型或工具
+        // - 返回结果
+        todo!()
+    }
 }
 
 /// 模型客户端
 #[async_trait]
 pub trait ModelClient: Send + Sync {
-    async fn chat_completion(&self, request: ChatRequest) -> Result<ChatResponse, ModelError>;
-    async fn chat_completion_stream(&self, request: ChatRequest) -> Result<ChatStream, ModelError>;
+    async fn chat_completion(&self, request: ChatRequest) -> Result<ChatResponse, ModelError> {
+        // TODO: 实现模型调用逻辑
+        // - 解析请求参数
+        // - 选择合适模型
+        // - 发送API请求
+        // - 处理响应
+        todo!()
+    }
+    async fn chat_completion_stream(&self, request: ChatRequest) -> Result<ChatStream, ModelError> {
+        // TODO: 实现流式模型调用逻辑
+        // - 解析请求参数
+        // - 选择合适模型
+        // - 建立流式连接
+        // - 返回流式响应
+        todo!()
+    }
 }
 
 /// 工具提供者
 #[async_trait]
 pub trait ToolProvider: Send + Sync {
-    fn name(&self) -> &str;
-    fn description(&self) -> &str;
-    fn schema(&self) -> Value;
-    async fn execute(&self, args: Value) -> Result<ToolResult, ToolError>;
+    fn name(&self) -> &str {
+        // TODO: 返回工具名称
+        todo!()
+    }
+    fn description(&self) -> &str {
+        // TODO: 返回工具描述
+        todo!()
+    }
+    fn schema(&self) -> Value {
+        // TODO: 返回工具参数的JSON Schema
+        todo!()
+    }
+    async fn execute(&self, args: Value) -> Result<ToolResult, ToolError> {
+        // TODO: 实现工具执行逻辑
+        // - 验证参数
+        // - 执行工具逻辑
+        // - 返回结果或错误
+        todo!()
+    }
 }
 
 /// 存储后端
 #[async_trait]
 pub trait StorageBackend: Send + Sync {
-    async fn save_session(&self, session: &Session) -> Result<(), StorageError>;
-    async fn load_session(&self, id: SessionId) -> Result<Session, StorageError>;
-    async fn save_agent(&self, session_id: SessionId, agent: &Agent) -> Result<(), StorageError>;
-    async fn load_agent(&self, ulid: AgentUlid) -> Result<Agent, StorageError>;
+    async fn save_session(&self, session: &Session) -> Result<(), StorageError> {
+        // TODO: 实现Session保存逻辑
+        // - 序列化Session数据
+        // - 写入存储系统
+        todo!()
+    }
+    async fn load_session(&self, id: SessionId) -> Result<Session, StorageError> {
+        // TODO: 实现Session加载逻辑
+        // - 从存储系统读取数据
+        // - 反序列化Session对象
+        todo!()
+    }
+    async fn save_agent(&self, session_id: SessionId, agent: &Agent) -> Result<(), StorageError> {
+        // TODO: 实现Agent保存逻辑
+        // - 序列化Agent数据
+        // - 关联到Session保存
+        todo!()
+    }
+    async fn load_agent(&self, ulid: AgentUlid) -> Result<Agent, StorageError> {
+        // TODO: 实现Agent加载逻辑
+        // - 根据ULID查找Agent
+        // - 反序列化Agent对象
+        todo!()
+    }
 }
 ```
 
@@ -762,6 +821,11 @@ pub enum WorkflowEvent {
     Transition { from: NodeId, to: NodeId },
     Completed { session_id: SessionId },
 }
+
+// TODO: 实现事件处理逻辑
+// - 事件序列化/反序列化
+// - 事件路由分发
+// - 事件监听器管理
 ```
 
 ## 6. 存储设计
@@ -971,7 +1035,17 @@ pub struct NewProvider {
 #[async_trait]
 impl ModelClient for NewProvider {
     async fn chat_completion(&self, request: ChatRequest) -> Result<ChatResponse, ModelError> {
-        // 实现提供商特定的调用逻辑
+        // TODO: 实现提供商特定的调用逻辑
+        // - 解析请求参数
+        // - 构建HTTP请求
+        // - 处理响应
+        // - 返回ChatResponse
+        todo!()
+    }
+    
+    async fn chat_completion_stream(&self, request: ChatRequest) -> Result<ChatStream, ModelError> {
+        // TODO: 实现流式调用逻辑
+        todo!()
     }
 }
 ```
@@ -985,10 +1059,21 @@ pub struct NewTool;
 
 #[async_trait]
 impl ToolProvider for NewTool {
-    fn name(&self) -> &str { "new_tool" }
-    fn schema(&self) -> Value { /* JSON Schema */ }
+    fn name(&self) -> &str { 
+        // TODO: 返回工具名称
+        "new_tool"
+    }
+    fn schema(&self) -> Value { 
+        // TODO: 返回工具参数的JSON Schema
+        // 示例：定义工具的输入参数结构
+        todo!()
+    }
     async fn execute(&self, args: Value) -> Result<ToolResult, ToolError> {
-        // 工具逻辑
+        // TODO: 实现工具逻辑
+        // - 验证输入参数
+        // - 执行具体功能
+        // - 返回结果或错误
+        todo!()
     }
 }
 ```

@@ -174,27 +174,16 @@ impl CliInterface {
         &self,
         message: String,
     ) -> Result<(), UiError> {
-        // 创建或加载Session
-        let session = if let Some(session_id) = &self.args.session {
-            self.session_manager
-                .load_session(session_id.parse()?)                .await?
-        } else {
-            self.session_manager
-                .create_session(
-                    SessionType::Direct { message: message.clone() },
-                    AgentConfig::default()
-                ).await?
-        };
+        // TODO: 创建或加载Session
+        // TODO: 根据session_id决定是加载现有session还是创建新session
+        // TODO: 创建SessionType::Direct类型的session
         
-        // 执行Agent
-        let result = self.execute_agent(
-            session.root_agent,
-            &message
-        ).await?;
+        // TODO: 执行Agent
+        // TODO: 调用execute_agent方法处理消息
         
-        // 输出结果
-        println!("{}", result.content);
-        println!("\n--session {}", session.id);
+        // TODO: 输出结果
+        // TODO: 打印Agent执行结果内容
+        // TODO: 打印session信息供后续使用
         
         Ok(())
     }
@@ -256,66 +245,26 @@ impl ReplInterface {
     /// 运行REPL主循环
     pub async fn run(mut self) -> Result<(), UiError> {
         loop {
-            // 绘制UI
-            self.draw().await?;
+            // TODO: 绘制UI界面
+            // TODO: 调用draw方法渲染终端界面
             
-            // 处理事件
-            if let Event::Key(key) = event::read()? {
-                match self.handle_key_event(key).await? {
-                    ControlFlow::Continue => {}
-                    ControlFlow::Break => break,
-                }
-            }
+            // TODO: 处理用户输入事件
+            // TODO: 监听键盘事件并分发处理
+            // TODO: 根据ControlFlow决定是否退出循环
+            
+            // TODO: 清理资源
+            // TODO: 调用shutdown方法关闭终端
         }
-        
-        self.shutdown().await?;
-        Ok(())
     }
     
     /// 绘制界面
     async fn draw(&mut self
     ) -> Result<(), UiError> {
-        self.terminal.draw(|f| {
-            let chunks = Layout::default()
-                .direction(Direction::Vertical)
-                .constraints([
-                    Constraint::Min(1),      // 输出区域
-                    Constraint::Length(3),   // 输入框
-                    Constraint::Length(1),   // 状态栏
-                ])
-                .split(f.size());
-            
-            // 输出历史
-            let output_text = self.output_history.iter()
-                .map(|o| format_output(o))
-                .collect::<Vec<_>()
-                .join("\n");
-            
-            let output = Paragraph::new(output_text)
-                .block(Block::default()
-                    .title("Neco")
-                    .borders(Borders::ALL)
-                )
-                .wrap(ratatui::widgets::Wrap { trim: true });
-            
-            f.render_widget(output, chunks[0]);
-            
-            // 输入框
-            let input = Paragraph::new(self.input_buffer.clone())
-                .block(Block::default()
-                    .title("Input")
-                    .borders(Borders::ALL)
-                );
-            
-            f.render_widget(input, chunks[1]);
-            
-            // 状态栏
-            let status = Paragraph::new(format_status(
-                self.current_session.as_ref()
-            ));
-            
-            f.render_widget(status, chunks[2]);
-        })?;
+        // TODO: 使用ratatui绘制终端界面
+        // TODO: 垂直分割界面为输出区、输入区、状态栏
+        // TODO: 渲染输出历史文本
+        // TODO: 渲染当前输入内容
+        // TODO: 渲染状态信息（session等）
         
         Ok(())
     }
@@ -325,39 +274,13 @@ impl ReplInterface {
         &mut self,
         key: event::KeyEvent,
     ) -> Result<ControlFlow<(), ()>, UiError> {
-        match (key.code, key.modifiers) {
-            // Ctrl+C: 退出
-            (KeyCode::Char('c'), KeyModifiers::CONTROL) => {
-                return Ok(ControlFlow::Break);
-            }
-            
-            // Shift+Enter: 多行输入换行
-            (KeyCode::Enter, KeyModifiers::SHIFT) => {
-                self.input_buffer.push('\n');
-            }
-            
-            // Enter: 发送消息
-            (KeyCode::Enter, _) => {
-                self.submit_input().await?;
-            }
-            
-            // Ctrl+P: 命令面板
-            (KeyCode::Char('p'), KeyModifiers::CONTROL) => {
-                self.show_command_palette().await?;
-            }
-            
-            // 普通字符输入
-            (KeyCode::Char(c), _) => {
-                self.input_buffer.push(c);
-            }
-            
-            // 退格
-            (KeyCode::Backspace, _) => {
-                self.input_buffer.pop();
-            }
-            
-            _ => {}
-        }
+        // TODO: 根据按键和修饰键执行相应操作
+        // TODO: Ctrl+C: 退出REPL
+        // TODO: Shift+Enter: 多行输入换行
+        // TODO: Enter: 提交输入内容
+        // TODO: Ctrl+P: 显示命令面板
+        // TODO: 普通字符: 添加到输入缓冲区
+        // TODO: 退格: 删除最后一个字符
         
         Ok(ControlFlow::Continue)
     }
@@ -366,20 +289,11 @@ impl ReplInterface {
     async fn submit_input(
         &mut self
     ) -> Result<(), UiError> {
-        let input = self.input_buffer.trim().to_string();
-        self.input_buffer.clear();
-        
-        if input.is_empty() {
-            return Ok(());
-        }
-        
-        // 检查是否是命令
-        if input.starts_with('/') {
-            self.handle_command(input).await?;
-        } else {
-            // 发送给Agent
-            self.send_to_agent(input).await?;
-        }
+        // TODO: 获取输入内容并清空缓冲区
+        // TODO: 检查输入是否为空
+        // TODO: 判断是否为命令（以/开头）
+        // TODO: 如果是命令，调用handle_command处理
+        // TODO: 如果是普通消息，调用send_to_agent发送给Agent
         
         Ok(())
     }
@@ -389,46 +303,13 @@ impl ReplInterface {
         &mut self,
         input: String,
     ) -> Result<(), UiError> {
-        let parts: Vec<&str> = input.split_whitespace().collect();
-        let cmd = parts[0];
-        let args = &parts[1..];
-        
-        match cmd {
-            "/new" => {
-                // 创建新Session
-                let session = self.session_manager
-                    .create_session(
-                        SessionType::Repl,
-                        AgentConfig::default()
-                    ).await?;
-                self.current_session = Some(session.id);
-                self.output_history.clear();
-            }
-            "/exit" => {
-                return Ok(());
-            }
-            "/compact" => {
-                // 手动触发压缩
-                if let Some(session_id) = &self.current_session {
-                    // ... 执行压缩
-                }
-            }
-            "/workflow" => {
-                // 工作流相关命令
-                self.handle_workflow_command(args).await?;
-            }
-            "/agents" => {
-                // Agent树相关命令
-                self.handle_agents_command(args).await?;
-            }
-            _ => {
-                self.output_history.push(AgentOutput {
-                    content: format!("Unknown command: {}", cmd),
-                    output_type: OutputType::Error,
-                    metadata: Default::default(),
-                });
-            }
-        }
+        // TODO: 解析命令和参数
+        // TODO: /new: 创建新的REPL session
+        // TODO: /exit: 退出当前session
+        // TODO: /compact: 手动触发session压缩
+        // TODO: /workflow: 处理工作流相关命令
+        // TODO: /agents: 处理Agent树相关命令
+        // TODO: 未知命令：添加错误信息到输出历史
         
         Ok(())
     }
@@ -444,41 +325,12 @@ impl ReplInterface {
         &self,
         workflow_session: &WorkflowSession,
     ) -> String {
-        let mut output = String::new();
-        output.push_str("\n📊 Workflow Status:\n");
+        // TODO: 使用Mermaid语法渲染工作流状态图
+        // TODO: 为每个节点生成状态图标（等待/运行/成功/失败/跳过）
+        // TODO: 渲染节点之间的依赖关系边
+        // TODO: 返回格式化的Mermaid图表字符串
         
-        // 使用Mermaid语法渲染工作流图
-        output.push_str("```mermaid\n");
-        output.push_str("graph LR\n");
-        
-        for (node_id, state) in &workflow_session.node_states {
-            let status_icon = match state {
-                NodeState::Waiting => "⏳",
-                NodeState::Running => "▶️",
-                NodeState::Success => "✅",
-                NodeState::Failed => "❌",
-                NodeState::Skipped => "⏭️",
-            };
-            
-            output.push_str(&format!(
-                "    {}[{} {}]\n",
-                node_id.0,
-                status_icon,
-                node_id.0
-            ));
-        }
-        
-        // 添加边
-        for edge in &workflow_session.definition.edge_defs {
-            output.push_str(&format!(
-                "    {} --> {}\n",
-                edge.from.0,
-                edge.to.0
-            ));
-        }
-        
-        output.push_str("```\n");
-        output
+        String::new()
     }
     
     /// 渲染Agent树
@@ -486,19 +338,12 @@ impl ReplInterface {
         &self,
         session: &Session,
     ) -> String {
-        let mut output = String::new();
-        output.push_str("\n🌳 Agent Tree:\n");
+        // TODO: 从根Agent开始递归渲染Agent树结构
+        // TODO: 为每个Agent节点显示状态图标和消息数量
+        // TODO: 使用树形前缀显示父子关系（├── └──）
+        // TODO: 递归渲染所有子Agent节点
         
-        // 从根Agent开始递归渲染
-        if let Ok(root) = self.render_agent_node(
-            session,
-            &session.root_agent,
-            ""
-        ) {
-            output.push_str(&root);
-        }
-        
-        output
+        String::new()
     }
     
     fn render_agent_node(
@@ -507,45 +352,13 @@ impl ReplInterface {
         ulid: &AgentUlid,
         prefix: &str,
     ) -> Result<String, ()> {
-        let agent = session.agents.get(ulid)
-            .ok_or(())?;
+        // TODO: 获取Agent节点信息
+        // TODO: 根据Agent状态选择对应图标
+        // TODO: 格式化输出：前缀+状态图标+Agent ID+消息数量
+        // TODO: 递归处理子Agent节点
+        // TODO: 使用合适的树形前缀表示层级关系
         
-        let status_icon = match agent.state {
-            AgentState::Idle => "⚪",
-            AgentState::Running => "🔵",
-            AgentState::WaitingForTool => "⏳",
-            AgentState::WaitingForUser => "👤",
-            AgentState::Completed => "✅",
-            AgentState::Error => "❌",
-        };
-        
-        let mut output = format!(
-            "{}{} {} ({} messages)\n",
-            prefix,
-            status_icon,
-            ulid,
-            agent.messages.len()
-        );
-        
-        // 递归渲染子Agent
-        for (i, child_ulid) in agent.children.iter().enumerate() {
-            let is_last = i == agent.children.len() - 1;
-            let child_prefix = format!(
-                "{}{}   ",
-                prefix,
-                if is_last { "└──" } else { "├──" }
-            );
-            
-            if let Ok(child_output) = self.render_agent_node(
-                session,
-                child_ulid,
-                &child_prefix
-            ) {
-                output.push_str(&child_output);
-            }
-        }
-        
-        Ok(output)
+        Ok(String::new())
     }
 }
 ```
@@ -581,34 +394,17 @@ pub struct DaemonConfig {
 
 impl DaemonInterface {
     pub async fn run(self) -> Result<(), UiError> {
-        // 构建路由
-        let app = Router::new()
-            // Session API
-            .route("/api/v1/sessions", post(create_session))
-            .route("/api/v1/sessions/:id", get(get_session))
-            .route("/api/v1/sessions/:id/messages", post(send_message))
-            // Agent API
-            .route("/api/v1/sessions/:id/agents/tree", get(get_agent_tree))
-            .route("/api/v1/sessions/:id/agents/:agent_id/messages", 
-                   get(get_agent_messages))
-            // Workflow API
-            .route("/api/v1/workflows", post(start_workflow))
-            .route("/api/v1/workflows/:id/status", get(get_workflow_status))
-            .route("/api/v1/workflows/:id/control", post(control_workflow))
-            // WebSocket实时事件
-            .route("/api/v1/events", get(event_stream))
-            .with_state(AppState {
-                session_manager: self.session_manager,
-                workflow_engine: self.workflow_engine,
-            });
+        // TODO: 构建Axum路由器
+        // TODO: 配置Session相关API端点（创建、获取、消息）
+        // TODO: 配置Agent相关API端点（树形结构、消息获取）
+        // TODO: 配置Workflow相关API端点（启动、状态、控制）
+        // TODO: 配置WebSocket实时事件端点
+        // TODO: 设置应用状态（session_manager、workflow_engine）
         
-        // 启动服务器
-        let addr = format!("{}:{}", self.config.host, self.config.port);
-        let listener = tokio::net::TcpListener::bind(&addr).await?;
-        
-        println!("Daemon listening on http://{}", addr);
-        
-        axum::serve(listener, app).await?;
+        // TODO: 启动HTTP服务器
+        // TODO: 绑定监听地址和端口
+        // TODO: 打印服务器启动信息
+        // TODO: 启动Axum服务
         
         Ok(())
     }
@@ -630,22 +426,15 @@ async fn create_session(
     State(state): State<AppState>,
     Json(req): Json<CreateSessionRequest>,
 ) -> Result<Json<SessionResponse>, ApiError> {
-    let session = state.session_manager
-        .create_session(
-            SessionType::Direct {
-                message: req.initial_message.clone()
-            },
-            AgentConfig {
-                model_group: req.model_group
-                    .unwrap_or_else(|| "default".to_string()),
-                ..Default::default()
-            }
-        ).await?;
+    // TODO: 从请求中获取初始消息和模型组配置
+    // TODO: 调用session_manager创建新的Direct类型session
+    // TODO: 设置默认的AgentConfig配置
+    // TODO: 返回创建的session信息（ID、状态、根Agent）
     
     Ok(Json(SessionResponse {
-        id: session.id.to_string(),
+        id: String::new(),
         status: "created".to_string(),
-        root_agent: session.root_agent.to_string(),
+        root_agent: String::new(),
     }))
 }
 
@@ -654,22 +443,17 @@ async fn get_workflow_status(
     State(state): State<AppState>,
     Path(workflow_id): Path<String>,
 ) -> Result<Json<WorkflowStatusResponse>, ApiError> {
-    let session_id: SessionId = workflow_id.parse()?;
-    
-    let status = state.workflow_engine
-        .get_status(session_id)
-        .await?;
+    // TODO: 解析workflow_id为SessionId
+    // TODO: 调用workflow_engine获取工作流状态
+    // TODO: 格式化状态信息（状态、活跃节点、计数器）
+    // TODO: 生成Mermaid格式的流程图表示
     
     Ok(Json(WorkflowStatusResponse {
         workflow_id,
-        status: format!("{:?}", status.status),
-        active_nodes: status.active_nodes
-            .into_iter()
-            .map(|n| n.0)
-            .collect(),
-        counters: status.counters,
-        graph_mermaid: render_workflow_mermaid(&status.definition
-        ),
+        status: "status".to_string(),
+        active_nodes: Vec::new(),
+        counters: Default::default(),
+        graph_mermaid: String::new(),
     }))
 }
 
@@ -679,23 +463,12 @@ async fn control_workflow(
     Path(workflow_id): Path<String>,
     Json(req): Json<ControlRequest>,
 ) -> Result<Json<ControlResponse>, ApiError> {
-    let session_id: SessionId = workflow_id.parse()?;
-    
-    match req.action.as_str() {
-        "pause" => {
-            state.workflow_engine.pause(session_id).await?;
-        }
-        "resume" => {
-            state.workflow_engine.resume(session_id).await?;
-        }
-        "terminate" => {
-            state.workflow_engine.terminate(
-                session_id,
-                req.reason.unwrap_or_default()
-            ).await?;
-        }
-        _ => return Err(ApiError::InvalidAction),
-    }
+    // TODO: 解析workflow_id为SessionId
+    // TODO: 根据请求action执行相应操作
+    // TODO: "pause": 暂停工作流执行
+    // TODO: "resume": 恢复工作流执行  
+    // TODO: "terminate": 终止工作流执行
+    // TODO: 无效action时返回错误
     
     Ok(Json(ControlResponse {
         success: true,
@@ -708,6 +481,8 @@ async fn event_stream(
     State(state): State<AppState>,
     ws: WebSocketUpgrade,
 ) -> Response {
+    // TODO: 处理WebSocket升级连接
+    // TODO: 将连接升级为WebSocket
     ws.on_upgrade(|socket| handle_socket(socket, state))
 }
 
@@ -715,16 +490,9 @@ async fn handle_socket(
     mut socket: WebSocket,
     state: AppState,
 ) {
-    // 订阅事件
-    let mut event_rx = state.session_manager
-        .subscribe_events();
-    
-    while let Ok(event) = event_rx.recv().await {
-        let event_json = serde_json::to_string(&event).unwrap();
-        if socket.send(Message::Text(event_json)).await.is_err() {
-            break;
-        }
-    }
+    // TODO: 订阅session_manager的事件流
+    // TODO: 持续监听事件并转发到WebSocket
+    // TODO: 处理发送失败情况（连接断开等）
 }
 ```
 
@@ -766,17 +534,13 @@ pub enum ApiError {
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
-        let (status, message) = match self {
-            ApiError::SessionNotFound => {
-                (StatusCode::NOT_FOUND, "Session not found")
-            }
-            ApiError::Unauthorized => {
-                (StatusCode::UNAUTHORIZED, "Unauthorized")
-            }
-            _ => (StatusCode::INTERNAL_SERVER_ERROR, "Internal error"),
-        };
+        // TODO: 根据错误类型返回对应的HTTP状态码
+        // TODO: SessionNotFound -> 404 NOT_FOUND
+        // TODO: Unauthorized -> 401 UNAUTHORIZED
+        // TODO: 其他错误 -> 500 INTERNAL_SERVER_ERROR
+        // TODO: 返回JSON格式的错误响应
         
-        (status, Json(json!({"error": message}))).into_response()
+        Response::new()
     }
 }
 ```

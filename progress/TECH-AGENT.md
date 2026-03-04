@@ -269,20 +269,12 @@ impl AgentManager {
         &self,
         agent_id: &str,
     ) -> Result<AgentUlid, AgentError> {
-        // 查找Agent定义
-        let agent_def = self.find_agent_definition(agent_id).await?;
-        
-        // 解析Agent定义
-        let agent_config = self.parse_agent_config(&agent_def).await?;
-        
-        // 创建Session
-        let mut session = self.session.write().await;
-        let ulid = session.create_root_agent(agent_config)?;
-        
-        // 加载提示词
-        self.load_agent_prompts(&mut session, &ulid).await?;
-        
-        Ok(ulid)
+        // TODO: 实现创建根Agent的逻辑
+        // 1. 查找Agent定义
+        // 2. 解析Agent定义
+        // 3. 创建Session
+        // 4. 加载提示词
+        unimplemented!()
     }
     
     /// 生成下级Agent
@@ -292,49 +284,15 @@ impl AgentManager {
         agent_id: &str,
         overrides: AgentConfigOverrides,
     ) -> Result<AgentUlid, AgentError> {
-        let mut session = self.session.write().await;
-        
-        // 检查父Agent是否存在
-        let parent = session.agents.get(&parent_ulid)
-            .ok_or(AgentError::ParentNotFound)?;
-        
-        // 检查权限
-        if !parent.config.can_spawn_children {
-            return Err(AgentError::CannotSpawnChildren);
-        }
-        
-        // 检查数量限制
-        if let Some(max) = parent.config.max_children {
-            if parent.children.len() >= max as usize {
-                return Err(AgentError::MaxChildrenReached);
-            }
-        }
-        
-        // 查找Agent定义
-        let agent_def = self.find_agent_definition(agent_id).await?;
-        let mut agent_config = self.parse_agent_config(&agent_def).await?;
-        
-        // 应用覆盖配置
-        if let Some(model_group) = overrides.model_group {
-            agent_config.model_group = model_group;
-        }
-        if let Some(prompts) = overrides.prompts {
-            agent_config.prompts = prompts;
-        }
-        
-        // 创建子Agent
-        let child_ulid = session.spawn_child_agent(
-            parent_ulid,
-            agent_config
-        )?;
-        
-        // 加载提示词
-        self.load_agent_prompts(&mut session, &child_ulid).await?;
-        
-        // 添加multi-agent-child提示词
-        self.add_child_prompt(&mut session, &child_ulid).await?;
-        
-        Ok(child_ulid)
+        // TODO: 实现生成下级Agent的逻辑
+        // 1. 检查父Agent存在性和权限
+        // 2. 检查数量限制
+        // 3. 查找并解析Agent定义
+        // 4. 应用配置覆盖
+        // 5. 创建子Agent
+        // 6. 加载提示词
+        // 7. 添加child提示词
+        unimplemented!()
     }
     
     /// 查找Agent定义
@@ -342,29 +300,11 @@ impl AgentManager {
         &self,
         agent_id: &str,
     ) -> Result<AgentDefinition, AgentError> {
+        // TODO: 实现查找Agent定义的逻辑
         // 1. 先在工作流目录查找
-        let workflow_agent_path = self.config
-            .workflow_dir()
-            .join("agents")
-            .join(format!("{}.md", agent_id));
-        
-        if workflow_agent_path.exists() {
-            let content = fs::read_to_string(&workflow_agent_path).await?;
-            return Ok(AgentDefinition::from_str(&content)?);
-        }
-        
         // 2. 在配置目录查找
-        let config_agent_path = self.config
-            .config_dir()
-            .join("agents")
-            .join(format!("{}.md", agent_id));
-        
-        if config_agent_path.exists() {
-            let content = fs::read_to_string(&config_agent_path).await?;
-            return Ok(AgentDefinition::from_str(&content)?);
-        }
-        
-        Err(AgentError::AgentDefinitionNotFound(agent_id.to_string()))
+        // 3. 如果都不存在则返回错误
+        unimplemented!()
     }
 }
 ```
@@ -379,30 +319,12 @@ impl AgentManager {
         session: &mut Session,
         ulid: &AgentUlid,
     ) -> Result<(), AgentError> {
-        let agent = session.agents.get(ulid)
-            .ok_or(AgentError::AgentNotFound)?;
-        
-        let mut system_messages = Vec::new();
-        
-        // 加载每个提示词组件
-        for prompt_name in &agent.config.prompts {
-            let prompt_content = self.load_prompt_component(prompt_name).await?;
-            system_messages.push(prompt_content);
-        }
-        
-        // 合并为系统消息
-        let combined_prompt = system_messages.join("\n\n");
-        
-        // 添加为第一条消息
-        session.add_message(
-            ulid.clone(),
-            Role::System,
-            combined_prompt,
-            None,
-            None,
-        ).await?;
-        
-        Ok(())
+        // TODO: 实现加载Agent提示词的逻辑
+        // 1. 获取Agent配置
+        // 2. 加载每个提示词组件
+        // 3. 合并为系统消息
+        // 4. 添加为第一条消息
+        unimplemented!()
     }
     
     /// 加载提示词组件
@@ -410,28 +332,11 @@ impl AgentManager {
         &self,
         name: &str,
     ) -> Result<String, AgentError> {
-        // 内置提示词
-        match name {
-            "base" => return Ok(BASE_PROMPT.to_string()),
-            "multi-agent" => return Ok(MULTI_AGENT_PROMPT.to_string()),
-            "multi-agent-child" => {
-                return Ok(MULTI_AGENT_CHILD_PROMPT.to_string())
-            }
-            _ => {}
-        }
-        
-        // 从文件加载
-        let prompt_path = self.config
-            .config_dir()
-            .join("prompts")
-            .join(format!("{}.md", name));
-        
-        if prompt_path.exists() {
-            let content = fs::read_to_string(&prompt_path).await?;
-            return Ok(content);
-        }
-        
-        Err(AgentError::PromptNotFound(name.to_string()))
+        // TODO: 实现加载提示词组件的逻辑
+        // 1. 检查内置提示词
+        // 2. 从文件加载自定义提示词
+        // 3. 返回提示词内容或错误
+        unimplemented!()
     }
     
     /// 为子Agent添加child提示词
@@ -440,25 +345,11 @@ impl AgentManager {
         session: &mut Session,
         child_ulid: &AgentUlid,
     ) -> Result<(), AgentError> {
-        let child = session.agents.get(child_ulid)
-            .ok_or(AgentError::AgentNotFound)?;
-        
-        if child.parent_ulid.is_some() {
-            // 添加multi-agent-child提示词
-            let child_prompt = self.load_prompt_component(
-                "multi-agent-child"
-            ).await?;
-            
-            session.add_message(
-                child_ulid.clone(),
-                Role::System,
-                child_prompt,
-                None,
-                None,
-            ).await?;
-        }
-        
-        Ok(())
+        // TODO: 实现为子Agent添加child提示词的逻辑
+        // 1. 检查是否为子Agent
+        // 2. 加载multi-agent-child提示词
+        // 3. 添加到Agent消息历史
+        unimplemented!()
     }
 }
 ```
@@ -513,40 +404,13 @@ impl ToolProvider for SpawnAgentTool {
         caller_ulid: AgentUlid,
         args: Value,
     ) -> Result<ToolResult, ToolError> {
-        let agent_id = args["agent_id"].as_str()
-            .ok_or(ToolError::InvalidArgs)?;
-        let task = args["task"].as_str()
-            .ok_or(ToolError::InvalidArgs)?;
-        
-        let overrides = AgentConfigOverrides {
-            model_group: args["model_group"].as_str().map(|s| s.to_string()),
-            prompts: args["prompts"].as_array()
-                .map(|arr| arr.iter()
-                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
-                    .collect()),
-        };
-        
-        // 生成子Agent
-        let child_ulid = self.agent_manager
-            .spawn_child_agent(caller_ulid, agent_id, overrides)
-            .await?;
-        
-        // 发送初始任务
-        self.agent_manager.send_message(
-            caller_ulid,
-            child_ulid,
-            task.to_string(),
-        ).await?;
-        
-        Ok(ToolResult {
-            output: format!(
-                "已生成Agent {} (ID: {})，任务已发送。",
-                agent_id, child_ulid
-            ),
-            metadata: json!({
-                "child_ulid": child_ulid.to_string(),
-            }),
-        })
+        // TODO: 实现spawn工具执行逻辑
+        // 1. 解析参数（agent_id, task等）
+        // 2. 构建配置覆盖
+        // 3. 生成子Agent
+        // 4. 发送初始任务
+        // 5. 返回结果
+        unimplemented!()
     }
 }
 ```
@@ -596,32 +460,13 @@ impl ToolProvider for SendMessageTool {
         caller_ulid: AgentUlid,
         args: Value,
     ) -> Result<ToolResult, ToolError> {
-        let target_str = args["target_agent"].as_str()
-            .ok_or(ToolError::InvalidArgs)?;
-        let message = args["message"].as_str()
-            .ok_or(ToolError::InvalidArgs)?;
-        
-        // 解析目标ULID
-        let target_ulid: AgentUlid = target_str.parse()
-            .map_err(|_| ToolError::InvalidArgs)?;
-        
-        // 验证通信权限（只能发给下级或上级）
-        self.verify_communication_permission(
-            caller_ulid,
-            target_ulid
-        ).await?;
-        
-        // 发送消息
-        self.agent_manager.send_message(
-            caller_ulid,
-            target_ulid,
-            message.to_string(),
-        ).await?;
-        
-        Ok(ToolResult {
-            output: "消息已发送".to_string(),
-            metadata: json!({}),
-        })
+        // TODO: 实现send工具执行逻辑
+        // 1. 解析参数（target_agent, message等）
+        // 2. 解析目标ULID
+        // 3. 验证通信权限
+        // 4. 发送消息
+        // 5. 返回结果
+        unimplemented!()
     }
 }
 ```
@@ -670,61 +515,13 @@ impl ToolProvider for ReportTool {
         caller_ulid: AgentUlid,
         args: Value,
     ) -> Result<ToolResult, ToolError> {
-        let session = self.agent_manager.session.read().await;
-        
-        // 获取父Agent
-        let caller = session.agents.get(&caller_ulid)
-            .ok_or(ToolError::AgentNotFound)?;
-        
-        let parent_ulid = caller.parent_ulid
-            .ok_or(ToolError::NoParentAgent)?;
-        
-        drop(session);
-        
-        // 发送汇报
-        let report_type = args["report_type"].as_str()
-            .ok_or(ToolError::InvalidArgs)?;
-        let content = args["content"].as_str()
-            .ok_or(ToolError::InvalidArgs)?;
-        
-        let message_type = match report_type {
-            "progress" => {
-                let progress = args["progress"].as_f64()
-                    .unwrap_or(0.0);
-                MessageType::ProgressReport {
-                    task_id: "current".to_string(),
-                    progress,
-                    status: TaskStatus::InProgress,
-                }
-            }
-            "result" => MessageType::ResultReport {
-                task_id: "current".to_string(),
-                result: content.to_string(),
-                success: true,
-            },
-            "question" => MessageType::ClarificationRequest {
-                question: content.to_string(),
-                context: String::new(),
-            },
-            _ => MessageType::General,
-        };
-        
-        self.agent_manager.send_inter_agent_message(
-            InterAgentMessage {
-                id: Ulid::new().to_string(),
-                from: caller_ulid,
-                to: parent_ulid,
-                message_type,
-                content: content.to_string(),
-                timestamp: Utc::now(),
-                requires_response: report_type == "question",
-            }
-        ).await?;
-        
-        Ok(ToolResult {
-            output: "汇报已发送给上级Agent".to_string(),
-            metadata: json!({}),
-        })
+        // TODO: 实现report工具执行逻辑
+        // 1. 获取父Agent信息
+        // 2. 解析汇报参数
+        // 3. 根据汇报类型构建消息
+        // 4. 发送汇报消息
+        // 5. 返回结果
+        unimplemented!()
     }
 }
 ```
@@ -749,6 +546,8 @@ pub struct AgentMessageRouter {
 impl AgentMessageRouter {
     /// 启动消息路由循环
     pub async fn run(mut self) {
+        // TODO: 实现消息路由循环
+        // 持续接收并处理消息
         while let Some(msg) = self.rx.recv().await {
             self.handle_message(msg).await;
         }
@@ -759,35 +558,11 @@ impl AgentMessageRouter {
         &self,
         msg: InterAgentMessage,
     ) {
+        // TODO: 实现单条消息处理逻辑
         // 1. 存储消息到Session
-        {
-            let mut session = self.agent_manager.session.write().await;
-            
-            // 作为消息添加到目标Agent
-            let _ = session.add_message(
-                msg.to.clone(),
-                Role::User,
-                format!("[来自 {}]: {}", msg.from, msg.content),
-                None,
-                None,
-            ).await;
-        }
-        
         // 2. 检查是否有等待的回调
-        {
-            let mut pending = self.pending_responses.write().await;
-            if let Some(tx) = pending.remove(&msg.id) {
-                // 有等待的回调，直接发送
-                let _ = tx.send(msg);
-                return;
-            }
-        }
-        
         // 3. 触发目标Agent处理
-        let agent_manager = self.agent_manager.clone();
-        tokio::spawn(async move {
-            let _ = agent_manager.process_agent_message(msg.to).await;
-        });
+        unimplemented!()
     }
     
     /// 发送消息并等待回复
@@ -796,23 +571,12 @@ impl AgentMessageRouter {
         msg: InterAgentMessage,
         timeout: Duration,
     ) -> Result<InterAgentMessage, AgentError> {
-        let (tx, rx) = oneshot::channel();
-        
-        // 注册等待
-        {
-            let mut pending = self.pending_responses.write().await;
-            pending.insert(msg.id.clone(), tx);
-        }
-        
-        // 发送消息
-        self.agent_manager.send_inter_agent_message(msg).await?;
-        
-        // 等待回复
-        match timeout::timeout(timeout, rx).await {
-            Ok(Ok(response)) => Ok(response),
-            Ok(Err(_)) => Err(AgentError::ChannelClosed),
-            Err(_) => Err(AgentError::Timeout),
-        }
+        // TODO: 实现发送消息并等待回复的逻辑
+        // 1. 创建等待通道
+        // 2. 注册等待回调
+        // 3. 发送消息
+        // 4. 等待回复或超时
+        unimplemented!()
     }
 }
 ```
@@ -826,44 +590,12 @@ impl AgentManager {
         &self,
         ulid: AgentUlid,
     ) -> Result<(), AgentError> {
-        // 获取Agent上下文
-        let context = {
-            let session = self.session.read().await;
-            let agent = session.agents.get(&ulid)
-                .ok_or(AgentError::AgentNotFound)?;
-            
-            if agent.state == AgentState::Running {
-                // 已经在处理中
-                return Ok(());
-            }
-            
-            // 构建上下文
-            self.build_context(&session,
-                &ulid
-            )?
-        };
-        
-        // 更新状态为运行中
-        {
-            let mut session = self.session.write().await;
-            if let Some(agent) = session.agents.get_mut(&ulid) {
-                agent.state = AgentState::Running;
-            }
-        }
-        
-        // 调用模型
-        match self.model_client.chat_completion(context).await {
-            Ok(response) => {
-                // 处理响应
-                self.handle_model_response(ulid, response).await?;
-            }
-            Err(e) => {
-                // 处理错误
-                self.handle_model_error(ulid, e).await?;
-            }
-        }
-        
-        Ok(())
+        // TODO: 实现Agent消息处理逻辑
+        // 1. 获取Agent上下文和检查状态
+        // 2. 更新状态为运行中
+        // 3. 调用模型
+        // 4. 处理响应或错误
+        unimplemented!()
     }
 }
 ```

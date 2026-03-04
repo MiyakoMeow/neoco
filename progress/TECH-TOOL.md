@@ -291,35 +291,13 @@ impl ToolProvider for FileReadTool {
         &self,
         args: Value,
     ) -> Result<ToolResult, ToolError> {
-        let path = args["path"].as_str()
-            .ok_or_else(|| ToolError::InvalidArgs(
-                "path is required".to_string()
-            ))?;
-        
-        let offset = args["offset"].as_u64().unwrap_or(1) as usize;
-        let limit = args["limit"].as_u64().map(|l| l as usize);
-        
-        // 读取文件
-        let content = fs::read_to_string(path).await
-            .map_err(|e| ToolError::Execution(format!(
-                "Failed to read file: {}", e
-            )))?;
-        
-        // 应用Hashline
-        let hashline_content = apply_hashline(
-            &content,
-            offset,
-            limit
-        );
-        
-        Ok(ToolResult {
-            output: hashline_content,
-            data: Some(json!({
-                "path": path,
-                "lines": content.lines().count(),
-            })),
-            is_error: false,
-        })
+        // TODO: 实现文件读取逻辑
+        // 1. 解析路径参数
+        // 2. 应用offset和limit参数
+        // 3. 读取文件内容
+        // 4. 应用Hashline标记
+        // 5. 返回结果
+        unimplemented!()
     }
 }
 
@@ -421,74 +399,13 @@ impl ToolProvider for FileEditTool {
         &self,
         args: Value,
     ) -> Result<ToolResult, ToolError> {
-        let path = args["path"].as_str()
-            .ok_or_else(|| ToolError::InvalidArgs(
-                "path is required".to_string()
-            ))?;
-        let start_hash = args["start_hash"].as_str()
-            .ok_or_else(|| ToolError::InvalidArgs(
-                "start_hash is required".to_string()
-            ))?;
-        let end_hash = args["end_hash"].as_str()
-            .ok_or_else(|| ToolError::InvalidArgs(
-                "end_hash is required".to_string()
-            ))?;
-        let new_content = args["new_content"].as_str()
-            .ok_or_else(|| ToolError::InvalidArgs(
-                "new_content is required".to_string()
-            ))?;
-        
-        // 读取当前文件
-        let content = fs::read_to_string(path).await
-            .map_err(|e| ToolError::Execution(format!(
-                "Failed to read file: {}", e
-            )))?;
-        
-        // 查找匹配位置
-        let lines: Vec<&str> = content.lines().collect();
-        let matches = find_hash_matches(
-            &content,
-            start_hash,
-            end_hash
-        );
-        
-        match matches.len() {
-            0 => {
-                Err(ToolError::Execution(
-                    "No matching location found".to_string()
-                ))
-            }
-            1 => {
-                // 唯一匹配，执行编辑
-                let (start_line, end_line) = matches[0];
-                let mut new_lines = lines[..start_line].to_vec();
-                new_lines.extend(new_content.lines());
-                new_lines.extend(&lines[end_line + 1..]);
-                
-                let final_content = new_lines.join("\n");
-                fs::write(path, final_content).await
-                    .map_err(|e| ToolError::Execution(format!(
-                        "Failed to write file: {}", e
-                    )))?;
-                
-                Ok(ToolResult {
-                    output: format!(
-                        "Successfully edited lines {}-{}",
-                        start_line + 1,
-                        end_line + 1
-                    ),
-                    data: None,
-                    is_error: false,
-                })
-            }
-            _ => {
-                // 多个匹配，返回冲突错误
-                Err(ToolError::Execution(format!(
-                    "Multiple matches found ({}). Please be more specific.",
-                    matches.len()
-                )))
-            }
-        }
+        // TODO: 实现文件编辑逻辑
+        // 1. 解析路径、起始/结束哈希、新内容参数
+        // 2. 读取当前文件内容
+        // 3. 查找哈希匹配的位置
+        // 4. 处理唯一匹配/多个匹配/无匹配情况
+        // 5. 执行文件编辑和写入
+        unimplemented!()
     }
 }
 
@@ -560,33 +477,12 @@ impl ToolProvider for FileWriteTool {
         &self,
         args: Value,
     ) -> Result<ToolResult, ToolError> {
-        let path = args["path"].as_str()
-            .ok_or_else(|| ToolError::InvalidArgs(
-                "path is required".to_string()
-            ))?;
-        let content = args["content"].as_str()
-            .ok_or_else(|| ToolError::InvalidArgs(
-                "content is required".to_string()
-            ))?;
-        
-        // 确保父目录存在
-        if let Some(parent) = Path::new(path).parent() {
-            fs::create_dir_all(parent).await
-                .map_err(|e| ToolError::Execution(format!(
-                    "Failed to create directory: {}", e
-                )))?;
-        }
-        
-        fs::write(path, content).await
-            .map_err(|e| ToolError::Execution(format!(
-                "Failed to write file: {}", e
-            )))?;
-        
-        Ok(ToolResult {
-            output: format!("Successfully wrote to {}", path),
-            data: None,
-            is_error: false,
-        })
+        // TODO: 实现文件写入逻辑
+        // 1. 解析路径和内容参数
+        // 2. 确保父目录存在
+        // 3. 执行文件写入（完全覆盖）
+        // 4. 返回成功结果
+        unimplemented!()
     }
 }
 ```
@@ -636,24 +532,11 @@ impl ToolProvider for ActivateTool {
         &self,
         args: Value,
     ) -> Result<ToolResult, ToolError> {
-        let content_type = args["type"].as_str()
-            .ok_or_else(|| ToolError::InvalidArgs(
-                "type is required".to_string()
-            ))?;
-        let name = args["name"].as_str()
-            .ok_or_else(|| ToolError::InvalidArgs(
-                "name is required".to_string()
-            ))?;
-        
-        match content_type {
-            "prompt" => self.activate_prompt(name).await,
-            "mcp" => self.activate_mcp(name).await,
-            "skill" => self.activate_skill(name).await,
-            "tool" => self.activate_tool(name).await,
-            _ => Err(ToolError::InvalidArgs(format!(
-                "Unknown content type: {}", content_type
-            ))),
-        }
+        // TODO: 实现内容激活逻辑
+        // 1. 解析内容类型和名称参数
+        // 2. 根据类型分发到对应的激活方法
+        // 3. 处理未知内容类型错误
+        unimplemented!()
     }
 }
 
@@ -764,30 +647,12 @@ impl ToolProvider for QuestionTool {
         &self,
         args: Value,
     ) -> Result<ToolResult, ToolError> {
-        let question = args["question"].as_str()
-            .ok_or_else(|| ToolError::InvalidArgs(
-                "question is required".to_string()
-            ))?;
-        
-        let options: Option<Vec<String>> = args["options"]
-            .as_array()
-            .map(|arr| arr.iter()
-                .filter_map(|v| v.as_str().map(String::from))
-                .collect());
-        
-        // 通过UI向用户提问
-        let answer = self.ui_handle
-            .ask_user(question, options)
-            .await
-            .map_err(|e| ToolError::Execution(format!(
-                "Failed to ask user: {}", e
-            )))?;
-        
-        Ok(ToolResult {
-            output: answer.clone(),
-            data: Some(json!({"answer": answer})),
-            is_error: false,
-        })
+        // TODO: 实现用户提问逻辑
+        // 1. 解析问题内容和选项参数
+        // 2. 通过UI向用户提问
+        // 3. 获取用户回答
+        // 4. 返回结果
+        unimplemented!()
     }
 }
 ```
@@ -808,30 +673,13 @@ impl ToolExecutor {
         &self,
         tool_call: &ToolCall,
     ) -> Result<ToolResult, ToolError> {
-        let tool_name = &tool_call.function.name;
-        let args: Value = serde_json::from_str(
-            &tool_call.function.arguments
-        )?;
-        
-        // 查找工具
-        let tool = self.registry.get(tool_name)
-            .ok_or_else(|| ToolError::NotFound)?;
-        
-        // 获取超时
-        let timeout = self.registry.get_timeout(tool_name);
-        
-        // 检查是否需要确认
-        if tool.requires_confirmation() {
-            // 在实际执行前需要用户确认
-            // （在REPL模式下）
-        }
-        
-        // 执行（带超时）
-        match timeout::timeout(timeout, tool.execute(args)).await {
-            Ok(Ok(result)) => Ok(result),
-            Ok(Err(e)) => Err(e),
-            Err(_) => Err(ToolError::Timeout),
-        }
+        // TODO: 实现工具执行逻辑
+        // 1. 解析工具名称和参数
+        // 2. 从注册表查找工具
+        // 3. 获取工具超时配置
+        // 4. 检查是否需要用户确认
+        // 5. 执行工具（带超时处理）
+        unimplemented!()
     }
     
     /// 并行执行多个工具

@@ -226,64 +226,19 @@ impl StdioTransport {
         args: Vec<String>,
         env: HashMap<String, String>,
     ) -> Result<Self, McpError> {
-        let mut cmd = Command::new(&command);
-        cmd.args(&args)
-            .envs(&env)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped());
-        
-        let mut child = cmd.spawn()
-            .map_err(|e| McpError::SpawnFailed(e.to_string()))?;
-        
-        let stdin = child.stdin.take()
-            .ok_or(McpError::SpawnFailed("Failed to open stdin".to_string()))?;
-        
-        let stdout = child.stdout.take()
-            .ok_or(McpError::SpawnFailed("Failed to open stdout".to_string()))?;
-        
-        let transport = Self {
-            child,
-            stdin,
-            stdout: BufReader::new(stdout),
-            request_id: AtomicU64::new(1),
-            pending_requests: Arc::new(Mutex::new(HashMap::new())),
-        };
-        
-        // 启动响应读取任务
-        transport.spawn_response_reader();
-        
-        Ok(transport)
+        // TODO: 创建子进程并设置IO流
+        // TODO: 初始化传输层组件
+        // TODO: 启动响应读取任务
+        panic!("Not implemented")
     }
     
     /// 启动响应读取任务
     fn spawn_response_reader(&self
     ) {
-        let mut stdout = self.stdout;
-        let pending = self.pending_requests.clone();
-        
-        tokio::spawn(async move {
-            let mut line = String::new();
-            
-            loop {
-                line.clear();
-                match stdout.read_line(&mut line).await {
-                    Ok(0) => break, // EOF
-                    Ok(_) => {
-                        if let Ok(response) = serde_json::from_str::<Value>(&line
-                        ) {
-                            if let Some(id) = response["id"].as_u64() {
-                                let mut pending = pending.lock().await;
-                                if let Some(tx) = pending.remove(&id) {
-                                    let _ = tx.send(response);
-                                }
-                            }
-                        }
-                    }
-                    Err(_) => break,
-                }
-            }
-        });
+        // TODO: 启动异步任务读取服务器响应
+        // TODO: 解析JSON-RPC响应
+        // TODO: 根据请求ID映射到对应的响应通道
+        panic!("Not implemented")
     }
 }
 
@@ -292,33 +247,10 @@ impl McpTransport for StdioTransport {
     async fn initialize(
         &mut self
     ) -> Result<InitializeResult, McpError> {
-        let request = json!({
-            "jsonrpc": "2.0",
-            "id": 0,
-            "method": "initialize",
-            "params": {
-                "protocolVersion": "2024-11-05",
-                "capabilities": {},
-                "clientInfo": {
-                    "name": "neco",
-                    "version": env!("CARGO_PKG_VERSION")
-                }
-            }
-        });
-        
-        let response = self.send_request(request).await?;
-        
-        let result = response["result"].clone();
-        let init_result: InitializeResult = serde_json::from_value(result)?;
-        
-        // 发送initialized通知
-        let notification = json!({
-            "jsonrpc": "2.0",
-            "method": "notifications/initialized"
-        });
-        self.send_notification(notification).await?;
-        
-        Ok(init_result)
+        // TODO: 发送初始化请求到MCP服务器
+        // TODO: 解析初始化响应
+        // TODO: 发送initialized通知
+        panic!("Not implemented")
     }
     
     async fn call_tool(
@@ -326,31 +258,18 @@ impl McpTransport for StdioTransport {
         name: &str,
         arguments: Value,
     ) -> Result<CallToolResult, McpError> {
-        let id = self.request_id.fetch_add(1, Ordering::SeqCst);
-        
-        let request = json!({
-            "jsonrpc": "2.0",
-            "id": id,
-            "method": "tools/call",
-            "params": {
-                "name": name,
-                "arguments": arguments
-            }
-        });
-        
-        let response = self.send_request(request).await?;
-        
-        let result = response["result"].clone();
-        let tool_result: CallToolResult = serde_json::from_value(result)?;
-        
-        Ok(tool_result)
+        // TODO: 生成请求ID
+        // TODO: 构建工具调用JSON-RPC请求
+        // TODO: 发送请求并等待响应
+        // TODO: 解析工具调用结果
+        panic!("Not implemented")
     }
     
     async fn close(&mut self
     ) -> Result<(), McpError> {
-        // 发送关闭通知（如果支持）
-        let _ = self.child.kill().await;
-        Ok(())
+        // TODO: 发送关闭通知（如果支持）
+        // TODO: 终止子进程
+        panic!("Not implemented")
     }
 }
 
@@ -360,33 +279,12 @@ impl StdioTransport {
         &self,
         request: Value,
     ) -> Result<Value, McpError> {
-        let id = request["id"].as_u64()
-            .ok_or(McpError::InvalidRequest)?;
-        
-        let (tx, rx) = oneshot::channel();
-        {
-            let mut pending = self.pending_requests.lock().await;
-            pending.insert(id, tx);
-        }
-        
-        // 发送请求
-        let request_line = serde_json::to_string(&request)?;
-        let mut stdin = self.stdin;
-        stdin.write_all(request_line.as_bytes()).await?;
-        stdin.write_all(b"\n").await?;
-        stdin.flush().await?;
-        
-        // 等待响应
-        match timeout(Duration::from_secs(30), rx).await {
-            Ok(Ok(response)) => Ok(response),
-            Ok(Err(_)) => Err(McpError::ChannelClosed),
-            Err(_) => {
-                // 超时，清理等待
-                let mut pending = self.pending_requests.lock().await;
-                pending.remove(&id);
-                Err(McpError::Timeout)
-            }
-        }
+        // TODO: 创建响应通道
+        // TODO: 将请求映射到响应通道
+        // TODO: 发送JSON-RPC请求到标准输入
+        // TODO: 等待响应并处理超时
+        // TODO: 清理已完成的请求
+        panic!("Not implemented")
     }
     
     /// 发送通知（无需响应）
@@ -394,11 +292,9 @@ impl StdioTransport {
         &mut self,
         notification: Value,
     ) -> Result<(), McpError> {
-        let notification_line = serde_json::to_string(&notification)?;
-        self.stdin.write_all(notification_line.as_bytes()).await?;
-        self.stdin.write_all(b"\n").await?;
-        self.stdin.flush().await?;
-        Ok(())
+        // TODO: 将通知序列化为JSON
+        // TODO: 发送到MCP服务器标准输入
+        panic!("Not implemented")
     }
 }
 ```
@@ -426,24 +322,10 @@ impl HttpTransport {
         bearer_token: Option<String>,
         headers: HashMap<String, String>,
     ) -> Result<Self, McpError> {
-        let auth_header = bearer_token.map(|token| {
-            HeaderValue::from_str(&format!("Bearer {}", token))
-                .expect("Invalid token")
-        });
-        
-        let mut header_map = HeaderMap::new();
-        for (key, value) in headers {
-            let header_name = HeaderName::from_bytes(key.as_bytes())?;
-            let header_value = HeaderValue::from_str(&value)?;
-            header_map.insert(header_name, header_value);
-        }
-        
-        Ok(Self {
-            client: Client::new(),
-            base_url: url,
-            auth_header,
-            headers: header_map,
-        })
+        // TODO: 创建认证头部
+        // TODO: 构建HTTP头映射
+        // TODO: 初始化HTTP客户端
+        panic!("Not implemented")
     }
 }
 
@@ -452,32 +334,11 @@ impl McpTransport for HttpTransport {
     async fn initialize(
         &mut self
     ) -> Result<InitializeResult, McpError> {
-        let request = json!({
-            "protocolVersion": "2024-11-05",
-            "capabilities": {},
-            "clientInfo": {
-                "name": "neco",
-                "version": env!("CARGO_PKG_VERSION")
-            }
-        });
-        
-        let url = self.base_url.join("/initialize")?;
-        let mut request_builder = self.client.post(url)
-            .json(&request);
-        
-        if let Some(auth) = &self.auth_header {
-            request_builder = request_builder
-                .header(AUTHORIZATION, auth);
-        }
-        
-        for (key, value) in &self.headers {
-            request_builder = request_builder.header(key, value);
-        }
-        
-        let response = request_builder.send().await?;
-        let init_result: InitializeResult = response.json().await?;
-        
-        Ok(init_result)
+        // TODO: 构建初始化请求
+        // TODO: 设置认证和HTTP头
+        // TODO: 发送POST请求到/initialize端点
+        // TODO: 解析初始化响应
+        panic!("Not implemented")
     }
     
     async fn call_tool(
@@ -485,34 +346,18 @@ impl McpTransport for HttpTransport {
         name: &str,
         arguments: Value,
     ) -> Result<CallToolResult, McpError> {
-        let request = json!({
-            "name": name,
-            "arguments": arguments
-        });
-        
-        let url = self.base_url.join("/tools/call")?;
-        let mut request_builder = self.client.post(url)
-            .json(&request);
-        
-        if let Some(auth) = &self.auth_header {
-            request_builder = request_builder
-                .header(AUTHORIZATION, auth);
-        }
-        
-        for (key, value) in &self.headers {
-            request_builder = request_builder.header(key, value);
-        }
-        
-        let response = request_builder.send().await?;
-        let tool_result: CallToolResult = response.json().await?;
-        
-        Ok(tool_result)
+        // TODO: 构建工具调用请求
+        // TODO: 设置认证和HTTP头
+        // TODO: 发送POST请求到/tools/call端点
+        // TODO: 解析工具调用结果
+        panic!("Not implemented")
     }
     
     async fn close(&mut self
     ) -> Result<(), McpError> {
-        // HTTP无状态，无需关闭
-        Ok(())
+        // TODO: HTTP无状态，无需关闭
+        // TODO: 可考虑清理资源
+        panic!("Not implemented")
     }
 }
 ```
@@ -536,10 +381,9 @@ impl McpManager {
     pub fn new(
         config: HashMap<String, McpServerConfig>
     ) -> Self {
-        Self {
-            connections: Arc::new(RwLock::new(HashMap::new())),
-            config,
-        }
+        // TODO: 初始化连接管理器
+        // TODO: 加载服务器配置
+        panic!("Not implemented")
     }
     
     /// 连接到MCP服务器
@@ -547,71 +391,14 @@ impl McpManager {
         &self,
         name: &str,
     ) -> Result<Vec<McpTool>, McpError> {
-        // 检查是否已连接
-        {
-            let connections = self.connections.read().await;
-            if let Some(conn) = connections.get(name) {
-                if conn.status == McpServerStatus::Connected {
-                    return Ok(conn.tools.clone());
-                }
-            }
-        }
-        
-        // 获取配置
-        let config = self.config.get(name)
-            .ok_or(McpError::ConfigNotFound(name.to_string()))?;
-        
-        // 创建传输层
-        let mut transport: Box<dyn McpTransport> = match &config.transport {
-            McpTransport::Stdio { command, args } => {
-                Box::new(StdioTransport::new(
-                    command.clone(),
-                    args.clone(),
-                    config.env.clone(),
-                ).await?)
-            }
-            McpTransport::Http { url, bearer_token_env, headers } => {
-                let token = if let Some(env_var) = bearer_token_env {
-                    std::env::var(env_var).ok()
-                } else {
-                    None
-                };
-                
-                Box::new(HttpTransport::new(
-                    url.clone(),
-                    token,
-                    headers.clone(),
-                )?)
-            }
-        };
-        
-        // 初始化连接
-        let init_result = transport.initialize().await?;
-        
-        // 获取工具列表
-        let tools = self.list_tools(&*transport).await?;
-        
-        // 保存连接
-        let connection = McpConnection {
-            name: name.to_string(),
-            config: config.clone(),
-            status: McpServerStatus::Connected,
-            transport,
-            tools: tools.clone(),
-        };
-        
-        {
-            let mut connections = self.connections.write().await;
-            connections.insert(name.to_string(), connection);
-        }
-        
-        info!(
-            "Connected to MCP server '{}' with {} tools",
-            name,
-            tools.len()
-        );
-        
-        Ok(tools)
+        // TODO: 检查是否已连接
+        // TODO: 获取服务器配置
+        // TODO: 根据传输类型创建对应的传输层
+        // TODO: 初始化连接
+        // TODO: 获取工具列表
+        // TODO: 保存连接状态
+        // TODO: 记录连接信息
+        panic!("Not implemented")
     }
     
     /// 列出可用工具
@@ -619,9 +406,10 @@ impl McpManager {
         &self,
         transport: &dyn McpTransport,
     ) -> Result<Vec<McpTool>, McpError> {
-        // 这里简化处理，实际应通过JSON-RPC调用tools/list
-        // 目前假设工具在初始化时已知
-        Ok(Vec::new())
+        // TODO: 通过JSON-RPC调用tools/list端点
+        // TODO: 解析并返回可用工具列表
+        // TODO: 处理工具列表变化的场景
+        panic!("Not implemented")
     }
     
     /// 调用MCP工具
@@ -631,15 +419,10 @@ impl McpManager {
         tool_name: &str,
         arguments: Value,
     ) -> Result<CallToolResult, McpError> {
-        let connections = self.connections.read().await;
-        let connection = connections.get(server_name)
-            .ok_or(McpError::NotConnected(server_name.to_string()))?;
-        
-        if connection.status != McpServerStatus::Connected {
-            return Err(McpError::NotConnected(server_name.to_string()));
-        }
-        
-        connection.transport.call_tool(tool_name, arguments).await
+        // TODO: 检查连接状态
+        // TODO: 验证服务器是否已连接
+        // TODO: 调用对应的传输层工具
+        panic!("Not implemented")
     }
     
     /// 断开连接
@@ -647,29 +430,19 @@ impl McpManager {
         &self,
         name: &str,
     ) -> Result<(), McpError> {
-        let mut connections = self.connections.write().await;
-        
-        if let Some(mut connection) = connections.remove(name) {
-            connection.transport.close().await?;
-            info!("Disconnected from MCP server '{}'", name);
-        }
-        
-        Ok(())
+        // TODO: 从连接管理器中移除连接
+        // TODO: 关闭传输层连接
+        // TODO: 记录断开连接信息
+        panic!("Not implemented")
     }
     
     /// 断开所有连接
     pub async fn disconnect_all(&self
     ) -> Result<(), McpError> {
-        let names: Vec<String> = {
-            let connections = self.connections.read().await;
-            connections.keys().cloned().collect()
-        };
-        
-        for name in names {
-            let _ = self.disconnect(&name).await;
-        }
-        
-        Ok(())
+        // TODO: 获取所有连接名称
+        // TODO: 依次断开每个连接
+        // TODO: 处理断开连接过程中的错误
+        panic!("Not implemented")
     }
 }
 ```
@@ -692,11 +465,10 @@ impl McpToolWrapper {
         tool: McpTool,
         mcp_manager: Arc<McpManager>,
     ) -> Self {
-        Self {
-            server_name,
-            tool,
-            mcp_manager,
-        }
+        // TODO: 初始化工具包装器
+        // TODO: 设置服务器名称和工具信息
+        // TODO: 引用MCP管理器
+        panic!("Not implemented")
     }
 }
 
@@ -721,28 +493,11 @@ impl ToolProvider for McpToolWrapper {
         &self,
         args: Value,
     ) -> Result<ToolResult, ToolError> {
-        let result = self.mcp_manager
-            .call_tool(&self.server_name, &self.tool.name, args
-            )
-            .await
-            .map_err(|e| ToolError::Execution(e.to_string()))?;
-        
-        // 转换结果
-        let output = result.content.iter()
-            .map(|c| match c {
-                ToolContent::Text { text } => text.clone(),
-                ToolContent::Image { data, mime_type } => {
-                    format!("[Image: {} - {} bytes]", mime_type, data.len())
-                }
-            })
-            .collect::<Vec<_>()
-            .join("\n");
-        
-        Ok(ToolResult {
-            output,
-            data: None,
-            is_error: result.is_error,
-        })
+        // TODO: 通过MCP管理器调用工具
+        // TODO: 处理执行错误
+        // TODO: 转换工具结果为ToolResult格式
+        // TODO: 处理文本和图像内容
+        panic!("Not implemented")
     }
 }
 ```
@@ -756,25 +511,12 @@ pub async fn register_mcp_tools(
     tool_registry: &mut ToolRegistry,
     server_name: &str,
 ) -> Result<usize, McpError> {
-    // 连接到服务器
-    let tools = mcp_manager.connect(server_name).await?;
-    
-    // 注册每个工具
-    let mut count = 0;
-    for tool in tools {
-        let tool_id = format!("mcp::{}::{}", server_name, tool.name);
-        let wrapper = McpToolWrapper::new(
-            server_name.to_string(),
-            tool,
-            Arc::new(mcp_manager.clone()),
-        );
-        
-        // 这里需要将wrapper注册到registry
-        // 实际实现中可能需要调整接口
-        count += 1;
-    }
-    
-    Ok(count)
+    // TODO: 连接到MCP服务器
+    // TODO: 获取可用工具列表
+    // TODO: 为每个工具创建包装器
+    // TODO: 注册工具到工具注册表
+    // TODO: 返回注册的工具数量
+    panic!("Not implemented")
 }
 ```
 

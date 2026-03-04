@@ -275,29 +275,14 @@ impl Session {
         &mut self,
         config: AgentConfig,
     ) -> Result<AgentUlid, SessionError> {
-        let ulid = AgentUlid {
-            ulid: self.id.ulid,
-            session_id: self.id.clone(),
-        };
-        
-        let agent = Agent {
-            ulid: ulid.clone(),
-            parent_ulid: None,
-            children: Vec::new(),
-            config,
-            messages: Vec::new(),
-            state: AgentState::Idle,
-            active_tools: Vec::new(),
-            active_mcp_servers: Vec::new(),
-            active_skills: Vec::new(),
-            created_at: Utc::now(),
-            last_activity: Utc::now(),
-        };
-        
-        self.agents.insert(ulid.clone(), agent);
-        self.root_agent = ulid.clone();
-        
-        Ok(ulid)
+        // TODO: 创建根Agent实现
+        // 1. 生成AgentUlid（使用SessionId的ULID）
+        // 2. 创建Agent实例，设置parent_ulid为None
+        // 3. 初始化Agent状态为Idle
+        // 4. 将Agent添加到agents HashMap中
+        // 5. 设置root_agent为新创建的AgentUlid
+        // 6. 返回AgentUlid
+        unimplemented!()
     }
     
     /// 创建子Agent
@@ -306,38 +291,14 @@ impl Session {
         parent_ulid: AgentUlid,
         config: AgentConfig,
     ) -> Result<AgentUlid, SessionError> {
-        // 验证父Agent存在
-        let parent = self.agents.get(&parent_ulid)
-            .ok_or(SessionError::AgentNotFound)?;
-        
-        // 生成新的ULID
-        let ulid = AgentUlid {
-            ulid: Ulid::new(),
-            session_id: self.id.clone(),
-        };
-        
-        let agent = Agent {
-            ulid: ulid.clone(),
-            parent_ulid: Some(parent_ulid.clone()),
-            children: Vec::new(),
-            config,
-            messages: Vec::new(),
-            state: AgentState::Idle,
-            active_tools: Vec::new(),
-            active_mcp_servers: Vec::new(),
-            active_skills: Vec::new(),
-            created_at: Utc::now(),
-            last_activity: Utc::now(),
-        };
-        
-        // 添加到父Agent的children列表
-        self.agents.get_mut(&parent_ulid).unwrap()
-            .children.push(ulid.clone());
-        
-        // 插入新Agent
-        self.agents.insert(ulid.clone(), agent);
-        
-        Ok(ulid)
+        // TODO: 创建子Agent实现
+        // 1. 验证父Agent存在
+        // 2. 生成新的ULID
+        // 3. 创建Agent实例，设置parent_ulid为parent_ulid
+        // 4. 将新Agent添加到父Agent的children列表
+        // 5. 插入新Agent到agents HashMap
+        // 6. 返回新AgentUlid
+        unimplemented!()
     }
     
     /// 获取Agent的所有祖先
@@ -345,19 +306,11 @@ impl Session {
         &self,
         ulid: &AgentUlid,
     ) -> Vec<AgentUlid> {
-        let mut ancestors = Vec::new();
-        let mut current = ulid;
-        
-        while let Some(agent) = self.agents.get(current) {
-            if let Some(parent) = &agent.parent_ulid {
-                ancestors.push(parent.clone());
-                current = parent;
-            } else {
-                break;
-            }
-        }
-        
-        ancestors
+        // TODO: 获取Agent的所有祖先
+        // 1. 从当前Agent开始向上遍历parent_ulid
+        // 2. 收集所有祖先AgentUlid直到根Agent
+        // 3. 返回祖先列表
+        unimplemented!()
     }
     
     /// 获取Agent的所有后代（递归）
@@ -365,19 +318,11 @@ impl Session {
         &self,
         ulid: &AgentUlid,
     ) -> Vec<AgentUlid> {
-        let mut descendants = Vec::new();
-        let mut stack = vec![ulid.clone()];
-        
-        while let Some(current) = stack.pop() {
-            if let Some(agent) = self.agents.get(&current) {
-                for child in &agent.children {
-                    descendants.push(child.clone());
-                    stack.push(child.clone());
-                }
-            }
-        }
-        
-        descendants
+        // TODO: 获取Agent的所有后代（递归）
+        // 1. 使用DFS或BFS遍历子树
+        // 2. 收集所有后代AgentUlid
+        // 3. 返回后代列表
+        unimplemented!()
     }
 }
 ```
@@ -547,14 +492,24 @@ pub struct FileStorage {
 
 impl FileStorage {
     pub fn new(base_dir: PathBuf) -> Self {
+        // TODO: 创建FileStorage实例
+        // 1. 设置base_dir
+        // 2. 可选：验证目录存在并可写
         Self { base_dir }
     }
     
     fn session_dir(&self, session_id: &SessionId) -> PathBuf {
+        // TODO: 获取Session目录路径
+        // 1. 组合base_dir和session_id字符串
+        // 2. 返回完整路径
         self.base_dir.join(session_id.to_string())
     }
     
     fn agent_file(&self, ulid: &AgentUlid) -> PathBuf {
+        // TODO: 获取Agent文件路径
+        // 1. 获取session_dir
+        // 2. 组合ulid字符串和".toml"后缀
+        // 3. 返回完整路径
         self.session_dir(&ulid.session_id)
             .join(format!("{}.toml", ulid.ulid))
     }
@@ -566,31 +521,27 @@ impl StorageBackend for FileStorage {
         &self,
         session: &Session,
     ) -> Result<(), StorageError> {
-        let dir = self.session_dir(&session.id);
-        fs::create_dir_all(&dir).await?;
-        
-        let meta = SessionMeta::from(session);
-        let toml = toml::to_string_pretty(&meta)?;
-        fs::write(dir.join("session.toml"), toml).await?;
-        
-        Ok(())
+        // TODO: 保存Session元数据
+        // 1. 创建Session目录
+        // 2. 将Session序列化为SessionMeta
+        // 3. 序列化为TOML格式
+        // 4. 写入session.toml文件
+        unimplemented!()
     }
     
     async fn save_agent(
         &self,
         agent: &Agent,
     ) -> Result<(), StorageError> {
-        let path = self.agent_file(&agent.ulid);
-        fs::create_dir_all(path.parent().unwrap()).await?;
-        
-        let agent_data = AgentData::from(agent);
-        let toml = toml::to_string_pretty(&agent_data)?;
-        fs::write(path, toml).await?;
-        
-        Ok(())
+        // TODO: 保存Agent数据
+        // 1. 创建Agent目录（如果不存在）
+        // 2. 将Agent序列化为AgentData
+        // 3. 序列化为TOML格式
+        // 4. 写入Agent TOML文件
+        unimplemented!()
     }
     
-    // ... 其他方法实现
+    // TODO: 实现其他StorageBackend方法
 }
 ```
 
@@ -606,38 +557,14 @@ impl SessionManager {
         session_type: SessionType,
         root_agent_config: AgentConfig,
     ) -> Result<Session, SessionError> {
-        let session_id = SessionId::new();
-        
-        // 创建Session
-        let mut session = Session {
-            id: session_id.clone(),
-            session_type,
-            root_agent: AgentUlid {
-                ulid: session_id.ulid,
-                session_id: session_id.clone(),
-            },
-            agents: HashMap::new(),
-            id_allocator: MessageIdAllocator::new(),
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
-            metadata: SessionMetadata {
-                user_id: None,
-                working_dir: std::env::current_dir()?,
-                initial_prompt: None,
-                custom_data: HashMap::new(),
-            },
-        };
-        
-        // 创建根Agent
-        session.create_root_agent(root_agent_config)?;
-        
-        // 保存到存储
-        self.storage.save_session_meta(&session).await?;
-        
-        // 添加到内存缓存
-        self.cache.insert(session_id, session.clone());
-        
-        Ok(session)
+        // TODO: 创建新Session实现
+        // 1. 生成SessionId
+        // 2. 创建Session实例，初始化字段
+        // 3. 创建根Agent并添加到Session
+        // 4. 保存Session元数据到存储
+        // 5. 添加到内存缓存
+        // 6. 返回Session
+        unimplemented!()
     }
 }
 ```
@@ -651,38 +578,15 @@ impl SessionManager {
         &self,
         session_id: SessionId,
     ) -> Result<Session, SessionError> {
-        // 先检查缓存
-        if let Some(session) = self.cache.get(&session_id) {
-            return Ok(session.clone());
-        }
-        
-        // 从存储加载
-        let meta = self.storage.load_session_meta(session_id.clone()).await?;
-        let agent_ulids = self.storage.list_agents(session_id.clone()).await?;
-        
-        let mut session = Session {
-            id: session_id.clone(),
-            session_type: meta.session_type,
-            root_agent: meta.root_agent,
-            agents: HashMap::new(),
-            id_allocator: MessageIdAllocator::with_start(
-                meta.next_message_id
-            ),
-            created_at: meta.created_at,
-            updated_at: meta.updated_at,
-            metadata: meta.metadata,
-        };
-        
-        // 加载所有Agent
-        for ulid in agent_ulids {
-            let agent = self.storage.load_agent(ulid).await?;
-            session.agents.insert(agent.ulid.clone(), agent);
-        }
-        
-        // 添加到缓存
-        self.cache.insert(session_id, session.clone());
-        
-        Ok(session)
+        // TODO: 加载已有Session实现
+        // 1. 先检查内存缓存
+        // 2. 如果缓存不存在，从存储加载Session元数据
+        // 3. 获取Session中的所有Agent列表
+        // 4. 创建Session实例，初始化字段
+        // 5. 加载所有Agent数据
+        // 6. 添加到内存缓存
+        // 7. 返回Session
+        unimplemented!()
     }
 }
 ```
@@ -700,30 +604,16 @@ impl Session {
         tool_calls: Option<Vec<ToolCall>>,
         tool_call_id: Option<String>,
     ) -> Result<u64, SessionError> {
-        let agent = self.agents.get_mut(&ulid)
-            .ok_or(SessionError::AgentNotFound)?;
-        
-        let message_id = self.id_allocator.next_id();
-        
-        let message = Message {
-            id: message_id,
-            role,
-            content,
-            tool_calls,
-            tool_call_id,
-            timestamp: Utc::now(),
-            metadata: None,
-        };
-        
-        agent.messages.push(message.clone());
-        agent.last_activity = Utc::now();
-        
-        // 异步保存到存储
-        self.storage.append_message(ulid, &message).await?;
-        
-        self.updated_at = Utc::now();
-        
-        Ok(message_id)
+        // TODO: 添加消息到Agent实现
+        // 1. 验证Agent存在
+        // 2. 生成下一个消息ID
+        // 3. 创建Message实例
+        // 4. 添加消息到Agent的消息列表
+        // 5. 更新Agent的最后活动时间
+        // 6. 异步保存消息到存储
+        // 7. 更新Session的更新时间
+        // 8. 返回消息ID
+        unimplemented!()
     }
     
     /// 获取Agent的完整消息历史
@@ -732,18 +622,11 @@ impl Session {
         ulid: AgentUlid,
         up_to_id: Option<u64>,
     ) -> Result<Vec<&Message>, SessionError> {
-        let agent = self.agents.get(&ulid)
-            .ok_or(SessionError::AgentNotFound)?;
-        
-        let messages: Vec<_> = match up_to_id {
-            Some(max_id) => agent.messages
-                .iter()
-                .filter(|m| m.id <= max_id)
-                .collect(),
-            None => agent.messages.iter().collect(),
-        };
-        
-        Ok(messages)
+        // TODO: 获取Agent的完整消息历史
+        // 1. 验证Agent存在
+        // 2. 根据up_to_id过滤消息列表
+        // 3. 返回消息引用列表
+        unimplemented!()
     }
     
     /// 回溯到指定消息ID（删除之后的所有消息）
@@ -752,16 +635,11 @@ impl Session {
         ulid: AgentUlid,
         message_id: u64,
     ) -> Result<(), SessionError> {
-        let agent = self.agents.get_mut(&ulid)
-            .ok_or(SessionError::AgentNotFound)?;
-        
-        // 保留id <= message_id的消息
-        agent.messages.retain(|m| m.id <= message_id);
-        
-        // 重新保存整个Agent（因为需要删除文件中的消息）
-        self.storage.save_agent(agent).await?;
-        
-        Ok(())
+        // TODO: 回溯到指定消息ID实现
+        // 1. 验证Agent存在
+        // 2. 保留id <= message_id的消息
+        // 3. 重新保存整个Agent数据到存储
+        unimplemented!()
     }
 }
 ```
@@ -780,6 +658,10 @@ pub struct ContextBuilder {
 
 impl ContextBuilder {
     pub fn new() -> Self {
+        // TODO: 创建ContextBuilder实例
+        // 1. 初始化system_messages为空Vec
+        // 2. 初始化conversation为空Vec
+        // 3. 初始化active_tools为空Vec
         Self {
             system_messages: Vec::new(),
             conversation: Vec::new(),
@@ -791,8 +673,10 @@ impl ContextBuilder {
     pub fn add_system_prompt(&mut self,
         prompt: &str,
     ) -> &mut Self {
-        self.system_messages.push(prompt.to_string());
-        self
+        // TODO: 添加系统提示
+        // 1. 将prompt添加到system_messages
+        // 2. 返回self支持链式调用
+        unimplemented!()
     }
     
     /// 添加Agent消息历史
@@ -800,8 +684,10 @@ impl ContextBuilder {
         &mut self,
         agent: &Agent,
     ) -> &mut Self {
-        self.conversation.extend(agent.messages.clone());
-        self
+        // TODO: 添加Agent消息历史
+        // 1. 将Agent的所有消息添加到conversation
+        // 2. 返回self支持链式调用
+        unimplemented!()
     }
     
     /// 添加激活的工具
@@ -809,45 +695,21 @@ impl ContextBuilder {
         &mut self,
         tools: Vec<Tool>,
     ) -> &mut Self {
-        self.active_tools = tools;
-        self
+        // TODO: 添加激活的工具
+        // 1. 设置active_tools为传入的tools
+        // 2. 返回self支持链式调用
+        unimplemented!()
     }
     
     /// 构建最终上下文
     pub fn build(self) -> ChatRequest {
-        let mut messages = Vec::new();
-        
-        // 1. 系统消息
-        if !self.system_messages.is_empty() {
-            messages.push(Message {
-                role: Role::System,
-                content: Some(self.system_messages.join("\n\n")),
-                tool_calls: None,
-                tool_call_id: None,
-                timestamp: Utc::now(),
-                metadata: None,
-            });
-        }
-        
-        // 2. 对话历史
-        messages.extend(self.conversation);
-        
-        ChatRequest {
-            model: String::new(), // 由调用者填充
-            messages,
-            stream: false,
-            temperature: None,
-            max_tokens: None,
-            tools: if self.active_tools.is_empty() {
-                None
-            } else {
-                Some(self.active_tools)
-            },
-            tool_choice: None,
-            response_format: None,
-            stop: None,
-            extra_params: HashMap::new(),
-        }
+        // TODO: 构建最终上下文
+        // 1. 组装系统消息（如果有）
+        // 2. 添加对话历史
+        // 3. 创建ChatRequest实例
+        // 4. 根据active_tools设置tools字段
+        // 5. 设置其他默认参数
+        unimplemented!()
     }
 }
 ```

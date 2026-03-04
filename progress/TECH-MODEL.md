@@ -107,20 +107,24 @@ pub struct ProviderFactory;
 impl ProviderFactory {
     /// 根据配置创建提供商客户端
     pub fn create(config: &ModelProvider) -> Result<Box<dyn ModelClient>, ConfigError> {
+        // TODO: 实现提供商客户端工厂方法
+        // 根据配置中的provider_type创建对应的客户端实例
+        // 支持OpenAI、Anthropic、OpenRouter等多种提供商
         match config.provider_type {
             ProviderType::OpenAI => {
+                // TODO: 创建OpenAI客户端
                 Ok(Box::new(OpenAiClient::new(config)?))
             }
             ProviderType::Anthropic => {
-                // 预留：Anthropic支持
+                // TODO: 实现Anthropic提供商支持
                 Err(ConfigError::ProviderNotImplemented("Anthropic".to_string()))
             }
             ProviderType::OpenRouter => {
-                // 预留：OpenRouter支持
+                // TODO: 实现OpenRouter提供商支持
                 Err(ConfigError::ProviderNotImplemented("OpenRouter".to_string()))
             }
             ProviderType::OpenAIResponses => {
-                // 预留：OpenAI Responses API
+                // TODO: 实现OpenAI Responses API支持
                 Err(ConfigError::ProviderNotImplemented("OpenAIResponses".to_string()))
             }
         }
@@ -301,15 +305,20 @@ impl ModelGroupClient {
         models: Vec<ModelRef>,
         providers: &HashMap<String, ModelProvider>,
     ) -> Result<Self, ConfigError> {
+        // TODO: 实现模型组客户端初始化
+        // 遍历模型列表，为每个模型创建对应的客户端实例
+        // 建立客户端缓存，支持故障转移和重试
         let mut clients = HashMap::new();
         
         for model in &models {
+            // TODO: 验证提供商配置
             let provider = providers.get(&model.provider_id)
                 .ok_or_else(|| ConfigError::ProviderNotFound {
                     group: name.clone(),
                     provider: model.provider_id.clone(),
                 })?;
             
+            // TODO: 创建并缓存客户端实例
             let client = ProviderFactory::create(provider)?;
             clients.insert(
                 format!("{}/{}", model.provider_id, model.model_name),
@@ -330,6 +339,9 @@ impl ModelGroupClient {
         &self,
         mut request: ChatRequest,
     ) -> Result<ChatResponse, ModelError> {
+        // TODO: 实现带故障转移的请求调用逻辑
+        // 遍历模型列表，尝试调用每个模型直到成功
+        // 支持重试机制和错误处理
         let mut last_error = None;
         
         // 遍历模型列表
@@ -372,6 +384,9 @@ impl ModelGroupClient {
         client: &dyn ModelClient,
         request: &ChatRequest,
     ) -> Result<ChatResponse, ModelError> {
+        // TODO: 实现指数退避重试机制
+        // 根据错误类型决定是否重试
+        // 应用配置的重试次数和退避策略
         let mut backoff = self.retry_config.initial_backoff;
         
         for attempt in 0..self.retry_config.max_retries {
@@ -401,6 +416,8 @@ impl ModelGroupClient {
 impl ModelError {
     /// 判断错误是否可重试
     fn is_retryable(&self) -> bool {
+        // TODO: 实现错误类型判断逻辑
+        // 根据错误类型决定是否支持重试
         matches!(self,
             ModelError::Network(_)
             | ModelError::RateLimit(_)
@@ -437,6 +454,8 @@ pub struct OpenAiClient {
 impl OpenAiClient {
     /// 创建新客户端
     pub fn new(config: &ModelProvider) -> Result<Self, ConfigError> {
+        // TODO: 实现OpenAI客户端初始化
+        // 验证配置并创建async-openai客户端实例
         let api_key = config.api_key.get_key()
             .map_err(|_| ConfigError::NoEnvVarFound)?;
         
@@ -454,6 +473,8 @@ impl OpenAiClient {
     
     /// 转换消息格式
     fn convert_message(msg: &Message) -> ChatCompletionRequestMessage {
+        // TODO: 实现消息格式转换
+        // 将通用Message格式转换为OpenAI特定的消息格式
         match msg.role {
             Role::System => ChatCompletionRequestSystemMessage {
                 content: msg.content.clone().unwrap_or_default(),
@@ -485,6 +506,8 @@ impl ModelClient for OpenAiClient {
         &self,
         request: ChatRequest,
     ) -> Result<ChatResponse, ModelError> {
+        // TODO: 实现OpenAI聊天完成请求
+        // 转换消息格式并调用OpenAI API
         let messages: Vec<_ > = request.messages
             .iter()
             .map(Self::convert_message)
@@ -543,6 +566,8 @@ impl ModelClient for OpenAiClient {
         &self,
         request: ChatRequest,
     ) -> Result<BoxStream<Result<ChatStreamChunk, ModelError>>, ModelError> {
+        // TODO: 实现OpenAI流式聊天完成
+        // 处理流式响应和增量解析
         let messages: Vec<_> = request.messages
             .iter()
             .map(Self::convert_message)
@@ -594,6 +619,7 @@ impl ModelClient for OpenAiClient {
     }
     
     fn capabilities(&self) -> ModelCapabilities {
+        // TODO: 根据配置和能力返回模型支持的功能
         ModelCapabilities {
             streaming: true,
             tools: true,
@@ -605,7 +631,8 @@ impl ModelClient for OpenAiClient {
     }
     
     async fn health_check(&self) -> Result<(), ModelError> {
-        // 发送简单的健康检查请求
+        // TODO: 实现健康检查逻辑
+        // 发送简单的测试请求验证连接状态
         let request = ChatRequest {
             model: self.config.default_model.clone().unwrap_or_default(),
             messages: vec![Message {
@@ -640,6 +667,8 @@ impl StreamHandler {
     pub async fn collect_full_response(
         stream: BoxStream<Result<ChatStreamChunk, ModelError>>,
     ) -> Result<String, ModelError> {
+        // TODO: 实现流式响应收集
+        // 遍历流式数据，拼接完整的响应内容
         let mut content = String::new();
         let mut pin_stream = stream;
         
@@ -663,6 +692,9 @@ impl StreamHandler {
     where
         F: FnMut(&str),
     {
+        // TODO: 实现实时流式处理
+        // 支持回调函数实时显示输出
+        // 处理流式工具调用和内容增量
         let mut full_content = String::new();
         let mut tool_calls: Vec<ToolCall> = Vec::new();
         let mut pin_stream = stream;
@@ -718,7 +750,9 @@ impl StreamHandler {
         tool_calls: &mut Vec<ToolCall>,
         delta: &ToolCall,
     ) {
-        // 查找或创建工具调用
+        // TODO: 实现流式工具调用合并
+        // 处理增量工具调用，合并参数内容
+        // 查找或创建工具调用，追加参数
         if let Some(existing) = tool_calls.iter_mut()
             .find(|tc| tc.id == delta.id) {
             // 追加参数
@@ -757,6 +791,9 @@ pub struct ToolCallHandler;
 impl ToolCallHandler {
     /// 解析工具调用请求
     pub fn parse_tool_calls(response: &ChatResponse) -> Vec<ToolCallRequest> {
+        // TODO: 实现工具调用解析
+        // 从响应中提取工具调用信息
+        // 解析JSON参数并构建工具调用请求
         let mut requests = Vec::new();
         
         for choice in &response.choices {
@@ -782,6 +819,8 @@ impl ToolCallHandler {
         tool_call_id: String,
         result: &ToolCallResult,
     ) -> Message {
+        // TODO: 实现工具响应构建
+        // 根据工具执行结果构建响应消息
         let content = match &result.result {
             Ok(value) => value.to_string(),
             Err(e) => format!("Error: {}", e),
@@ -807,6 +846,9 @@ pub async fn execute_tool_calls_parallel(
     requests: Vec<ToolCallRequest>,
     tool_registry: &ToolRegistry,
 ) -> Vec<ToolCallResult> {
+    // TODO: 实现并行工具调用执行
+    // 使用异步并发执行多个工具调用
+    // 支持工具注册表和错误处理
     let futures: Vec<_> = requests
         .into_iter()
         .map(|req| {
@@ -912,7 +954,7 @@ let request = ChatRequest {
     extra_params: HashMap::new(),
 };
 
-// 发送请求
+// TODO: 发送请求并处理响应
 let response = client.chat_completion(request).await?;
 println!("Response: {}", response.choices[0].message.content.as_ref().unwrap());
 ```
@@ -922,7 +964,7 @@ println!("Response: {}", response.choices[0].message.content.as_ref().unwrap());
 ```rust
 use neco_model::{StreamHandler};
 
-// 发送流式请求
+// TODO: 发送流式请求并实时处理
 let stream = client.chat_completion_stream(request).await?;
 
 // 实时处理
@@ -969,7 +1011,7 @@ let request = ChatRequest {
     ..Default::default()
 };
 
-// 处理响应中的工具调用
+// TODO: 处理响应中的工具调用
 let response = client.chat_completion(request).await?;
 let tool_requests = ToolCallHandler::parse_tool_calls(&response);
 
@@ -977,7 +1019,7 @@ let tool_requests = ToolCallHandler::parse_tool_calls(&response);
 for req in tool_requests {
     let result = execute_tool(req).await;
     let tool_msg = ToolCallHandler::build_tool_response(req.id, &result);
-    // 将工具结果加入对话历史
+    // TODO: 将工具结果加入对话历史
 }
 ```
 

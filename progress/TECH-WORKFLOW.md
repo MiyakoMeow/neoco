@@ -195,6 +195,23 @@ pub enum WorkflowStatus {
     Failed,
 }
 
+/// 工作流状态信息
+#[derive(Debug, Clone)]
+pub struct WorkflowStatusInfo {
+    /// Session ID
+    pub session_id: SessionId,
+    /// 工作流状态
+    pub status: WorkflowStatus,
+    /// 节点执行状态
+    pub node_states: HashMap<NodeId, NodeState>,
+    /// 活动节点数量
+    pub active_nodes_count: usize,
+    /// 创建时间
+    pub created_at: DateTime<Utc>,
+    /// 最后更新时间
+    pub updated_at: DateTime<Utc>,
+}
+
 /// 节点Session
 pub struct NodeSession {
     /// 节点Session ID
@@ -241,45 +258,12 @@ impl WorkflowEngine {
         workflow_def: Arc<WorkflowDef>,
         initial_input: String,
     ) -> Result<WorkflowSession, WorkflowError> {
-        let session_id = SessionId::new();
-        
-        // 创建工作流Session
-        let mut session = WorkflowSession {
-            session_id: session_id.clone(),
-            definition: workflow_def.clone(),
-            node_states: HashMap::new(),
-            counters: HashMap::new(),
-            variables: workflow_def.workflow_params.clone(),
-            active_nodes: HashSet::new(),
-            status: WorkflowStatus::Running,
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
-        };
-        
-        // 初始化所有节点为Waiting状态
-        for node_def in &workflow_def.node_defs {
-            session.node_states.insert(
-                node_def.id.clone(),
-                NodeState::Waiting
-            );
-        }
-        
-        // 查找起始节点（没有入边的节点）
-        let start_nodes = self.find_start_nodes(&workflow_def)?;
-        
-        // 启动起始节点
-        for node_id in start_nodes {
-            self.spawn_node(
-                &mut session,
-                node_id,
-                initial_input.clone()
-            ).await?;
-        }
-        
-        // 保存Session状态
-        self.save_session(&session).await?;
-        
-        Ok(session)
+        // TODO: 实现工作流启动逻辑
+        // 1. 创建session并初始化状态
+        // 2. 查找起始节点
+        // 3. 启动起始节点执行
+        // 4. 保存session状态
+        unimplemented!()
     }
     
     /// 查找起始节点（没有入边的节点）
@@ -287,26 +271,9 @@ impl WorkflowEngine {
         &self,
         def: &WorkflowDef,
     ) -> Result<Vec<NodeId>, WorkflowError> {
-        let all_nodes: HashSet<_> = def.node_defs
-            .iter()
-            .map(|n| &n.id)
-            .collect();
-        
-        let nodes_with_incoming: HashSet<_> = def.edge_defs
-            .iter()
-            .map(|e| &e.to)
-            .collect();
-        
-        let start_nodes: Vec<_> = all_nodes
-            .difference(&nodes_with_incoming)
-            .map(|id| (*id).clone())
-            .collect();
-        
-        if start_nodes.is_empty() {
-            return Err(WorkflowError::NoStartNode);
-        }
-        
-        Ok(start_nodes)
+        // TODO: 实现起始节点查找逻辑
+        // 返回没有入边的节点作为起始节点
+        unimplemented!()
     }
     
     /// 生成节点任务
@@ -316,48 +283,11 @@ impl WorkflowEngine {
         node_id: NodeId,
         input: String,
     ) -> Result<(), WorkflowError> {
-        // 更新节点状态
-        session.node_states.insert(node_id.clone(), NodeState::Running);
-        session.active_nodes.insert(node_id.clone());
-        session.updated_at = Utc::now();
-        
-        // 获取节点定义
-        let node_def = session.definition.node_defs
-            .iter()
-            .find(|n| n.id == node_id)
-            .ok_or(WorkflowError::NodeNotFound(node_id.clone()))?;
-        
-        // 创建或恢复Node Session
-        let node_session = self.create_or_restore_node_session(
-            session,
-            node_def,
-            input
-        ).await?;
-        
-        // 在后台执行节点
-        let engine = Arc::new(self.clone());
-        let session_id = session.session_id.clone();
-        
-        tokio::spawn(async move {
-            match engine.execute_node(node_session).await {
-                Ok(result) => {
-                    engine.handle_node_complete(
-                        session_id,
-                        node_id,
-                        result
-                    ).await;
-                }
-                Err(e) => {
-                    engine.handle_node_error(
-                        session_id,
-                        node_id,
-                        e
-                    ).await;
-                }
-            }
-        });
-        
-        Ok(())
+        // TODO: 实现节点任务生成逻辑
+        // 1. 更新节点状态为Running
+        // 2. 创建或恢复Node Session
+        // 3. 在后台异步执行节点
+        unimplemented!()
     }
 }
 ```
@@ -399,56 +329,12 @@ impl NodeExecutor for DefaultNodeExecutor {
         node_session: &NodeSession,
         agent: &mut Agent,
     ) -> Result<NodeResult, NodeError> {
+        // TODO: 实现节点执行逻辑
         // 1. 加载Agent配置和提示词
-        self.load_agent_prompts(agent).await?;
-        
         // 2. 构建上下文
-        let context = self.build_context(agent).await?;
-        
-        // 3. 循环直到节点完成
-        loop {
-            // 调用模型
-            let response = self.model_client
-                .chat_completion(context.clone())
-                .await
-                .map_err(NodeError::Model)?;
-            
-            // 处理响应
-            let choice = &response.choices[0];
-            
-            // 检查是否是转场工具调用
-            if let Some(tool_calls) = &choice.message.tool_calls {
-                for tc in tool_calls {
-                    if tc.function.name.starts_with("workflow::") {
-                        // 解析转场选项
-                        let option = tc.function.name
-                            .strip_prefix("workflow::")
-                            .unwrap();
-                        
-                        return Ok(NodeResult {
-                            output: choice.message.content.clone()
-                                .unwrap_or_default(),
-                            selected_option: Some(option.to_string()),
-                            metadata: HashMap::new(),
-                        });
-                    }
-                }
-                
-                // 执行普通工具
-                self.execute_tools(agent, tool_calls).await?;
-            } else {
-                // 普通响应，节点完成
-                return Ok(NodeResult {
-                    output: choice.message.content.clone()
-                        .unwrap_or_default(),
-                    selected_option: None,
-                    metadata: HashMap::new(),
-                });
-            }
-            
-            // 更新上下文
-            // ...
-        }
+        // 3. 循环调用模型直到节点完成
+        // 4. 处理工具调用和转场选项
+        unimplemented!()
     }
 }
 ```
@@ -466,47 +352,14 @@ impl WorkflowEngine {
         node_id: NodeId,
         result: NodeResult,
     ) {
-        let mut workflows = self.running_workflows.write().await;
-        let session = workflows.get_mut(&session_id)
-            .expect("Session must exist");
-        
-        // 更新节点状态
-        session.node_states.insert(node_id.clone(), NodeState::Success);
-        session.active_nodes.remove(&node_id);
-        
-        // 如果有选择的选项，更新计数器
-        if let Some(option) = result.selected_option {
-            let counter = session.counters
-                .entry(option)
-                .or_insert(0);
-            *counter += 1;
-        }
-        
-        // 评估出边
-        let next_nodes = self.evaluate_edges(
-            session,
-            &node_id,
-            &result
-        ).await;
-        
-        // 启动下一节点
-        for next_node_id in next_nodes {
-            if let Err(e) = self.spawn_node(
-                session,
-                next_node_id,
-                result.output.clone()
-            ).await {
-                error!("Failed to spawn node: {}", e);
-            }
-        }
-        
-        // 检查工作流是否完成
-        if session.active_nodes.is_empty() {
-            session.status = WorkflowStatus::Completed;
-        }
-        
-        // 保存状态
-        let _ = self.save_session(session).await;
+        // TODO: 实现节点完成处理逻辑
+        // 1. 更新节点状态为Success
+        // 2. 更新计数器（如果选择了选项）
+        // 3. 评估出边条件，确定下一个节点
+        // 4. 启动下一节点执行
+        // 5. 检查工作流是否完成
+        // 6. 保存session状态
+        unimplemented!()
     }
     
     /// 评估边条件
@@ -516,42 +369,12 @@ impl WorkflowEngine {
         current_node: &NodeId,
         result: &NodeResult,
     ) -> Vec<NodeId> {
-        let mut next_nodes = Vec::new();
-        
-        for edge in &session.definition.edge_defs {
-            if edge.from != *current_node {
-                continue;
-            }
-            
-            // 检查select条件
-            if let Some(select_options) = &edge.select {
-                // select边：如果结果匹配任一选项，触发
-                if let Some(selected) = &result.selected_option {
-                    if select_options.contains(selected) {
-                        next_nodes.push(edge.to.clone());
-                    }
-                }
-            } else if let Some(require_options) = &edge.require {
-                // require边：检查计数器
-                let can_execute = require_options
-                    .iter()
-                    .any(|opt| {
-                        session.counters
-                            .get(opt)
-                            .map(|c| *c > 0)
-                            .unwrap_or(false)
-                    });
-                
-                if can_execute {
-                    next_nodes.push(edge.to.clone());
-                }
-            } else {
-                // 无条件边：直接触发
-                next_nodes.push(edge.to.clone());
-            }
-        }
-        
-        next_nodes
+        // TODO: 实现边条件评估逻辑
+        // 1. 检查select条件（匹配选项时触发）
+        // 2. 检查require条件（计数器满足时触发）
+        // 3. 无条件边直接触发
+        // 4. 返回下一个要执行的节点列表
+        unimplemented!()
     }
 }
 ```
@@ -597,6 +420,7 @@ impl ToolProvider for WorkflowTransitionTool {
     }
     
     fn schema(&self) -> Value {
+        // TODO: 定义转场工具的JSON Schema
         json!({
             "type": "object",
             "properties": {
@@ -617,25 +441,11 @@ impl ToolProvider for WorkflowTransitionTool {
         &self,
         args: Value,
     ) -> Result<ToolResult, ToolError> {
-        let option = args["option"].as_str()
-            .ok_or(ToolError::InvalidArgs)?;
-        let message = args["message"].as_str()
-            .ok_or(ToolError::InvalidArgs)?;
-        
-        // 触发转场
-        // 这将导致当前节点结束，并触发相应的边条件
-        
-        Ok(ToolResult {
-            output: format!(
-                "Transition to next node with option: {}",
-                option
-            ),
-            metadata: json!({
-                "transition": true,
-                "option": option,
-                "message": message,
-            }),
-        })
+        // TODO: 实现转场工具执行逻辑
+        // 1. 解析option和message参数
+        // 2. 触发节点转场
+        // 3. 返回执行结果
+        unimplemented!()
     }
 }
 ```
@@ -649,25 +459,11 @@ pub fn register_workflow_tools(
     workflow_def: &WorkflowDef,
     current_node: &NodeId,
 ) {
-    // 注册 workflow::pass（无条件传递）
-    tool_registry.register(WorkflowTransitionTool {
-        name: "workflow::pass".to_string(),
-        option: "pass".to_string(),
-    });
-    
-    // 动态注册该节点出边的选项
-    for edge in &workflow_def.edge_defs {
-        if &edge.from == current_node {
-            if let Some(select_options) = &edge.select {
-                for option in select_options {
-                    tool_registry.register(WorkflowTransitionTool {
-                        name: format!("workflow::{}", option),
-                        option: option.clone(),
-                    });
-                }
-            }
-        }
-    }
+    // TODO: 实现动态工具注册逻辑
+    // 1. 注册无条件传递工具 workflow::pass
+    // 2. 动态注册当前节点的出边选项
+    // 3. 为每个select选项创建对应的转场工具
+    unimplemented!()
 }
 ```
 
