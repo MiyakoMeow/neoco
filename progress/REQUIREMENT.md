@@ -537,6 +537,8 @@ flowchart TD
   - `/agents tree`：显示Agent树详细结构
   - `/agents stats`：显示Agent执行统计信息
 
+- 工作流、Agent树的TUI显示设计，延后至设计阶段。
+
 #### 命令系统
 
 - 输入框为空时输入`/`，出现命令补全提示。
