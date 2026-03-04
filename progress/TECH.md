@@ -138,7 +138,7 @@ graph TD
     
     agent --> model
     agent --> tool
-    agent --> context
+    agent --> core
     
     tool --> fs
     tool --> mcp
@@ -162,6 +162,44 @@ graph TD
     ui --> core
     daemon --> core
 ```
+
+### 2.2 依赖反转接口
+
+为解决 `session → agent → context → session` 的循环依赖问题，在 `neco-core` 中定义抽象接口：
+
+```rust
+/// Session抽象接口
+/// 
+/// neco-context 通过此接口访问Session信息，避免直接依赖neco-session
+#[async_trait]
+pub trait SessionContainer: Send + Sync {
+    /// 获取Session ID
+    fn session_id(&self) -> &SessionId;
+    
+    /// 获取根Agent ID
+    fn root_agent_id(&self) -> Option<&AgentUlid>;
+    
+    /// 获取Agent数量
+    fn agent_count(&self) -> usize;
+    
+    /// 获取消息数量
+    fn message_count(&self) -> usize;
+    
+    /// 获取所有消息（用于上下文压缩）
+    async fn get_messages(&self) -> Vec<Message>;
+    
+    /// 获取指定Agent
+    async fn get_agent(&self, ulid: &AgentUlid) -> Option<Agent>;
+    
+    /// 添加消息
+    async fn add_message(&self, message: Message) -> Result<MessageId, SessionError>;
+}
+```
+
+**依赖反转说明：**
+- `neco-context` 依赖 `neco-core::SessionContainer` trait
+- `neco-session` 实现 `SessionContainer` trait
+- 运行时通过依赖注入传递具体实现
 
 ## 3. 核心数据结构设计
 
