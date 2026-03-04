@@ -165,7 +165,6 @@ impl CliInterface {
         
         Ok(())
     }
-}
     
     async fn run_direct(
         &self,

@@ -37,7 +37,7 @@ classDiagram
 | 标识符 | 生成时机 | 关系 | 用途 |
 |-------|---------|------|------|
 | SessionId | 创建Session时 | 顶级容器 | 标识整个对话或工作流 |
-| AgentUlid | Agent实例化时 | 第一个=SessionId | 标识Agent实例 |
+| AgentUlid | Agent实例化时 | 归属于SessionId | 标识Agent实例 |
 | NodeSessionId | 工作流节点启动时 | 归属Workflow Session | 标识工作流节点 |
 
 ### 2.2 Session类型

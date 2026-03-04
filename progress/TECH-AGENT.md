@@ -49,8 +49,7 @@ graph TB
 ```mermaid
 graph TB
     subgraph "Session"
-        S[Session Root
-           Agent 1 ULID = SessionId]
+        S[Session Root Agent 1 ULID = SessionId]
         
         subgraph "Agent树"
             A1[Agent 1
@@ -707,6 +706,6 @@ pub enum AgentError {
 ---
 
 *关联文档：*
-- [TECH.md](TECH.md) - 总体架构文档
-- [TECH-SESSION.md](TECH-SESSION.md) - Session管理模块
-- [TECH-WORKFLOW.md](TECH-WORKFLOW.md) - 工作流模块
+- [TECH.md](../TECH.md) - 总体架构文档
+- [TECH-SESSION.md](../TECH-SESSION.md) - Session管理模块
+- [TECH-WORKFLOW.md](../TECH-WORKFLOW.md) - 工作流模块

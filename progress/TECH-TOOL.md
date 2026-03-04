@@ -61,7 +61,7 @@ graph TB
 工具名统一使用 `::` 作为分隔符，格式为：`namespace::action` 或 `namespace::name::action`。
 
 | 工具 | 命名格式 | 示例 |
-|-----|---------|------|
+|------|----------|------|
 | 文件系统 | `fs::action` | `fs::read`, `fs::write` |
 | MCP | `mcp::server_name` | `mcp::context7` |
 | 多智能体 | `multi-agent::action` | `multi-agent::spawn` |
@@ -241,7 +241,7 @@ pub struct ToolDefinition {
 ### 4.1 工具概述
 
 | 工具 | 功能 | 超时 |
-|-----|------|------|
+|------|------|------|
 | `fs::read` | 读取文件内容 | 5秒 |
 | `fs::write` | 写入文件（完全覆盖） | 10秒 |
 | `fs::edit` | 编辑文件（基于行哈希） | 10秒 |

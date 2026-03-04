@@ -322,8 +322,8 @@ impl ModelGroupClient {
         //         })?;
         //     let client = ProviderFactory::create(provider)?;
         //     clients.insert(
-        //         format!("{_id, model.model_name),
-        //}/{}", model.provider         Arc::from(client),
+        //         format!("{}/{}", model.provider_id, model.model_name),
+        //         Arc::from(client),
         //     );
         // }
         // Ok(Self { name, models, clients, retry_config: RetryConfig::default() })
