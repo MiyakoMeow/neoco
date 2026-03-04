@@ -158,17 +158,14 @@ pub struct CliArgs {
 
 impl CliInterface {
     pub async fn run(self) -> Result<(), UiError> {
-        if let Some(message) = self.args.message {
-            // 直接执行模式
-            self.run_direct(message).await
-        } else if self.args.daemon {
-            // 后台模式
-            DaemonInterface::new().run().await
-        } else {
-            // 默认进入REPL
-            ReplInterface::new(self.session_manager).run().await
-        }
+        // TODO: 判断运行模式
+        // TODO: 如果有message参数，执行直接模式
+        // TODO: 如果指定了daemon参数，进入后台守护进程模式
+        // TODO: 否则默认进入REPL交互模式
+        
+        Ok(())
     }
+}
     
     async fn run_direct(
         &self,
@@ -226,14 +223,16 @@ impl ReplInterface {
     pub fn new(
         session_manager: Arc<SessionManager>,
     ) -> Result<Self, UiError> {
-        crossterm::terminal::enable_raw_mode()?;
-        
-        let stdout = std::io::stdout();
-        let backend = CrosstermBackend::new(stdout);
-        let terminal = Terminal::new(backend)?;
+        // TODO: 启用终端原始模式（禁用行缓冲）
+        // TODO: 创建Crossterm后端
+        // TODO: 创建Terminal实例
+        // TODO: 初始化会话管理器引用
+        // TODO: 初始化空输入缓冲区
+        // TODO: 初始化空输出历史
+        // TODO: 设置默认REPL模式为Normal
         
         Ok(Self {
-            terminal,
+            terminal: todo!(),
             session_manager,
             current_session: None,
             input_buffer: String::new(),

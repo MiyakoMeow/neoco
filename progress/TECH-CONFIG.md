@@ -361,42 +361,7 @@ impl ConfigMerger {
         // 1. 处理对象类型的递归合并
         // 2. 处理数组类型的特殊追加语法（+前缀）
         // 3. 处理标量类型的直接替换
-        match (base, override_) {
-            // 都是对象：递归合并
-            (Value::Object(base_map), Value::Object(override_map)) => {
-                for (key, override_val) in override_map {
-                    if let Some(base_val) = base_map.get_mut(&key) {
-                        Self::merge(base_val, override_val);
-                    } else {
-                        base_map.insert(key, override_val);
-                    }
-                }
-            }
-            
-            // 处理数组追加语法
-            (Value::Array(base_arr), Value::Array(override_arr)) => {
-                for val in override_arr {
-                    if let Value::String(s) = &val {
-                        if s.starts_with('+') {
-                            // 追加模式
-                            base_arr.push(Value::String(s[1..].to_string()));
-                        } else {
-                            // 替换模式：清空后添加
-                            base_arr.clear();
-                            base_arr.push(val);
-                            break;
-                        }
-                    } else {
-                        base_arr.push(val);
-                    }
-                }
-            }
-            
-            // 标量：直接替换
-            (base, override_) => {
-                *base = override_;
-            }
-        }
+        unimplemented!()
     }
 }
 ```
@@ -449,18 +414,10 @@ impl ConfigValidator {
     pub fn validate(config: &NecoConfig) -> Result<(), ConfigError> {
         // TODO: 实现配置验证逻辑
         // 1. 验证模型组引用有效性
-        Self::validate_model_groups(config)?;
-        
         // 2. 验证提供商配置
-        Self::validate_providers(config)?;
-        
         // 3. 验证MCP服务器配置
-        Self::validate_mcp_servers(config)?;
-        
         // 4. 验证目录存在性
-        Self::validate_paths(config)?;
-        
-        Ok(())
+        unimplemented!()
     }
     
     fn validate_model_groups(config: &NecoConfig) -> Result<(), ConfigError> {
@@ -468,25 +425,7 @@ impl ConfigValidator {
         // 1. 遍历所有模型组
         // 2. 验证每个模型引用的格式和有效性
         // 3. 检查引用的提供商是否存在
-        for (group_name, group) in &config.model_groups {
-            for model_ref_str in &group.models {
-                let model_ref = model_ref_str.parse::<ModelRef>()
-                    .map_err(|e| ConfigError::InvalidModelRef {
-                        group: group_name.clone(),
-                        model: model_ref_str.clone(),
-                        source: e,
-                    })?;
-                
-                // 检查提供商是否存在
-                if !config.model_providers.contains_key(&model_ref.provider_id) {
-                    return Err(ConfigError::ProviderNotFound {
-                        group: group_name.clone(),
-                        provider: model_ref.provider_id,
-                    });
-                }
-            }
-        }
-        Ok(())
+        unimplemented!()
     }
     
     fn validate_providers(config: &NecoConfig) -> Result<(), ConfigError> {
@@ -494,17 +433,7 @@ impl ConfigValidator {
         // 1. 遍历所有模型提供商
         // 2. 验证API密钥可访问性
         // 3. 记录警告而非错误（非阻塞）
-        for (name, provider) in &config.model_providers {
-            // 验证API密钥可访问
-            match provider.api_key.get_key() {
-                Ok(_) => {}
-                Err(e) => {
-                    warn!("Provider '{}' API key not available: {}", name, e);
-                    // 非阻塞，仅警告
-                }
-            }
-        }
-        Ok(())
+        unimplemented!()
     }
 }
 ```
@@ -550,26 +479,17 @@ impl ConfigManager {
     pub fn update_config(&self, new_config: NecoConfig) -> Result<(), ConfigError> {
         // TODO: 实现配置热重载逻辑
         // 1. 验证新配置
-        ConfigValidator::validate(&new_config)?;
-        
         // 2. 计算配置差异
-        let old_config = self.get_config();
-        let changes = Self::diff_configs(&old_config, &new_config);
-        
         // 3. 更新内部配置
-        *self.config.write().unwrap() = Arc::new(new_config);
-        
         // 4. 通知订阅者变更
-        let _ = self.change_tx.send(ConfigChange { changes });
-        
-        Ok(())
+        unimplemented!()
     }
     
     /// 订阅配置变更
     pub fn subscribe_changes(&self) -> broadcast::Receiver<ConfigChange> {
         // TODO: 实现配置变更订阅功能
         // 返回变更通知的广播接收器
-        self.change_tx.subscribe()
+        unimplemented!()
     }
 }
 
@@ -662,30 +582,6 @@ use neco_config::{ConfigLoader, ConfigManager};
 // 5. 获取API密钥和工具超时等运行时配置
 
 // TODO: 代码示例实现
-/*
-// 加载配置
-let config = ConfigLoader::new()
-    .with_config_dir("~/.config/neco")
-    .load()?;
-
-// 获取模型组
-let model_group = config.model_groups.get("smart")
-    .ok_or_else(|| Error::ModelGroupNotFound)?;
-
-// 获取第一个模型
-let first_model = &model_group.models[0];
-let model_ref = first_model.parse::<ModelRef>()?;
-
-// 获取提供商配置
-let provider = config.model_providers.get(&model_ref.provider_id)
-    .ok_or_else(|| Error::ProviderNotFound)?;
-
-// 获取API密钥
-let api_key = provider.api_key.get_key()?;
-
-// 获取工具超时
-let timeout = config.system.tools.get_timeout("fs::read");
-*/
 ```
 
 ## 8. 错误类型

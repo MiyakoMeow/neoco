@@ -110,14 +110,17 @@ pub struct MessageIdAllocator {
 
 impl MessageIdAllocator {
     pub fn new() -> Self {
-        Self {
-            counter: AtomicU64::new(1),
-        }
+        // TODO: 创建MessageIdAllocator实例
+        // 1. 初始化counter为1
+        unimplemented!()
     }
     
     /// 获取下一个消息ID
     pub fn next_id(&self) -> u64 {
-        self.counter.fetch_add(1, Ordering::SeqCst)
+        // TODO: 获取下一个消息ID
+        // 1. 使用fetch_add原子操作递增counter
+        // 2. 返回之前的值
+        unimplemented!()
     }
 }
 ```
@@ -502,7 +505,7 @@ impl FileStorage {
         // TODO: 获取Session目录路径
         // 1. 组合base_dir和session_id字符串
         // 2. 返回完整路径
-        self.base_dir.join(session_id.to_string())
+        unimplemented!()
     }
     
     fn agent_file(&self, ulid: &AgentUlid) -> PathBuf {
@@ -510,8 +513,7 @@ impl FileStorage {
         // 1. 获取session_dir
         // 2. 组合ulid字符串和".toml"后缀
         // 3. 返回完整路径
-        self.session_dir(&ulid.session_id)
-            .join(format!("{}.toml", ulid.ulid))
+        unimplemented!()
     }
 }
 
@@ -662,11 +664,7 @@ impl ContextBuilder {
         // 1. 初始化system_messages为空Vec
         // 2. 初始化conversation为空Vec
         // 3. 初始化active_tools为空Vec
-        Self {
-            system_messages: Vec::new(),
-            conversation: Vec::new(),
-            active_tools: Vec::new(),
-        }
+        unimplemented!()
     }
     
     /// 添加系统提示

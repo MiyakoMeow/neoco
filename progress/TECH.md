@@ -1061,7 +1061,7 @@ pub struct NewTool;
 impl ToolProvider for NewTool {
     fn name(&self) -> &str { 
         // TODO: 返回工具名称
-        "new_tool"
+        todo!()
     }
     fn schema(&self) -> Value { 
         // TODO: 返回工具参数的JSON Schema

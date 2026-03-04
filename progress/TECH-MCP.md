@@ -229,7 +229,6 @@ impl StdioTransport {
         // TODO: 创建子进程并设置IO流
         // TODO: 初始化传输层组件
         // TODO: 启动响应读取任务
-        panic!("Not implemented")
     }
     
     /// 启动响应读取任务
@@ -238,7 +237,6 @@ impl StdioTransport {
         // TODO: 启动异步任务读取服务器响应
         // TODO: 解析JSON-RPC响应
         // TODO: 根据请求ID映射到对应的响应通道
-        panic!("Not implemented")
     }
 }
 
@@ -250,7 +248,6 @@ impl McpTransport for StdioTransport {
         // TODO: 发送初始化请求到MCP服务器
         // TODO: 解析初始化响应
         // TODO: 发送initialized通知
-        panic!("Not implemented")
     }
     
     async fn call_tool(
@@ -262,14 +259,12 @@ impl McpTransport for StdioTransport {
         // TODO: 构建工具调用JSON-RPC请求
         // TODO: 发送请求并等待响应
         // TODO: 解析工具调用结果
-        panic!("Not implemented")
     }
     
     async fn close(&mut self
     ) -> Result<(), McpError> {
         // TODO: 发送关闭通知（如果支持）
         // TODO: 终止子进程
-        panic!("Not implemented")
     }
 }
 
@@ -284,7 +279,6 @@ impl StdioTransport {
         // TODO: 发送JSON-RPC请求到标准输入
         // TODO: 等待响应并处理超时
         // TODO: 清理已完成的请求
-        panic!("Not implemented")
     }
     
     /// 发送通知（无需响应）
@@ -294,7 +288,6 @@ impl StdioTransport {
     ) -> Result<(), McpError> {
         // TODO: 将通知序列化为JSON
         // TODO: 发送到MCP服务器标准输入
-        panic!("Not implemented")
     }
 }
 ```
@@ -325,7 +318,6 @@ impl HttpTransport {
         // TODO: 创建认证头部
         // TODO: 构建HTTP头映射
         // TODO: 初始化HTTP客户端
-        panic!("Not implemented")
     }
 }
 
@@ -338,7 +330,6 @@ impl McpTransport for HttpTransport {
         // TODO: 设置认证和HTTP头
         // TODO: 发送POST请求到/initialize端点
         // TODO: 解析初始化响应
-        panic!("Not implemented")
     }
     
     async fn call_tool(
@@ -350,14 +341,12 @@ impl McpTransport for HttpTransport {
         // TODO: 设置认证和HTTP头
         // TODO: 发送POST请求到/tools/call端点
         // TODO: 解析工具调用结果
-        panic!("Not implemented")
     }
     
     async fn close(&mut self
     ) -> Result<(), McpError> {
         // TODO: HTTP无状态，无需关闭
         // TODO: 可考虑清理资源
-        panic!("Not implemented")
     }
 }
 ```
@@ -383,7 +372,6 @@ impl McpManager {
     ) -> Self {
         // TODO: 初始化连接管理器
         // TODO: 加载服务器配置
-        panic!("Not implemented")
     }
     
     /// 连接到MCP服务器
@@ -398,7 +386,6 @@ impl McpManager {
         // TODO: 获取工具列表
         // TODO: 保存连接状态
         // TODO: 记录连接信息
-        panic!("Not implemented")
     }
     
     /// 列出可用工具
@@ -409,7 +396,6 @@ impl McpManager {
         // TODO: 通过JSON-RPC调用tools/list端点
         // TODO: 解析并返回可用工具列表
         // TODO: 处理工具列表变化的场景
-        panic!("Not implemented")
     }
     
     /// 调用MCP工具
@@ -422,7 +408,6 @@ impl McpManager {
         // TODO: 检查连接状态
         // TODO: 验证服务器是否已连接
         // TODO: 调用对应的传输层工具
-        panic!("Not implemented")
     }
     
     /// 断开连接
@@ -433,7 +418,6 @@ impl McpManager {
         // TODO: 从连接管理器中移除连接
         // TODO: 关闭传输层连接
         // TODO: 记录断开连接信息
-        panic!("Not implemented")
     }
     
     /// 断开所有连接
@@ -442,7 +426,6 @@ impl McpManager {
         // TODO: 获取所有连接名称
         // TODO: 依次断开每个连接
         // TODO: 处理断开连接过程中的错误
-        panic!("Not implemented")
     }
 }
 ```
@@ -468,7 +451,6 @@ impl McpToolWrapper {
         // TODO: 初始化工具包装器
         // TODO: 设置服务器名称和工具信息
         // TODO: 引用MCP管理器
-        panic!("Not implemented")
     }
 }
 
@@ -497,7 +479,6 @@ impl ToolProvider for McpToolWrapper {
         // TODO: 处理执行错误
         // TODO: 转换工具结果为ToolResult格式
         // TODO: 处理文本和图像内容
-        panic!("Not implemented")
     }
 }
 ```
@@ -516,7 +497,6 @@ pub async fn register_mcp_tools(
     // TODO: 为每个工具创建包装器
     // TODO: 注册工具到工具注册表
     // TODO: 返回注册的工具数量
-    panic!("Not implemented")
 }
 ```
 

@@ -113,19 +113,23 @@ impl ProviderFactory {
         match config.provider_type {
             ProviderType::OpenAI => {
                 // TODO: 创建OpenAI客户端
-                Ok(Box::new(OpenAiClient::new(config)?))
+                // TODO: 实现代码: Ok(Box::new(OpenAiClient::new(config)?))
+                todo!()
             }
             ProviderType::Anthropic => {
                 // TODO: 实现Anthropic提供商支持
-                Err(ConfigError::ProviderNotImplemented("Anthropic".to_string()))
+                // TODO: 实现代码: Err(ConfigError::ProviderNotImplemented("Anthropic".to_string()))
+                todo!()
             }
             ProviderType::OpenRouter => {
                 // TODO: 实现OpenRouter提供商支持
-                Err(ConfigError::ProviderNotImplemented("OpenRouter".to_string()))
+                // TODO: 实现代码: Err(ConfigError::ProviderNotImplemented("OpenRouter".to_string()))
+                todo!()
             }
             ProviderType::OpenAIResponses => {
                 // TODO: 实现OpenAI Responses API支持
-                Err(ConfigError::ProviderNotImplemented("OpenAIResponses".to_string()))
+                // TODO: 实现代码: Err(ConfigError::ProviderNotImplemented("OpenAIResponses".to_string()))
+                todo!()
             }
         }
     }
@@ -308,30 +312,22 @@ impl ModelGroupClient {
         // TODO: 实现模型组客户端初始化
         // 遍历模型列表，为每个模型创建对应的客户端实例
         // 建立客户端缓存，支持故障转移和重试
-        let mut clients = HashMap::new();
-        
-        for model in &models {
-            // TODO: 验证提供商配置
-            let provider = providers.get(&model.provider_id)
-                .ok_or_else(|| ConfigError::ProviderNotFound {
-                    group: name.clone(),
-                    provider: model.provider_id.clone(),
-                })?;
-            
-            // TODO: 创建并缓存客户端实例
-            let client = ProviderFactory::create(provider)?;
-            clients.insert(
-                format!("{}/{}", model.provider_id, model.model_name),
-                Arc::from(client),
-            );
-        }
-        
-        Ok(Self {
-            name,
-            models,
-            clients,
-            retry_config: RetryConfig::default(),
-        })
+        // TODO: 实现代码:
+        // let mut clients = HashMap::new();
+        // for model in &models {
+        //     let provider = providers.get(&model.provider_id)
+        //         .ok_or_else(|| ConfigError::ProviderNotFound {
+        //             group: name.clone(),
+        //             provider: model.provider_id.clone(),
+        //         })?;
+        //     let client = ProviderFactory::create(provider)?;
+        //     clients.insert(
+        //         format!("{_id, model.model_name),
+        //}/{}", model.provider         Arc::from(client),
+        //     );
+        // }
+        // Ok(Self { name, models, clients, retry_config: RetryConfig::default() })
+        todo!()
     }
     
     /// 发送请求（带故障转移）
@@ -342,40 +338,26 @@ impl ModelGroupClient {
         // TODO: 实现带故障转移的请求调用逻辑
         // 遍历模型列表，尝试调用每个模型直到成功
         // 支持重试机制和错误处理
-        let mut last_error = None;
-        
-        // 遍历模型列表
-        for model_ref in &self.models {
-            let model_key = format!("{}/{}", model_ref.provider_id, model_ref.model_name);
-            let client = self.clients.get(&model_key)
-                .ok_or_else(|| ModelError::ClientNotFound(model_key.clone()))?;
-            
-            // 更新请求中的模型名称
-            request.model = model_ref.model_name.clone();
-            
-            // 应用模型特定参数
-            for (key, value) in &model_ref.params {
-                request.extra_params.insert(key.clone(), json!(value));
-            }
-            
-            // 尝试调用（带重试）
-            match self.call_with_retry(client.as_ref(), &request).await {
-                Ok(response) => return Ok(response),
-                Err(e) => {
-                    warn!(
-                        "Model {} failed: {}, trying next...",
-                        model_key, e
-                    );
-                    last_error = Some(e);
-                }
-            }
-        }
-        
-        // 所有模型都失败
-        Err(ModelError::AllModelsFailed {
-            group: self.name.clone(),
-            source: last_error.unwrap(),
-        })
+        // TODO: 实现代码:
+        // let mut last_error = None;
+        // for model_ref in &self.models {
+        //     let model_key = format!("{}/{}", model_ref.provider_id, model_ref.model_name);
+        //     let client = self.clients.get(&model_key)
+        //         .ok_or_else(|| ModelError::ClientNotFound(model_key.clone()))?;
+        //     request.model = model_ref.model_name.clone();
+        //     for (key, value) in &model_ref.params {
+        //         request.extra_params.insert(key.clone(), json!(value));
+        //     }
+        //     match self.call_with_retry(client.as_ref(), &request).await {
+        //         Ok(response) => return Ok(response),
+        //         Err(e) => {
+        //             warn!("Model {} failed: {}, trying next...", model_key, e);
+        //             last_error = Some(e);
+        //         }
+        //     }
+        // }
+        // Err(ModelError::AllModelsFailed { group: self.name.clone(), source: last_error.unwrap() })
+        todo!()
     }
     
     /// 带重试的调用
@@ -387,29 +369,24 @@ impl ModelGroupClient {
         // TODO: 实现指数退避重试机制
         // 根据错误类型决定是否重试
         // 应用配置的重试次数和退避策略
-        let mut backoff = self.retry_config.initial_backoff;
-        
-        for attempt in 0..self.retry_config.max_retries {
-            match client.chat_completion(request.clone()).await {
-                Ok(response) => return Ok(response),
-                Err(e) if attempt < self.retry_config.max_retries - 1 => {
-                    if e.is_retryable() {
-                        warn!(
-                            "Attempt {} failed: {}, retrying in {:?}...",
-                            attempt + 1, e, backoff
-                        );
-                        tokio::time::sleep(backoff).await;
-                        backoff = backoff.mul_f64(self.retry_config.backoff_multiplier);
-                        backoff = backoff.min(self.retry_config.max_backoff);
-                    } else {
-                        return Err(e);
-                    }
-                }
-                Err(e) => return Err(e),
-            }
-        }
-        
-        unreachable!()
+        // TODO: 实现代码:
+        // let mut backoff = self.retry_config.initial_backoff;
+        // for attempt in 0..self.retry_config.max_retries {
+        //     match client.chat_completion(request.clone()).await {
+        //         Ok(response) => return Ok(response),
+        //         Err(e) if attempt < self.retry_config.max_retries - 1 => {
+        //             if e.is_retryable() {
+        //                 warn!("Attempt {} failed: {}, retrying in {:?}...", attempt + 1, e, backoff);
+        //                 tokio::time::sleep(backoff).await;
+        //                 backoff = backoff.mul_f64(self.retry_config.backoff_multiplier);
+        //                 backoff = backoff.min(self.retry_config.max_backoff);
+        //             } else { return Err(e); }
+        //         }
+        //         Err(e) => return Err(e),
+        //     }
+        // }
+        // unreachable!()
+        todo!()
     }
 }
 
@@ -418,11 +395,9 @@ impl ModelError {
     fn is_retryable(&self) -> bool {
         // TODO: 实现错误类型判断逻辑
         // 根据错误类型决定是否支持重试
-        matches!(self,
-            ModelError::Network(_)
-            | ModelError::RateLimit(_)
-            | ModelError::ServerError(_)
-        )
+        // TODO: 实现代码:
+        // matches!(self, ModelError::Network(_) | ModelError::RateLimit(_) | ModelError::ServerError(_))
+        todo!()
     }
 }
 ```
@@ -456,47 +431,29 @@ impl OpenAiClient {
     pub fn new(config: &ModelProvider) -> Result<Self, ConfigError> {
         // TODO: 实现OpenAI客户端初始化
         // 验证配置并创建async-openai客户端实例
-        let api_key = config.api_key.get_key()
-            .map_err(|_| ConfigError::NoEnvVarFound)?;
-        
-        let openai_config = OpenAIConfig::new()
-            .with_api_key(api_key.expose_secret())
-            .with_api_base(config.base_url.to_string());
-        
-        let client = Client::with_config(openai_config);
-        
-        Ok(Self {
-            inner: client,
-            config: config.clone(),
-        })
+        // TODO: 实现代码:
+        // let api_key = config.api_key.get_key()
+        //     .map_err(|_| ConfigError::NoEnvVarFound)?;
+        // let openai_config = OpenAIConfig::new()
+        //     .with_api_key(api_key.expose_secret())
+        //     .with_api_base(config.base_url.to_string());
+        // let client = Client::with_config(openai_config);
+        // Ok(Self { inner: client, config: config.clone() })
+        todo!()
     }
     
     /// 转换消息格式
     fn convert_message(msg: &Message) -> ChatCompletionRequestMessage {
         // TODO: 实现消息格式转换
         // 将通用Message格式转换为OpenAI特定的消息格式
-        match msg.role {
-            Role::System => ChatCompletionRequestSystemMessage {
-                content: msg.content.clone().unwrap_or_default(),
-                ..Default::default()
-            }.into(),
-            Role::User => ChatCompletionRequestUserMessage {
-                content: msg.content.clone().unwrap_or_default().into(),
-                ..Default::default()
-            }.into(),
-            Role::Assistant => ChatCompletionRequestAssistantMessage {
-                content: msg.content.clone(),
-                tool_calls: msg.tool_calls.as_ref().map(|tc| {
-                    tc.iter().map(|t| t.into()).collect()
-                }),
-                ..Default::default()
-            }.into(),
-            Role::Tool => ChatCompletionRequestToolMessage {
-                content: msg.content.clone().unwrap_or_default(),
-                tool_call_id: msg.tool_call_id.clone().unwrap_or_default(),
-                ..Default::default()
-            }.into(),
-        }
+        // TODO: 实现代码:
+        // match msg.role {
+        //     Role::System => ChatCompletionRequestSystemMessage { content: msg.content.clone().unwrap_or_default(), ..Default::default() }.into(),
+        //     Role::User => ChatCompletionRequestUserMessage { content: msg.content.clone().unwrap_or_default().into(), ..Default::default() }.into(),
+        //     Role::Assistant => ChatCompletionRequestAssistantMessage { content: msg.content.clone(), tool_calls: msg.tool_calls.as_ref().map(|tc| tc.iter().map(|t| t.into()).collect()), ..Default::default() }.into(),
+        //     Role::Tool => ChatCompletionRequestToolMessage { content: msg.content.clone().unwrap_or_default(), tool_call_id: msg.tool_call_id.clone().unwrap_or_default(), ..Default::default() }.into(),
+        // }
+        todo!()
     }
 }
 
@@ -508,58 +465,13 @@ impl ModelClient for OpenAiClient {
     ) -> Result<ChatResponse, ModelError> {
         // TODO: 实现OpenAI聊天完成请求
         // 转换消息格式并调用OpenAI API
-        let messages: Vec<_ > = request.messages
-            .iter()
-            .map(Self::convert_message)
-            .collect();
-        
-        let mut openai_request = CreateChatCompletionRequest {
-            model: request.model,
-            messages,
-            stream: Some(false),
-            temperature: request.temperature,
-            max_tokens: request.max_tokens,
-            stop: request.stop,
-            ..Default::default()
-        };
-        
-        // 添加工具（如果提供）
-        if let Some(tools) = request.tools {
-            openai_request.tools = Some(tools.into_iter().map(Into::into).collect());
-            openai_request.tool_choice = request.tool_choice.map(Into::into);
-        }
-        
-        // 发送请求
-        let response = self.inner
-            .chat()
-            .create(openai_request)
-            .await
-            .map_err(ModelError::OpenAi)?;
-        
-        // 转换响应
-        Ok(ChatResponse {
-            id: response.id,
-            object: response.object,
-            created: response.created as u64,
-            model: response.model,
-            choices: response.choices.into_iter().map(|c| Choice {
-                index: c.index,
-                message: Message {
-                    role: Role::Assistant,
-                    content: c.message.content,
-                    tool_calls: c.message.tool_calls.map(|tc| {
-                        tc.into_iter().map(Into::into).collect()
-                    }),
-                    tool_call_id: None,
-                },
-                finish_reason: c.finish_reason,
-            }).collect(),
-            usage: Usage {
-                prompt_tokens: response.usage.prompt_tokens,
-                completion_tokens: response.usage.completion_tokens,
-                total_tokens: response.usage.total_tokens,
-            },
-        })
+        // TODO: 实现代码:
+        // let messages: Vec<_> = request.messages.iter().map(Self::convert_message).collect();
+        // let mut openai_request = CreateChatCompletionRequest { model: request.model, messages, stream: Some(false), temperature: request.temperature, max_tokens: request.max_tokens, stop: request.stop, ..Default::default() };
+        // if let Some(tools) = request.tools { openai_request.tools = Some(tools.into_iter().map(Into::into).collect()); openai_request.tool_choice = request.tool_choice.map(Into::into); }
+        // let response = self.inner.chat().create(openai_request).await.map_err(ModelError::OpenAi)?;
+        // Ok(ChatResponse { id: response.id, object: response.object, created: response.created as u64, model: response.model, choices: response.choices.into_iter().map(|c| Choice { index: c.index, message: Message { role: Role::Assistant, content: c.message.content, tool_calls: c.message.tool_calls.map(|tc| tc.into_iter().map(Into::into).collect()), tool_call_id: None }, finish_reason: c.finish_reason }).collect(), usage: Usage { prompt_tokens: response.usage.prompt_tokens, completion_tokens: response.usage.completion_tokens, total_tokens: response.usage.total_tokens } })
+        todo!()
     }
     
     async fn chat_completion_stream(
@@ -568,86 +480,30 @@ impl ModelClient for OpenAiClient {
     ) -> Result<BoxStream<Result<ChatStreamChunk, ModelError>>, ModelError> {
         // TODO: 实现OpenAI流式聊天完成
         // 处理流式响应和增量解析
-        let messages: Vec<_> = request.messages
-            .iter()
-            .map(Self::convert_message)
-            .collect();
-        
-        let openai_request = CreateChatCompletionRequest {
-            model: request.model,
-            messages,
-            stream: Some(true),
-            temperature: request.temperature,
-            max_tokens: request.max_tokens,
-            ..Default::default()
-        };
-        
-        let stream = self.inner
-            .chat()
-            .create_stream(openai_request)
-            .await
-            .map_err(ModelError::OpenAi)?;
-        
-        // 转换流
-        let converted = stream.map(|result| {
-            result.map(|chunk| ChatStreamChunk {
-                id: chunk.id,
-                object: chunk.object,
-                created: chunk.created as u64,
-                model: chunk.model,
-                choices: chunk.choices.into_iter().map(|c| StreamChoice {
-                    index: c.index,
-                    delta: Delta {
-                        role: c.delta.role.map(|r| match r.as_str() {
-                            "system" => Role::System,
-                            "user" => Role::User,
-                            "assistant" => Role::Assistant,
-                            _ => Role::Assistant,
-                        }),
-                        content: c.delta.content,
-                        tool_calls: c.delta.tool_calls.unwrap_or_default()
-                            .into_iter()
-                            .map(Into::into)
-                            .collect(),
-                    },
-                    finish_reason: c.finish_reason,
-                }).collect(),
-            }).map_err(ModelError::OpenAi)
-        });
-        
-        Ok(Box::pin(converted))
+        // TODO: 实现代码:
+        // let messages: Vec<_> = request.messages.iter().map(Self::convert_message).collect();
+        // let openai_request = CreateChatCompletionRequest { model: request.model, messages, stream: Some(true), temperature: request.temperature, max_tokens: request.max_tokens, ..Default::default() };
+        // let stream = self.inner.chat().create_stream(openai_request).await.map_err(ModelError::OpenAi)?;
+        // let converted = stream.map(|result| result.map(|chunk| ChatStreamChunk { id: chunk.id, object: chunk.object, created: chunk.created as u64, model: chunk.model, choices: chunk.choices.into_iter().map(|c| StreamChoice { index: c.index, delta: Delta { role: c.delta.role.map(|r| match r.as_str() { "system" => Role::System, "user" => Role::User, "assistant" => Role::Assistant, _ => Role::Assistant }), content: c.delta.content, tool_calls: c.delta.tool_calls.unwrap_or_default().into_iter().map(Into::into).collect() }, finish_reason: c.finish_reason }).collect() }).map_err(ModelError::OpenAi));
+        // Ok(Box::pin(converted))
+        todo!()
     }
     
     fn capabilities(&self) -> ModelCapabilities {
         // TODO: 根据配置和能力返回模型支持的功能
-        ModelCapabilities {
-            streaming: true,
-            tools: true,
-            functions: true,
-            json_mode: true,
-            vision: false, // 根据模型配置
-            context_window: 128_000, // 根据模型配置
-        }
+        // TODO: 实现代码:
+        // ModelCapabilities { streaming: true, tools: true, functions: true, json_mode: true, vision: false, context_window: 128_000 }
+        todo!()
     }
     
     async fn health_check(&self) -> Result<(), ModelError> {
         // TODO: 实现健康检查逻辑
         // 发送简单的测试请求验证连接状态
-        let request = ChatRequest {
-            model: self.config.default_model.clone().unwrap_or_default(),
-            messages: vec![Message {
-                role: Role::User,
-                content: Some("Hi".to_string()),
-                tool_calls: None,
-                tool_call_id: None,
-            }],
-            stream: false,
-            max_tokens: Some(1),
-            ..Default::default()
-        };
-        
-        self.chat_completion(request).await?;
-        Ok(())
+        // TODO: 实现代码:
+        // let request = ChatRequest { model: self.config.default_model.clone().unwrap_or_default(), messages: vec![Message { role: Role::User, content: Some("Hi".to_string()), tool_calls: None, tool_call_id: None }], stream: false, max_tokens: Some(1), ..Default::default() };
+        // self.chat_completion(request).await?;
+        // Ok(())
+        todo!()
     }
 }
 ```
@@ -669,19 +525,17 @@ impl StreamHandler {
     ) -> Result<String, ModelError> {
         // TODO: 实现流式响应收集
         // 遍历流式数据，拼接完整的响应内容
-        let mut content = String::new();
-        let mut pin_stream = stream;
-        
-        while let Some(chunk) = pin_stream.next().await {
-            let chunk = chunk?;
-            for choice in chunk.choices {
-                if let Some(delta_content) = choice.delta.content {
-                    content.push_str(&delta_content);
-                }
-            }
-        }
-        
-        Ok(content)
+        // TODO: 实现代码:
+        // let mut content = String::new();
+        // let mut pin_stream = stream;
+        // while let Some(chunk) = pin_stream.next().await {
+        //     let chunk = chunk?;
+        //     for choice in chunk.choices {
+        //         if let Some(delta_content) = choice.delta.content { content.push_str(&delta_content); }
+        //     }
+        // }
+        // Ok(content)
+        todo!()
     }
     
     /// 实时处理流（带回调）
@@ -695,54 +549,19 @@ impl StreamHandler {
         // TODO: 实现实时流式处理
         // 支持回调函数实时显示输出
         // 处理流式工具调用和内容增量
-        let mut full_content = String::new();
-        let mut tool_calls: Vec<ToolCall> = Vec::new();
-        let mut pin_stream = stream;
-        
-        while let Some(chunk) = pin_stream.next().await {
-            let chunk = chunk?;
-            for choice in chunk.choices {
-                // 处理内容增量
-                if let Some(delta_content) = &choice.delta.content {
-                    callback(delta_content);
-                    full_content.push_str(delta_content);
-                }
-                
-                // 处理工具调用增量
-                for delta_tc in &choice.delta.tool_calls {
-                    // 合并工具调用增量（处理流式分片）
-                    Self::merge_tool_call_delta(&mut tool_calls,
-                        delta_tc
-                    );
-                }
-            }
-        }
-        
-        Ok(ChatResponse {
-            id: "stream".to_string(),
-            object: "chat.completion".to_string(),
-            created: chrono::Utc::now().timestamp() as u64,
-            model: "streaming".to_string(),
-            choices: vec![Choice {
-                index: 0,
-                message: Message {
-                    role: Role::Assistant,
-                    content: Some(full_content),
-                    tool_calls: if tool_calls.is_empty() {
-                        None
-                    } else {
-                        Some(tool_calls)
-                    },
-                    tool_call_id: None,
-                },
-                finish_reason: Some("stop".to_string()),
-            }],
-            usage: Usage {
-                prompt_tokens: 0,
-                completion_tokens: 0,
-                total_tokens: 0,
-            },
-        })
+        // TODO: 实现代码:
+        // let mut full_content = String::new();
+        // let mut tool_calls: Vec<ToolCall> = Vec::new();
+        // let mut pin_stream = stream;
+        // while let Some(chunk) = pin_stream.next().await {
+        //     let chunk = chunk?;
+        //     for choice in chunk.choices {
+        //         if let Some(delta_content) = &choice.delta.content { callback(delta_content); full_content.push_str(delta_content); }
+        //         for delta_tc in &choice.delta.tool_calls { Self::merge_tool_call_delta(&mut tool_calls, delta_tc); }
+        //     }
+        // }
+        // Ok(ChatResponse { id: "stream".to_string(), object: "chat.completion".to_string(), created: chrono::Utc::now().timestamp() as u64, model: "streaming".to_string(), choices: vec![Choice { index: 0, message: Message { role: Role::Assistant, content: Some(full_content), tool_calls: if tool_calls.is_empty() { None } else { Some(tool_calls) }, tool_call_id: None }, finish_reason: Some("stop".to_string()) }], usage: Usage { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 } })
+        todo!()
     }
     
     /// 合并工具调用增量
@@ -753,14 +572,9 @@ impl StreamHandler {
         // TODO: 实现流式工具调用合并
         // 处理增量工具调用，合并参数内容
         // 查找或创建工具调用，追加参数
-        if let Some(existing) = tool_calls.iter_mut()
-            .find(|tc| tc.id == delta.id) {
-            // 追加参数
-            existing.function.arguments.push_str(&delta.function.arguments);
-        } else {
-            // 新的工具调用
-            tool_calls.push(delta.clone());
-        }
+        // TODO: 实现代码:
+        // if let Some(existing) = tool_calls.iter_mut().find(|tc| tc.id == delta.id) { existing.function.arguments.push_str(&delta.function.arguments); } else { tool_calls.push(delta.clone()); }
+        todo!()
     }
 }
 ```
@@ -794,24 +608,18 @@ impl ToolCallHandler {
         // TODO: 实现工具调用解析
         // 从响应中提取工具调用信息
         // 解析JSON参数并构建工具调用请求
-        let mut requests = Vec::new();
-        
-        for choice in &response.choices {
-            if let Some(tool_calls) = &choice.message.tool_calls {
-                for tc in tool_calls {
-                    let args = serde_json::from_str(&tc.function.arguments)
-                        .unwrap_or(json!({}));
-                    
-                    requests.push(ToolCallRequest {
-                        id: tc.id.clone(),
-                        name: tc.function.name.clone(),
-                        arguments: args,
-                    });
-                }
-            }
-        }
-        
-        requests
+        // TODO: 实现代码:
+        // let mut requests = Vec::new();
+        // for choice in &response.choices {
+        //     if let Some(tool_calls) = &choice.message.tool_calls {
+        //         for tc in tool_calls {
+        //             let args = serde_json::from_str(&tc.function.arguments).unwrap_or(json!({}));
+        //             requests.push(ToolCallRequest { id: tc.id.clone(), name: tc.function.name.clone(), arguments: args });
+        //         }
+        //     }
+        // }
+        // requests
+        todo!()
     }
     
     /// 构建工具响应消息
@@ -821,17 +629,10 @@ impl ToolCallHandler {
     ) -> Message {
         // TODO: 实现工具响应构建
         // 根据工具执行结果构建响应消息
-        let content = match &result.result {
-            Ok(value) => value.to_string(),
-            Err(e) => format!("Error: {}", e),
-        };
-        
-        Message {
-            role: Role::Tool,
-            content: Some(content),
-            tool_calls: None,
-            tool_call_id: Some(tool_call_id),
-        }
+        // TODO: 实现代码:
+        // let content = match &result.result { Ok(value) => value.to_string(), Err(e) => format!("Error: {}", e) };
+        // Message { role: Role::Tool, content: Some(content), tool_calls: None, tool_call_id: Some(tool_call_id) }
+        todo!()
     }
 }
 ```
@@ -849,27 +650,16 @@ pub async fn execute_tool_calls_parallel(
     // TODO: 实现并行工具调用执行
     // 使用异步并发执行多个工具调用
     // 支持工具注册表和错误处理
-    let futures: Vec<_> = requests
-        .into_iter()
-        .map(|req| {
-            let registry = tool_registry.clone();
-            async move {
-                let result = if let Some(tool) = registry.get(&req.name) {
-                    tool.execute(req.arguments).await
-                        .map_err(ToolError::Execution)
-                } else {
-                    Err(ToolError::NotFound(req.name.clone()))
-                };
-                
-                ToolCallResult {
-                    id: req.id,
-                    result,
-                }
-            }
-        })
-        .collect();
-    
-    join_all(futures).await
+    // TODO: 实现代码:
+    // let futures: Vec<_> = requests.into_iter().map(|req| {
+    //     let registry = tool_registry.clone();
+    //     async move {
+    //         let result = if let Some(tool) = registry.get(&req.name) { tool.execute(req.arguments).await.map_err(ToolError::Execution) } else { Err(ToolError::NotFound(req.name.clone())) };
+    //         ToolCallResult { id: req.id, result }
+    //     }
+    // }).collect();
+    // join_all(futures).await
+    todo!()
 }
 ```
 

@@ -307,47 +307,21 @@ fn apply_hashline(
     offset: usize,
     limit: Option<usize>,
 ) -> String {
-    let lines: Vec<&str> = content.lines().collect();
-    let start = offset.saturating_sub(1);
-    let end = limit.map(|l| (start + l).min(lines.len()))
-        .unwrap_or(lines.len());
-    
-    let mut result = String::new();
-    
-    for (i, line) in lines[start..end].iter().enumerate() {
-        let line_num = start + i + 1;
-        let hash = compute_line_hash(content, line_num);
-        result.push_str(&format!("{}|{}\n", hash, line));
-    }
-    
-    result
+    // TODO: 实现Hashline应用逻辑
+    // 1. 按offset和limit裁剪内容
+    // 2. 为每行计算哈希值
+    // 3. 格式化为 "hash|content" 形式
+    unimplemented!()
 }
 
 /// 计算行哈希
 fn compute_line_hash(content: &str, line_num: usize) -> String {
-    let lines: Vec<&str> = content.lines().collect();
-    
-    // 获取第 MAX(N-4,1) 行到第 N 行的内容窗口
-    let window_start = line_num.saturating_sub(5);
-    let window: Vec<&str> = lines[window_start..line_num]
-        .to_vec();
-    
-    let window_content = window.join("\n");
-    
-    // 使用xxHash
-    let mut seed = 0u64;
-    loop {
-        let hash = xxhash_rust::xxh3::xxh3_64_with_seed(
-            window_content.as_bytes(),
-            seed
-        );
-        
-        let hash_str = format!("{:04X}", hash & 0xFFFF);
-        
-        // 检查冲突（需要在文件范围内检查）
-        // 简化：假设无冲突
-        return hash_str;
-    }
+    // TODO: 实现行哈希计算逻辑
+    // 1. 获取当前行及上下文窗口（前5行）
+    // 2. 使用xxHash计算哈希
+    // 3. 处理哈希冲突
+    // 4. 返回4位十六进制哈希值
+    unimplemented!()
 }
 ```
 
@@ -415,25 +389,12 @@ fn find_hash_matches(
     start_hash: &str,
     end_hash: &str,
 ) -> Vec<(usize, usize)> {
-    let mut matches = Vec::new();
-    let lines: Vec<&str> = content.lines().collect();
-    
-    // 查找所有可能的开始位置
-    for i in 0..lines.len() {
-        let computed_hash = compute_line_hash(content, i + 1);
-        if computed_hash == start_hash {
-            // 查找对应的结束位置
-            for j in i..lines.len() {
-                let end_computed = compute_line_hash(content, j + 1);
-                if end_computed == end_hash {
-                    matches.push((i, j));
-                    break;
-                }
-            }
-        }
-    }
-    
-    matches
+    // TODO: 实现哈希匹配查找逻辑
+    // 1. 遍历文件所有行
+    // 2. 查找与start_hash匹配的起始位置
+    // 3. 从起始位置向后查找与end_hash匹配的结束位置
+    // 4. 返回所有匹配的位置对
+    unimplemented!()
 }
 ```
 
@@ -545,63 +506,23 @@ impl ActivateTool {
         &self,
         name: &str,
     ) -> Result<ToolResult, ToolError> {
-        // 解析MCP服务器配置名称
-        let server_name = name.replace("::", "-");
-        
-        // 启动MCP服务器
-        let tools = self.mcp_manager
-            .connect_server(&server_name)
-            .await
-            .map_err(|e| ToolError::Execution(format!(
-                "Failed to connect MCP server: {}", e
-            )))?;
-        
-        // 注册MCP工具到Agent
-        for tool in tools {
-            let tool_id = format!("mcp::{}", tool.name);
-            self.agent_manager.register_tool(tool_id, tool).await
-                .map_err(|e| ToolError::Execution(format!(
-                    "Failed to register tool: {}", e
-                )))?;
-        }
-        
-        Ok(ToolResult {
-            output: format!(
-                "Activated MCP server '{}' with {} tools",
-                name,
-                tools.len()
-            ),
-            data: Some(json!({
-                "server": name,
-                "tools_count": tools.len(),
-            })),
-            is_error: false,
-        })
+        // TODO: 实现MCP激活逻辑
+        // 1. 解析MCP服务器配置名称
+        // 2. 连接/启动MCP服务器
+        // 3. 注册MCP工具到Agent
+        // 4. 返回激活结果
+        unimplemented!()
     }
     
     async fn activate_skill(
         &self,
         name: &str,
     ) -> Result<ToolResult, ToolError> {
-        let skill = self.skill_manager
-            .load_skill(name)
-            .await
-            .map_err(|e| ToolError::Execution(format!(
-                "Failed to load skill: {}", e
-            )))?;
-        
-        // 添加skill提示词
-        self.agent_manager.add_skill_prompt(name, &skill)
-            .await
-            .map_err(|e| ToolError::Execution(format!(
-                "Failed to add skill prompt: {}", e
-            )))?;
-        
-        Ok(ToolResult {
-            output: format!("Activated skill '{}'", name),
-            data: None,
-            is_error: false,
-        })
+        // TODO: 实现Skill激活逻辑
+        // 1. 加载Skill内容
+        // 2. 添加Skill提示词到Agent
+        // 3. 返回激活结果
+        unimplemented!()
     }
     
     // ... 其他激活方法

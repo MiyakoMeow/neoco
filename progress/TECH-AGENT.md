@@ -274,7 +274,6 @@ impl AgentManager {
         // 2. 解析Agent定义
         // 3. 创建Session
         // 4. 加载提示词
-        unimplemented!()
     }
     
     /// 生成下级Agent
@@ -292,7 +291,6 @@ impl AgentManager {
         // 5. 创建子Agent
         // 6. 加载提示词
         // 7. 添加child提示词
-        unimplemented!()
     }
     
     /// 查找Agent定义
@@ -304,7 +302,6 @@ impl AgentManager {
         // 1. 先在工作流目录查找
         // 2. 在配置目录查找
         // 3. 如果都不存在则返回错误
-        unimplemented!()
     }
 }
 ```
@@ -324,7 +321,6 @@ impl AgentManager {
         // 2. 加载每个提示词组件
         // 3. 合并为系统消息
         // 4. 添加为第一条消息
-        unimplemented!()
     }
     
     /// 加载提示词组件
@@ -336,7 +332,6 @@ impl AgentManager {
         // 1. 检查内置提示词
         // 2. 从文件加载自定义提示词
         // 3. 返回提示词内容或错误
-        unimplemented!()
     }
     
     /// 为子Agent添加child提示词
@@ -349,7 +344,6 @@ impl AgentManager {
         // 1. 检查是否为子Agent
         // 2. 加载multi-agent-child提示词
         // 3. 添加到Agent消息历史
-        unimplemented!()
     }
 }
 ```
@@ -410,7 +404,6 @@ impl ToolProvider for SpawnAgentTool {
         // 3. 生成子Agent
         // 4. 发送初始任务
         // 5. 返回结果
-        unimplemented!()
     }
 }
 ```
@@ -466,7 +459,6 @@ impl ToolProvider for SendMessageTool {
         // 3. 验证通信权限
         // 4. 发送消息
         // 5. 返回结果
-        unimplemented!()
     }
 }
 ```
@@ -521,7 +513,6 @@ impl ToolProvider for ReportTool {
         // 3. 根据汇报类型构建消息
         // 4. 发送汇报消息
         // 5. 返回结果
-        unimplemented!()
     }
 }
 ```
@@ -562,7 +553,6 @@ impl AgentMessageRouter {
         // 1. 存储消息到Session
         // 2. 检查是否有等待的回调
         // 3. 触发目标Agent处理
-        unimplemented!()
     }
     
     /// 发送消息并等待回复
@@ -576,7 +566,6 @@ impl AgentMessageRouter {
         // 2. 注册等待回调
         // 3. 发送消息
         // 4. 等待回复或超时
-        unimplemented!()
     }
 }
 ```
@@ -595,7 +584,6 @@ impl AgentManager {
         // 2. 更新状态为运行中
         // 3. 调用模型
         // 4. 处理响应或错误
-        unimplemented!()
     }
 }
 ```
