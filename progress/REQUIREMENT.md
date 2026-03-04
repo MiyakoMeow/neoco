@@ -61,7 +61,7 @@
 ### 模型调用
 
 - 基于OpenAI Chat Completion API。
-  - OpenAI API调用使用`async-openai`这个crate。
+  - OpenAI API调用使用 [async-openai](https://crates.io/crates/async-openai) crate (版本 0.33.0)。
 - 流式输出
 - 工具调用
   - 尽可能支持并行化工具调用
@@ -110,8 +110,8 @@ content = "xxx"
 
 ### MCP
 
-- 使用`rmcp`这个crate。
-- 同时支持`local`和`http`两种形式。
+- 使用 [rmcp](https://crates.io/crates/rmcp) crate (版本 1.1.0)。
+- 同时支持 `stdio` 和 `http` 两种传输模式。
 
 ### Skills
 
