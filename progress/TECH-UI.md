@@ -388,6 +388,194 @@ impl ReplInterface {
 }
 ```
 
+### 5.3 TUI布局设计
+
+```mermaid
+graph TB
+    subgraph "REPL TUI布局 (Viewport::Inline 非独占模式)"
+        direction TB
+        
+        subgraph "主内容区"
+            M1[消息历史<br/>工具调用结果]
+        end
+        
+        subgraph "底部区域"
+            direction TB
+            
+            subgraph "输入框上方状态"
+                SB1[Session信息<br/>模型状态]
+            end
+            
+            subgraph "输入框"
+                IB[多行输入框<br/>Shift+Enter换行<br/>Ctrl+hjkl移动光标]
+            end
+            
+            subgraph "输入框下方状态"
+                SB2[工作流进度<br/>Agent统计<br/>时间]
+            end
+        end
+        
+        M1 --> SB1
+        SB1 --> IB
+        IB --> SB2
+    end
+```
+
+**说明**：
+- 使用`ratatui`的`Viewport::Inline`模式（非全屏TUI）
+- 状态栏分两部分：输入框上方显示Session/模型信息，下方显示工作流进度/Agent统计
+
+#### 5.3.1 布局配置
+
+```rust
+/// TUI布局配置
+pub struct TuiLayout {
+    /// 输入框上方状态行数
+    pub top_status_lines: u8,
+    /// 输入框下方状态行数
+    pub bottom_status_lines: u8,
+    /// 是否显示时间
+    pub show_timestamp: bool,
+}
+
+/// 输入框上方状态内容
+pub struct TopStatus {
+    pub session_id: Option<String>,
+    pub model_group: String,
+    pub session_type: SessionType,
+}
+
+/// 输入框下方状态内容
+pub struct BottomStatus {
+    pub workflow_progress: Option<String>,
+    pub agent_count: usize,
+    pub active_agents: usize,
+    pub timestamp: String,
+}
+```
+    Dotted,
+}
+```
+
+### 5.4 状态显示内容
+
+#### 5.4.1 输入框上方状态
+
+```
+[Session: 01HF8X5JQC8] [Model: glm-4.7] [Type: REPL]
+```
+
+#### 5.4.2 输入框下方状态
+
+```
+Workflow: PRD工作流 | Nodes: 2/6 | Agents: 3 运行中, 1 完成 | 14:32:05
+```
+
+#### 5.4.3 工作流/Agent状态查询
+
+通过命令查看详细信息：
+
+| 命令 | 功能 |
+|------|------|
+| `/workflow status` | 显示工作流详细状态 |
+| `/workflow graph` | 导出工作流图为Mermaid |
+| `/agents tree` | 显示Agent树结构 |
+| `/agents stats` | 显示Agent执行统计 |
+
+### 5.5 交互操作
+
+#### 5.5.1 快捷键
+
+| 快捷键 | 功能 |
+|--------|------|
+| `Ctrl+p` | 打开命令面板 |
+| `Ctrl+c` | 中断当前操作 |
+| `Shift+Enter` | 多行输入换行 |
+| `Ctrl+hjkl` | 移动光标 |
+| `Esc` | 取消输入 |
+
+### 5.6 命令系统
+
+```rust
+impl ReplInterface {
+    /// 处理工作流命令
+    pub async fn handle_workflow_command(
+        &mut self,
+        args: &[&str],
+    ) -> Result<(), UiError> {
+        match args[0] {
+            "status" => self.show_workflow_status().await?,
+            "graph" => self.export_workflow_graph().await?,
+            _ => return Err(UiError::UnknownCommand("workflow".to_string())),
+        }
+        Ok(())
+    }
+    
+    /// 处理Agent命令
+    pub async fn handle_agent_command(
+        &mut self,
+        args: &[&str],
+    ) -> Result<(), UiError> {
+        match args[0] {
+            "tree" => self.show_agent_tree().await?,
+            "stats" => self.show_agent_stats().await?,
+            _ => return Err(UiError::UnknownCommand("agents".to_string())),
+        }
+        Ok(())
+    }
+}
+```
+
+#### 命令输出示例
+
+```
+/workflow status
+Workflow: PRD工作流
+  write-prd        ● Success  (2次)
+  review-prd       ● Running
+  write-tech-doc   ○ Waiting
+  ...
+
+/agents tree
+Agent(01HF8...): Root [Running] 15 msgs
+├── Agent(01HG9...): research [Idle] 8 msgs
+│   └── Agent(01HJ2...): detail [Idle] 3 msgs
+└── Agent(01HK3...): writer [Completed] 4 msgs
+
+/agents stats
+总计: 4 Agents (运行中:1 完成:1 空闲:2)
+消息总数: 30 | 平均响应: 2.3s
+```
+
+### 5.7 实时更新
+
+```rust
+impl ReplInterface {
+    /// 处理UI事件，更新状态显示
+    pub async fn handle_ui_event(&mut self, event: UiEvent) {
+        match event {
+            UiEvent::WorkflowProgress { completed, total } => {
+                self.update_workflow_status(completed, total);
+            }
+            UiEvent::AgentStateChanged { .. } => {
+                self.update_agent_stats();
+            }
+            UiEvent::MessageAdded { .. } => {
+                self.update_message_count();
+            }
+        }
+        self.request_redraw();
+    }
+}
+
+pub enum UiEvent {
+    WorkflowProgress { completed: usize, total: usize },
+    AgentStateChanged { ulid: AgentUlid, state: AgentState },
+    MessageAdded { agent_ulid: AgentUlid, count: usize },
+    Error { message: String },
+}
+```
+
 ## 6. 后台运行模式
 
 ### 6.1 守护进程架构
