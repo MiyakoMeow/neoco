@@ -404,6 +404,8 @@ impl ModelError {
 
 ## 5. OpenAI客户端实现
 
+基于 [async-openai](https://crates.io/crates/async-openai) crate (版本 0.33.0) 实现。
+
 ### 5.1 客户端结构
 
 ```rust

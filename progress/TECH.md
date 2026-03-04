@@ -70,9 +70,9 @@ graph TB
 |-------|------|----------|
 | `neco-core` | 核心类型和trait定义 | - |
 | `neco-config` | 配置管理 | neco-core, toml |
-| `neco-model` | 模型调用服务 | neco-core, async-openai |
+| `neco-model` | 模型调用服务 | neco-core, async-openai (0.33.0) |
 | `neco-session` | Session管理 | neco-core, ulid |
-| `neco-mcp` | MCP客户端 | neco-core, rmcp |
+| `neco-mcp` | MCP客户端 | neco-core, rmcp (1.1.0) |
 | `neco-skill` | Skills管理 | neco-core |
 | `neco-context` | 上下文压缩 | neco-core |
 | `neco-agent` | Agent逻辑 | neco-core, neco-model, neco-tool |
