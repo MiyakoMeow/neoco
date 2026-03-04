@@ -93,7 +93,9 @@ parent_ulid = "01HF..."  # 上级Agent的ULID，最上层Agent此字段省略不
 
 # Agent消息列表
 [[messages]]
-# 整个Session中，所有工作流节点、所有Agent的所有消息，都拥有唯一id，便于按照id回溯。
+# 整个Session中，所有工作流节点、所有Agent的所有消息，都拥有唯一整数id。
+# id来源：作用于整个Session的原子化自增id分配器。
+# 回溯时，指定特定id为x，只保留id <= x的消息。
 id = 1
 role = "user"
 content = "xxx"
