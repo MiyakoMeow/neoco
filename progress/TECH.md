@@ -832,7 +832,7 @@ pub enum WorkflowEvent {
 
 ### 6.1 文件系统布局
 
-```
+```text
 ~/.config/neco/           # 配置目录
 ├── neco.toml            # 主配置
 ├── prompts/

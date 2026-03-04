@@ -48,12 +48,10 @@ graph TB
 #[async_trait]
 pub trait UserInterface: Send + Sync {
     /// 初始化UI
-    async fn init(&mut self
-    ) -> Result<(), UiError>;
+    async fn init(&mut self) -> Result<(), UiError>;
     
     /// 获取用户输入
-    async fn get_input(&mut self
-    ) -> Result<UserInput, UiError>;
+    async fn get_input(&mut self) -> Result<UserInput, UiError>;
     
     /// 渲染输出
     async fn render_output(
@@ -69,9 +67,7 @@ pub trait UserInterface: Send + Sync {
     ) -> Result<String, UiError>;
     
     /// 清理资源
-    async fn shutdown(
-        &mut self
-    ) -> Result<(), UiError>;
+    async fn shutdown(&mut self) -> Result<(), UiError>;
 }
 
 /// 用户输入
@@ -129,6 +125,7 @@ pub struct CliInterface {
 pub struct CliArgs {
     /// 消息内容（直接执行）
     #[arg(short, long)]
+    #[arg(conflicts_with = "daemon")]
     message: Option<String>,
     
     /// Session ID（接续对话）
@@ -149,10 +146,12 @@ pub struct CliArgs {
     
     /// 后台运行
     #[arg(long)]
+    #[arg(requires = "message")]
     daemon: bool,
     
     /// 不询问（仅后台模式）
     #[arg(long)]
+    #[arg(requires = "daemon")]
     no_ask: bool,
 }
 
@@ -218,6 +217,12 @@ pub enum ReplMode {
     MultiLine,   // 多行输入模式
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum EventResult {
+    Continue,
+    Exit,
+}
+
 impl ReplInterface {
     pub fn new(
         session_manager: Arc<SessionManager>,
@@ -231,7 +236,7 @@ impl ReplInterface {
         // TODO: 设置默认REPL模式为Normal
         
         Ok(Self {
-            terminal: todo!(),
+            terminal: unimplemented!(),
             session_manager,
             current_session: None,
             input_buffer: String::new(),
@@ -256,8 +261,7 @@ impl ReplInterface {
     }
     
     /// 绘制界面
-    async fn draw(&mut self
-    ) -> Result<(), UiError> {
+    async fn draw(&mut self) -> Result<(), UiError> {
         // TODO: 使用ratatui绘制终端界面
         // TODO: 垂直分割界面为输出区、输入区、状态栏
         // TODO: 渲染输出历史文本
@@ -271,7 +275,7 @@ impl ReplInterface {
     async fn handle_key_event(
         &mut self,
         key: event::KeyEvent,
-    ) -> Result<ControlFlow<(), ()>, UiError> {
+    ) -> Result<EventResult, UiError> {
         // TODO: 根据按键和修饰键执行相应操作
         // TODO: Ctrl+C: 退出REPL
         // TODO: Shift+Enter: 多行输入换行
@@ -280,13 +284,11 @@ impl ReplInterface {
         // TODO: 普通字符: 添加到输入缓冲区
         // TODO: 退格: 删除最后一个字符
         
-        Ok(ControlFlow::Continue)
+        Ok(EventResult::Continue)
     }
     
     /// 提交输入
-    async fn submit_input(
-        &mut self
-    ) -> Result<(), UiError> {
+    async fn submit_input(&mut self) -> Result<(), UiError> {
         // TODO: 获取输入内容并清空缓冲区
         // TODO: 检查输入是否为空
         // TODO: 判断是否为命令（以/开头）
@@ -349,14 +351,39 @@ impl ReplInterface {
         session: &Session,
         ulid: &AgentUlid,
         prefix: &str,
-    ) -> Result<String, ()> {
+    ) -> Result<String, UiError> {
         // TODO: 获取Agent节点信息
-        // TODO: 根据Agent状态选择对应图标
-        // TODO: 格式化输出：前缀+状态图标+Agent ID+消息数量
-        // TODO: 递归处理子Agent节点
-        // TODO: 使用合适的树形前缀表示层级关系
+        let agent_info = session.get_agent(ulid)
+            .map_err(|e| UiError::Session(e))?;
         
-        Ok(String::new())
+        // TODO: 根据Agent状态选择对应图标
+        let status_icon = match agent_info.status {
+            AgentStatus::Idle => "○",
+            AgentStatus::Running => "◐",
+            AgentStatus::Completed => "●",
+            AgentStatus::Failed => "✗",
+            AgentStatus::Paused => "◔",
+        };
+        
+        // TODO: 格式化输出：前缀+状态图标+Agent ID+消息数量
+        let message_count = agent_info.messages.len();
+        let line = format!("{}{} Agent({}): {} messages\n",
+            prefix, status_icon, ulid, message_count);
+        
+        // TODO: 递归处理子Agent节点
+        let children = agent_info.children;
+        let mut result = line;
+        for (i, child_ulid) in children.iter().enumerate() {
+            let child_prefix = if i == children.len() - 1 {
+                format!("{}└── ", prefix)
+            } else {
+                format!("{}├── ", prefix)
+            };
+            let child_result = self.render_agent_node(session, child_ulid, &child_prefix)?;
+            result.push_str(&child_result);
+        }
+        
+        Ok(result)
     }
 }
 ```
@@ -371,6 +398,15 @@ use axum::{
     Router,
     Json,
     extract::{Path, State},
+    response::Response,
+    ws::{WebSocketUpgrade, WebSocket},
+};
+use serde::{Deserialize, Serialize};
+use serde_json::json;
+use chrono::{DateTime, Utc};
+use axum::{
+    http::StatusCode,
+    response::IntoResponse,
 };
 
 /// 后台守护进程
@@ -388,6 +424,32 @@ pub struct DaemonConfig {
     pub port: u16,
     /// API密钥（可选）
     pub api_key: Option<String>,
+    /// CORS允许的源
+    pub cors_allowed_origins: Vec<String>,
+    /// 速率限制配置
+    pub rate_limit_config: Option<RateLimitConfig>,
+    /// TLS配置
+    pub tls_config: Option<TlsConfig>,
+    /// 健康检查路径
+    pub health_check_paths: Vec<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct RateLimitConfig {
+    /// 每分钟最大请求数
+    pub requests_per_minute: u32,
+    /// 每小时最大请求数
+    pub requests_per_hour: u32,
+    /// burst大小
+    pub burst_size: u32,
+}
+
+#[derive(Debug, Clone)]
+pub struct TlsConfig {
+    /// TLS证书路径
+    pub cert_path: String,
+    /// TLS密钥路径
+    pub key_path: String,
 }
 
 impl DaemonInterface {
@@ -398,6 +460,14 @@ impl DaemonInterface {
         // TODO: 配置Workflow相关API端点（启动、状态、控制）
         // TODO: 配置WebSocket实时事件端点
         // TODO: 设置应用状态（session_manager、workflow_engine）
+        
+        // TODO: 添加CORS中间件
+        // TODO: 添加速率限制中间件
+        // TODO: 添加日志中间件
+        // TODO: 添加压缩中间件
+        
+        // TODO: 如果配置了TLS，启动HTTPS服务器
+        // TODO: 否则启动普通HTTP服务器
         
         // TODO: 启动HTTP服务器
         // TODO: 绑定监听地址和端口
@@ -419,11 +489,79 @@ struct AppState {
 ### 6.2 API端点
 
 ```rust
+/// 创建Session请求
+#[derive(Debug, Deserialize)]
+pub struct CreateSessionRequest {
+    /// 初始消息
+    pub message: Option<String>,
+    /// 模型组配置
+    pub model_group: Option<String>,
+    /// Agent配置
+    pub agent_config: Option<AgentConfig>,
+}
+
+/// Session响应
+#[derive(Debug, Serialize)]
+pub struct SessionResponse {
+    /// Session ID
+    pub id: String,
+    /// Session状态
+    pub status: String,
+    /// 根Agent ID
+    pub root_agent: String,
+    /// 创建时间
+    pub created_at: DateTime<Utc>,
+}
+
+/// 工作流状态响应
+#[derive(Debug, Serialize)]
+pub struct WorkflowStatusResponse {
+    /// 工作流ID
+    pub workflow_id: String,
+    /// 状态
+    pub status: String,
+    /// 活跃节点
+    pub active_nodes: Vec<String>,
+    /// 计数器
+    pub counters: WorkflowCounters,
+    /// Mermaid图
+    pub graph_mermaid: String,
+}
+
+#[derive(Debug, Default, Serialize)]
+pub struct WorkflowCounters {
+    pub total: u32,
+    pub completed: u32,
+    pub failed: u32,
+    pub pending: u32,
+}
+
+/// 控制请求
+#[derive(Debug, Deserialize)]
+pub struct ControlRequest {
+    /// 操作动作：pause, resume, terminate
+    pub action: String,
+}
+
+/// 控制响应
+#[derive(Debug, Serialize)]
+pub struct ControlResponse {
+    /// 是否成功
+    pub success: bool,
+    /// 消息
+    pub message: String,
+}
+
 /// 创建Session
 async fn create_session(
     State(state): State<AppState>,
     Json(req): Json<CreateSessionRequest>,
 ) -> Result<Json<SessionResponse>, ApiError> {
+    // 验证请求
+    if req.message.is_none() && req.agent_config.is_none() {
+        return Err(ApiError::BadRequest("message or agent_config required".to_string()));
+    }
+    
     // TODO: 从请求中获取初始消息和模型组配置
     // TODO: 调用session_manager创建新的Direct类型session
     // TODO: 设置默认的AgentConfig配置
@@ -433,6 +571,7 @@ async fn create_session(
         id: String::new(),
         status: "created".to_string(),
         root_agent: String::new(),
+        created_at: Utc::now(),
     }))
 }
 
@@ -441,6 +580,11 @@ async fn get_workflow_status(
     State(state): State<AppState>,
     Path(workflow_id): Path<String>,
 ) -> Result<Json<WorkflowStatusResponse>, ApiError> {
+    // 验证workflow_id格式
+    if workflow_id.is_empty() {
+        return Err(ApiError::BadRequest("workflow_id cannot be empty".to_string()));
+    }
+    
     // TODO: 解析workflow_id为SessionId
     // TODO: 调用workflow_engine获取工作流状态
     // TODO: 格式化状态信息（状态、活跃节点、计数器）
@@ -461,6 +605,17 @@ async fn control_workflow(
     Path(workflow_id): Path<String>,
     Json(req): Json<ControlRequest>,
 ) -> Result<Json<ControlResponse>, ApiError> {
+    // 验证workflow_id
+    if workflow_id.is_empty() {
+        return Err(ApiError::BadRequest("workflow_id cannot be empty".to_string()));
+    }
+    
+    // 验证action
+    match req.action.as_str() {
+        "pause" | "resume" | "terminate" => {}
+        _ => return Err(ApiError::InvalidAction),
+    }
+    
     // TODO: 解析workflow_id为SessionId
     // TODO: 根据请求action执行相应操作
     // TODO: "pause": 暂停工作流执行
@@ -526,19 +681,33 @@ pub enum ApiError {
     #[error("权限不足")]
     Unauthorized,
     
+    #[error("请求错误: {0}")]
+    BadRequest(String),
+    
+    #[error("资源冲突: {0}")]
+    Conflict(String),
+    
+    #[error("服务不可用")]
+    ServiceUnavailable,
+    
     #[error("内部错误: {0}")]
     Internal(String),
 }
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
-        // TODO: 根据错误类型返回对应的HTTP状态码
-        // TODO: SessionNotFound -> 404 NOT_FOUND
-        // TODO: Unauthorized -> 401 UNAUTHORIZED
-        // TODO: 其他错误 -> 500 INTERNAL_SERVER_ERROR
-        // TODO: 返回JSON格式的错误响应
+        let (status, message) = match self {
+            ApiError::SessionNotFound => (StatusCode::NOT_FOUND, "Session not found".to_string()),
+            ApiError::Unauthorized => (StatusCode::UNAUTHORIZED, "Unauthorized".to_string()),
+            ApiError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg),
+            ApiError::Conflict(msg) => (StatusCode::CONFLICT, msg),
+            ApiError::ServiceUnavailable => (StatusCode::SERVICE_UNAVAILABLE, "Service unavailable".to_string()),
+            ApiError::InvalidAction => (StatusCode::BAD_REQUEST, "Invalid action".to_string()),
+            ApiError::Internal(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg),
+        };
         
-        Response::new()
+        let body = Json(json!({ "error": message }));
+        (status, body).into_response()
     }
 }
 ```

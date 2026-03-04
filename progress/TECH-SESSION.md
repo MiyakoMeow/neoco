@@ -89,6 +89,10 @@ pub struct Session {
     
     /// 元数据
     pub metadata: SessionMetadata,
+    
+    /// 存储后端（用于持久化）
+    #[doc(hidden)]
+    pub storage: Arc<dyn StorageBackend>,
 }
 
 /// Session元数据
@@ -103,24 +107,37 @@ pub struct SessionMetadata {
     pub custom_data: HashMap<String, Value>,
 }
 
+use std::sync::atomic::{AtomicU64, Ordering};
+
+/// 消息ID分配器错误
+#[derive(Debug, Error)]
+pub enum Error {
+    #[error("消息ID已溢出")]
+    MessageIdOverflow,
+}
+
 /// 消息ID分配器
 pub struct MessageIdAllocator {
     counter: AtomicU64,
 }
 
 impl MessageIdAllocator {
-    pub fn new() -> Self {
-        // TODO: 创建MessageIdAllocator实例
-        // 1. 初始化counter为1
-        unimplemented!()
+    pub fn new(initial: u64) -> Self {
+        Self {
+            counter: AtomicU64::new(initial),
+        }
     }
     
     /// 获取下一个消息ID
-    pub fn next_id(&self) -> u64 {
-        // TODO: 获取下一个消息ID
-        // 1. 使用fetch_add原子操作递增counter
-        // 2. 返回之前的值
-        unimplemented!()
+    pub fn next_id(&self) -> Result<u64, Error> {
+        // 检查溢出：u64::MAX 已达到则返回错误
+        let current = self.counter.load(Ordering::SeqCst);
+        if current >= u64::MAX {
+            return Err(Error::MessageIdOverflow);
+        }
+        // 使用fetch_add原子操作递增counter，返回之前的值
+        let id = self.counter.fetch_add(1, Ordering::SeqCst);
+        Ok(id)
     }
 }
 ```
@@ -128,6 +145,14 @@ impl MessageIdAllocator {
 ### 3.2 Agent结构
 
 ```rust
+/// Agent实例标识符
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct McpServerId(String);
+
+/// Skill标识符
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct SkillId(String);
+
 /// Agent实例
 pub struct Agent {
     /// Agent唯一标识
@@ -152,10 +177,10 @@ pub struct Agent {
     pub active_tools: Vec<ToolId>,
     
     /// 激活的MCP服务器
-    pub active_mcp_servers: Vec<String>,
+    pub active_mcp_servers: Vec<McpServerId>,
     
     /// 激活的Skills
-    pub active_skills: Vec<String>,
+    pub active_skills: Vec<SkillId>,
     
     /// 创建时间
     pub created_at: DateTime<Utc>,
@@ -175,7 +200,7 @@ pub struct AgentConfig {
 }
 
 /// Agent状态
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum AgentState {
     /// 空闲
     Idle,
@@ -188,7 +213,7 @@ pub enum AgentState {
     /// 已完成
     Completed,
     /// 错误状态
-    Error,
+    Error(String),
 }
 ```
 
@@ -294,14 +319,59 @@ impl Session {
         parent_ulid: AgentUlid,
         config: AgentConfig,
     ) -> Result<AgentUlid, SessionError> {
-        // TODO: 创建子Agent实现
         // 1. 验证父Agent存在
-        // 2. 生成新的ULID
-        // 3. 创建Agent实例，设置parent_ulid为parent_ulid
-        // 4. 将新Agent添加到父Agent的children列表
-        // 5. 插入新Agent到agents HashMap
-        // 6. 返回新AgentUlid
-        unimplemented!()
+        let parent = self.agents.get(&parent_ulid)
+            .ok_or_else(|| SessionError::AgentNotFound(parent_ulid.clone()))?;
+        
+        // 2. 验证父Agent状态允许创建子Agent（不能是Error或Completed状态）
+        match parent.state {
+            AgentState::Error(_) | AgentState::Completed => {
+                return Err(SessionError::InvalidAgentRelation {
+                    subject: parent_ulid.clone(),
+                    object: parent_ulid,
+                    reason: "Cannot spawn child from agent in Error or Completed state".to_string(),
+                });
+            }
+            _ => {}
+        }
+        
+        // 3. 验证父Agent属于当前Session（通过SessionId匹配）
+        if parent_ulid.session_id() != self.id {
+            return Err(SessionError::InvalidAgentRelation {
+                subject: parent_ulid.clone(),
+                object: self.id.clone().into(),
+                reason: "Parent agent belongs to a different session".to_string(),
+            });
+        }
+        
+        // 4. 生成子Agent的ULID
+        let child_ulid = AgentUlid::new(&self.id);
+        
+        // 5. 创建Agent实例，设置parent_ulid
+        let child_agent = Agent {
+            ulid: child_ulid.clone(),
+            parent_ulid: Some(parent_ulid.clone()),
+            children: Vec::new(),
+            config,
+            messages: Vec::new(),
+            state: AgentState::Idle,
+            active_tools: Vec::new(),
+            active_mcp_servers: Vec::new(),
+            active_skills: Vec::new(),
+            created_at: Utc::now(),
+            last_activity: Utc::now(),
+        };
+        
+        // 6. 将新Agent添加到父Agent的children列表
+        if let Some(parent) = self.agents.get_mut(&parent_ulid) {
+            parent.children.push(child_ulid.clone());
+        }
+        
+        // 7. 插入新Agent到agents HashMap
+        self.agents.insert(child_ulid.clone(), child_agent);
+        
+        // 8. 返回新AgentUlid
+        Ok(child_ulid)
     }
     
     /// 获取Agent的所有祖先
@@ -441,7 +511,15 @@ total_tokens = 150
 ### 5.3 存储后端Trait
 
 ```rust
+use std::sync::Arc;
+use tokio::sync::RwLock;
+
 /// 存储后端接口
+/// 
+/// **锁定语义：**
+/// - `append_message` 使用 RwLock 保护并发写入，多个读取可以并发，但写入需要独占访问
+/// - 事务方法 (`begin_transaction`, `commit`, `rollback`) 提供原子性操作保证
+/// - 建议在高层使用锁来保护整个 Session 的一致性
 #[async_trait]
 pub trait StorageBackend: Send + Sync {
     /// 保存Session元数据
@@ -468,7 +546,9 @@ pub trait StorageBackend: Send + Sync {
         ulid: AgentUlid,
     ) -> Result<Agent, StorageError>;
     
-    /// 追加消息到Agent
+    /// 追加消息到Agent（使用 RwLock 进行并发控制）
+    /// 
+    /// 多个读取可以并发执行，写入会获取独占锁
     async fn append_message(
         &self,
         ulid: AgentUlid,
@@ -486,34 +566,67 @@ pub trait StorageBackend: Send + Sync {
         &self,
         session_id: SessionId,
     ) -> Result<(), StorageError>;
+    
+    /// 开始事务（用于原子性操作）
+    async fn begin_transaction(
+        &self,
+        session_id: SessionId,
+    ) -> Result<(), StorageError>;
+    
+    /// 提交事务
+    async fn commit(
+        &self,
+        session_id: SessionId,
+    ) -> Result<(), StorageError>;
+    
+    /// 回滚事务
+    async fn rollback(
+        &self,
+        session_id: SessionId,
+    ) -> Result<(), StorageError>;
 }
 
 /// 文件系统存储实现
 pub struct FileStorage {
     base_dir: PathBuf,
+    /// 事务锁：保护并发写入
+    transaction_lock: Arc<RwLock<()>>,
 }
 
 impl FileStorage {
-    pub fn new(base_dir: PathBuf) -> Self {
-        // TODO: 创建FileStorage实例
-        // 1. 设置base_dir
-        // 2. 可选：验证目录存在并可写
-        Self { base_dir }
+    pub fn new(base_dir: PathBuf) -> Result<Self, StorageError> {
+        // 1. 验证目录存在
+        if !base_dir.exists() {
+            return Err(StorageError::Io(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!("Base directory does not exist: {}", base_dir.display()),
+            )));
+        }
+        
+        // 2. 验证目录可写（尝试创建临时文件测试）
+        let test_file = base_dir.join(".write_test");
+        std::fs::write(&test_file, "test")?;
+        std::fs::remove_file(test_file)?;
+        
+        // 3. 设置base_dir
+        Ok(Self {
+            base_dir,
+            transaction_lock: Arc::new(RwLock::new(())),
+        })
     }
     
     fn session_dir(&self, session_id: &SessionId) -> PathBuf {
-        // TODO: 获取Session目录路径
         // 1. 组合base_dir和session_id字符串
         // 2. 返回完整路径
-        unimplemented!()
+        self.base_dir.join(session_id.to_string())
     }
     
     fn agent_file(&self, ulid: &AgentUlid) -> PathBuf {
-        // TODO: 获取Agent文件路径
         // 1. 获取session_dir
+        let session_dir = self.session_dir(ulid.session_id());
         // 2. 组合ulid字符串和".toml"后缀
         // 3. 返回完整路径
-        unimplemented!()
+        session_dir.join(format!("{}.toml", ulid))
     }
 }
 
@@ -574,21 +687,98 @@ impl SessionManager {
 ### 6.2 恢复Session
 
 ```rust
+use std::collections::{HashMap, LinkedList};
+
+/// Session管理器
+pub struct SessionManager {
+    sessions: HashMap<SessionId, Arc<RwLock<Session>>>,
+    storage: Arc<dyn StorageBackend>,
+    /// Agent LRU缓存：用于懒加载，缓存最近访问的Agent
+    agent_cache: Arc<RwLock<LruCache<AgentUlid, Agent>>>,
+    max_agent_cache_size: usize,
+}
+
+/// LRU缓存实现（简化版）
+pub struct LruCache<K, V> {
+    cache: LinkedList<(K, V)>,
+    capacity: usize,
+}
+
 impl SessionManager {
     /// 加载已有Session
+    /// 
+    /// **懒加载策略：**
+    /// 1. 先检查内存缓存
+    /// 2. 如果缓存不存在，从存储加载Session元数据
+    /// 3. 获取Session中的所有Agent列表（不立即加载所有Agent数据）
+    /// 4. 创建Session实例，初始化字段
+    /// 5. 添加到内存缓存
+    /// 6. 返回Session（Agent数据在首次访问时按需加载）
     pub async fn load_session(
         &self,
         session_id: SessionId,
     ) -> Result<Session, SessionError> {
-        // TODO: 加载已有Session实现
         // 1. 先检查内存缓存
+        if let Some(session) = self.sessions.get(&session_id) {
+            return Ok(Arc::clone(session));
+        }
+        
         // 2. 如果缓存不存在，从存储加载Session元数据
+        let session_meta = self.storage.load_session_meta(session_id.clone()).await?;
+        
         // 3. 获取Session中的所有Agent列表
+        let agent_list = self.storage.list_agents(session_id.clone()).await?;
+        
         // 4. 创建Session实例，初始化字段
-        // 5. 加载所有Agent数据
+        let session = Session {
+            id: session_id.clone(),
+            session_type: session_meta.session_type,
+            root_agent: session_meta.root_agent,
+            agents: HashMap::new(),  // 懒加载：初始为空
+            id_allocator: MessageIdAllocator::new(session_meta.next_message_id),
+            created_at: session_meta.created_at,
+            updated_at: session_meta.updated_at,
+            metadata: session_meta.metadata,
+        };
+        
+        // 5. 预加载根Agent到缓存
+        if let Some(root_ulid) = agent_list.iter().find(|u| *u == &session.root_agent) {
+            let root_agent = self.storage.load_agent(root_ulid.clone()).await?;
+            self.agent_cache.write().await.put(root_ulid.clone(), root_agent);
+        }
+        
         // 6. 添加到内存缓存
+        let session = Arc::new(RwLock::new(session));
+        self.sessions.insert(session_id, Arc::clone(&session));
+        
         // 7. 返回Session
-        unimplemented!()
+        Ok(Arc::clone(&session))
+    }
+    
+    /// 按需加载单个Agent（懒加载）
+    pub async fn get_agent(
+        &self,
+        ulid: AgentUlid,
+    ) -> Result<Agent, SessionError> {
+        // 1. 先检查缓存
+        if let Some(agent) = self.agent_cache.read().await.get(&ulid) {
+            return Ok(agent.clone());
+        }
+        
+        // 2. 从存储加载
+        let agent = self.storage.load_agent(ulid.clone()).await?;
+        
+        // 3. 添加到缓存
+        let mut cache = self.agent_cache.write().await;
+        if cache.len() >= self.max_agent_cache_size {
+            // 移除最旧的条目
+            if let Some((old_key, _)) = cache.pop_front() {
+                tracing::debug!("Evicting agent from cache: {:?}", old_key);
+            }
+        }
+        cache.push_front((ulid, agent.clone()));
+        
+        Ok(agent)
     }
 }
 ```
@@ -606,16 +796,42 @@ impl Session {
         tool_calls: Option<Vec<ToolCall>>,
         tool_call_id: Option<String>,
     ) -> Result<u64, SessionError> {
-        // TODO: 添加消息到Agent实现
         // 1. 验证Agent存在
+        let agent = self.agents.get_mut(&ulid)
+            .ok_or_else(|| SessionError::AgentNotFound(ulid.clone()))?;
+        
         // 2. 生成下一个消息ID
+        let message_id = self.id_allocator.next_id()
+            .map_err(|e| SessionError::MessageIdOverflow(e.to_string()))?;
+        
         // 3. 创建Message实例
+        let message = Message {
+            id: message_id,
+            role,
+            content,
+            tool_calls,
+            tool_call_id,
+            timestamp: Utc::now(),
+            metadata: None,
+        };
+        
         // 4. 添加消息到Agent的消息列表
+        agent.messages.push(message.clone());
+        
         // 5. 更新Agent的最后活动时间
+        agent.last_activity = Utc::now();
+        
         // 6. 异步保存消息到存储
+        // （这里假设self.storage是Session持有的StorageBackend引用）
+        self.storage.append_message(ulid.clone(), &message)
+            .await
+            .map_err(SessionError::Storage)?;
+        
         // 7. 更新Session的更新时间
+        self.updated_at = Utc::now();
+        
         // 8. 返回消息ID
-        unimplemented!()
+        Ok(message_id)
     }
     
     /// 获取Agent的完整消息历史
@@ -651,30 +867,61 @@ impl Session {
 ### 7.1 上下文组装
 
 ```rust
+/// Token计数器trait
+pub trait TokenCounter: Send + Sync {
+    fn count_tokens(&self, text: &str) -> usize;
+}
+
+/// Token截断错误
+#[derive(Debug, Error)]
+pub enum ContextError {
+    #[error("Token数量超出限制: 期望 <= {max}, 实际 {actual}")]
+    TokenLimitExceeded { max: usize, actual: usize },
+    
+    #[error("Token计数失败: {0}")]
+    TokenCountFailed(String),
+}
+
 /// 上下文构建器
 pub struct ContextBuilder {
     system_messages: Vec<String>,
     conversation: Vec<Message>,
     active_tools: Vec<Tool>,
+    max_tokens: Option<usize>,
+    token_counter: Option<Box<dyn TokenCounter>>,
 }
 
 impl ContextBuilder {
     pub fn new() -> Self {
-        // TODO: 创建ContextBuilder实例
-        // 1. 初始化system_messages为空Vec
-        // 2. 初始化conversation为空Vec
-        // 3. 初始化active_tools为空Vec
-        unimplemented!()
+        Self {
+            system_messages: Vec::new(),
+            conversation: Vec::new(),
+            active_tools: Vec::new(),
+            max_tokens: None,
+            token_counter: None,
+        }
+    }
+    
+    /// 设置最大token数
+    pub fn with_max_tokens(&mut self, max: usize) -> &mut Self {
+        self.max_tokens = Some(max);
+        self
+    }
+    
+    /// 设置token计数器
+    pub fn with_token_counter(&mut self, counter: Box<dyn TokenCounter>) -> &mut Self {
+        self.token_counter = Some(counter);
+        self
     }
     
     /// 添加系统提示
     pub fn add_system_prompt(&mut self,
         prompt: &str,
     ) -> &mut Self {
-        // TODO: 添加系统提示
         // 1. 将prompt添加到system_messages
+        self.system_messages.push(prompt.to_string());
         // 2. 返回self支持链式调用
-        unimplemented!()
+        self
     }
     
     /// 添加Agent消息历史
@@ -682,10 +929,10 @@ impl ContextBuilder {
         &mut self,
         agent: &Agent,
     ) -> &mut Self {
-        // TODO: 添加Agent消息历史
         // 1. 将Agent的所有消息添加到conversation
+        self.conversation.extend(agent.messages.clone());
         // 2. 返回self支持链式调用
-        unimplemented!()
+        self
     }
     
     /// 添加激活的工具
@@ -693,21 +940,71 @@ impl ContextBuilder {
         &mut self,
         tools: Vec<Tool>,
     ) -> &mut Self {
-        // TODO: 添加激活的工具
         // 1. 设置active_tools为传入的tools
+        self.active_tools = tools;
         // 2. 返回self支持链式调用
-        unimplemented!()
+        self
     }
     
     /// 构建最终上下文
-    pub fn build(self) -> ChatRequest {
-        // TODO: 构建最终上下文
+    pub fn build(self) -> Result<ChatRequest, ContextError> {
         // 1. 组装系统消息（如果有）
+        let system_content = if !self.system_messages.is_empty() {
+            Some(ChatMessage::system(self.system_messages.join("\n\n")))
+        } else {
+            None
+        };
+        
         // 2. 添加对话历史
-        // 3. 创建ChatRequest实例
-        // 4. 根据active_tools设置tools字段
-        // 5. 设置其他默认参数
-        unimplemented!()
+        let mut messages: Vec<ChatMessage> = Vec::new();
+        if let Some(sys_msg) = system_content {
+            messages.push(sys_msg);
+        }
+        messages.extend(self.conversation.iter().map(|m| m.into()));
+        
+        // 3. 如果设置了max_tokens，进行token截断
+        if let Some(max_tokens) = self.max_tokens {
+            if let Some(ref counter) = self.token_counter {
+                let mut total_tokens = 0;
+                let mut truncated_messages = Vec::new();
+                
+                // 从最新的消息开始，保留在token限制内的消息
+                for msg in messages.iter().rev() {
+                    let msg_text = msg.content();
+                    let msg_tokens = counter.count_tokens(msg_text);
+                    
+                    if total_tokens + msg_tokens > max_tokens {
+                        break;
+                    }
+                    
+                    total_tokens += msg_tokens;
+                    truncated_messages.push(msg.clone());
+                }
+                
+                // 反转以保持原始顺序
+                truncated_messages.reverse();
+                messages = truncated_messages;
+            } else {
+                return Err(ContextError::TokenCountFailed(
+                    "max_tokens is set but no token_counter provided".to_string()
+                ));
+            }
+        }
+        
+        // 4. 创建ChatRequest实例
+        let mut request = ChatRequest {
+            model: "default".to_string(),
+            messages,
+            ..Default::default()
+        };
+        
+        // 5. 根据active_tools设置tools字段
+        if !self.active_tools.is_empty() {
+            request.tools = Some(self.active_tools);
+        }
+        
+        // 6. 设置其他默认参数
+        Ok(request)
     }
 }
 ```
@@ -718,7 +1015,7 @@ impl ContextBuilder {
 #[derive(Debug, Error)]
 pub enum SessionError {
     #[error("Agent未找到: {0}")]
-    AgentNotFound,
+    AgentNotFound(AgentUlid),
     
     #[error("Session未找到: {0}")]
     SessionNotFound(SessionId),
@@ -735,11 +1032,14 @@ pub enum SessionError {
     #[error("反序列化错误: {0}")]
     Deserialization(#[from] toml::de::Error),
     
-    #[error("无效的Agent关系")]
-    InvalidAgentRelation,
+    #[error("无效的Agent关系: subject={subject}, object={object}, reason={reason}")]
+    InvalidAgentRelation { subject: AgentUlid, object: AgentUlid, reason: String },
     
-    #[error("消息ID冲突")]
-    MessageIdConflict,
+    #[error("消息ID冲突: id={id}{context}")]
+    MessageIdConflict { id: u64, context: Option<String> },
+    
+    #[error("消息ID溢出: {0}")]
+    MessageIdOverflow(String),
 }
 
 #[derive(Debug, Error)]
@@ -750,8 +1050,11 @@ pub enum StorageError {
     #[error("序列化错误: {0}")]
     Serialization(String),
     
-    #[error("文件损坏: {0}")]
-    CorruptedFile(PathBuf),
+    #[error("文件损坏: path={path}, cause={cause}")]
+    CorruptedFile { path: PathBuf, cause: String },
+    
+    #[error("事务错误: {0}")]
+    Transaction(String),
 }
 ```
 

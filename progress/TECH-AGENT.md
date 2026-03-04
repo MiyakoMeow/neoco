@@ -394,7 +394,6 @@ impl ToolProvider for SpawnAgentTool {
     
     async fn execute(
         &self,
-        caller_ulid: AgentUlid,
         args: Value,
     ) -> Result<ToolResult, ToolError> {
         // TODO: 实现spawn工具执行逻辑
@@ -449,7 +448,6 @@ impl ToolProvider for SendMessageTool {
     
     async fn execute(
         &self,
-        caller_ulid: AgentUlid,
         args: Value,
     ) -> Result<ToolResult, ToolError> {
         // TODO: 实现send工具执行逻辑
@@ -503,7 +501,6 @@ impl ToolProvider for ReportTool {
     
     async fn execute(
         &self,
-        caller_ulid: AgentUlid,
         args: Value,
     ) -> Result<ToolResult, ToolError> {
         // TODO: 实现report工具执行逻辑
@@ -706,6 +703,6 @@ pub enum AgentError {
 ---
 
 *关联文档：*
-- [TECH.md](../TECH.md) - 总体架构文档
-- [TECH-SESSION.md](../TECH-SESSION.md) - Session管理模块
-- [TECH-WORKFLOW.md](../TECH-WORKFLOW.md) - 工作流模块
+- [TECH.md](TECH.md) - 总体架构文档
+- [TECH-SESSION.md](TECH-SESSION.md) - Session管理模块
+- [TECH-WORKFLOW.md](TECH-WORKFLOW.md) - 工作流模块

@@ -528,7 +528,7 @@ models = ["zhipuai/glm-4.7", "minimax-cn/MiniMax-M2.5"]
 [model_providers.zhipuai]
 type = "openai"
 name = "ZhipuAI"
-base = "https://open.bigmodel.cn/api/paas/v4"
+base_url = "https://open.bigmodel.cn/api/paas/v4"
 api_key_env = "ZHIPU_API_KEY"
 
 [model_providers.zhipuai.retry]

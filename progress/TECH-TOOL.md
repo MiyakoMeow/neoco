@@ -136,6 +136,18 @@ pub enum ToolError {
     #[error("资源未找到")]
     NotFound,
     
+    #[error("工具未找到")]
+    ToolNotFound(String),
+    
+    #[error("需要用户确认")]
+    ConfirmationRequired,
+    
+    #[error("用户取消")]
+    UserCancelled,
+    
+    #[error("序列化错误: {0}")]
+    Serialization(#[from] serde_json::Error),
+    
     #[error("内部错误: {0}")]
     Internal(String),
 }
@@ -457,6 +469,7 @@ impl ToolProvider for FileWriteTool {
 ```rust
 /// activate工具
 pub struct ActivateTool {
+    suffix: String,
     agent_manager: Arc<AgentManager>,
     mcp_manager: Arc<McpManager>,
     skill_manager: Arc<SkillManager>,
@@ -502,16 +515,19 @@ impl ToolProvider for ActivateTool {
 }
 
 impl ActivateTool {
-    async fn activate_mcp(
-        &self,
-        name: &str,
-    ) -> Result<ToolResult, ToolError> {
-        // TODO: 实现MCP激活逻辑
-        // 1. 解析MCP服务器配置名称
-        // 2. 连接/启动MCP服务器
-        // 3. 注册MCP工具到Agent
-        // 4. 返回激活结果
-        unimplemented!()
+    pub fn new(suffix: &str) -> Self {
+        Self {
+            suffix: suffix.to_string(),
+            agent_manager: Arc::new(AgentManager::new()),
+            mcp_manager: Arc::new(McpManager::new()),
+            skill_manager: Arc::new(SkillManager::new()),
+        }
+    }
+}
+
+impl ToolProvider for ActivateTool {
+    fn name(&self) -> &str {
+        &self.suffix
     }
     
     async fn activate_skill(
@@ -615,43 +631,6 @@ impl ToolExecutor {
         
         join_all(futures).await
     }
-}
-```
-
-## 8. 错误处理
-
-```rust
-#[derive(Debug, Error)]
-pub enum ToolError {
-    #[error("参数无效: {0}")]
-    InvalidArgs(String),
-    
-    #[error("执行失败: {0}")]
-    Execution(String),
-    
-    #[error("超时")]
-    Timeout,
-    
-    #[error("权限不足")]
-    PermissionDenied,
-    
-    #[error("资源未找到")]
-    NotFound,
-    
-    #[error("工具未找到")]
-    ToolNotFound(String),
-    
-    #[error("需要用户确认")]
-    ConfirmationRequired,
-    
-    #[error("用户取消")]
-    UserCancelled,
-    
-    #[error("序列化错误: {0}")]
-    Serialization(#[from] serde_json::Error),
-    
-    #[error("内部错误: {0}")]
-    Internal(String),
 }
 ```
 

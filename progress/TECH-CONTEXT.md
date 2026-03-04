@@ -102,10 +102,10 @@ const DEFAULT_COMPACT_PROMPT: &str = r#"
 ```rust
 /// 压缩结果
 pub struct CompactResult {
-    /// 压缩后的消息数量
+    /// 压缩前的消息数量
     pub original_count: usize,
     
-    /// 压缩前的消息数量
+    /// 压缩后的消息数量
     pub compacted_count: usize,
     
     /// 压缩后的摘要消息

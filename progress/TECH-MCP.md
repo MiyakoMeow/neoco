@@ -122,7 +122,7 @@ pub struct McpConnection {
     pub status: McpServerStatus,
     
     /// 传输层
-    transport: Box<dyn McpTransport>,
+    transport: Box<dyn McpTransportImpl>,
     
     /// 可用工具列表
     pub tools: Vec<McpTool>,
@@ -138,7 +138,7 @@ pub struct McpTool {
 
 /// MCP传输接口
 #[async_trait]
-pub trait McpTransport: Send + Sync {
+pub trait McpTransportImpl: Send + Sync {
     /// 初始化连接
     async fn initialize(
         &mut self
@@ -241,7 +241,7 @@ impl StdioTransport {
 }
 
 #[async_trait]
-impl McpTransport for StdioTransport {
+impl McpTransportImpl for StdioTransport {
     async fn initialize(
         &mut self
     ) -> Result<InitializeResult, McpError> {
@@ -322,7 +322,7 @@ impl HttpTransport {
 }
 
 #[async_trait]
-impl McpTransport for HttpTransport {
+impl McpTransportImpl for HttpTransport {
     async fn initialize(
         &mut self
     ) -> Result<InitializeResult, McpError> {
@@ -391,7 +391,7 @@ impl McpManager {
     /// 列出可用工具
     async fn list_tools(
         &self,
-        transport: &dyn McpTransport,
+        transport: &dyn McpTransportImpl,
     ) -> Result<Vec<McpTool>, McpError> {
         // TODO: 通过JSON-RPC调用tools/list端点
         // TODO: 解析并返回可用工具列表
