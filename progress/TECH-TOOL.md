@@ -659,15 +659,8 @@ impl ToolProvider for ContextObserveTool {
     fn timeout(&self) -> Duration {
         Duration::from_secs(5)
     }
-    
-    async fn execute(&self, args: Value) -> Result<ToolResult, ToolError> {
-        // TODO: 实现上下文观测逻辑
-        // 1. 解析format、roles、sort参数
-        // 2. 调用ContextObservationService.observation_context()
-        // 3. 根据format格式化输出（table/json/summary）
-        // 4. 返回结果
-        unimplemented!()
-    }
+
+    async fn execute(&self, args: Value) -> Result<ToolResult, ToolError>;
 }
 ```
 

@@ -1040,49 +1040,16 @@ impl ContextBuilder {
 
 上下文观测功能提供了查看当前Agent上下文状态的能力，用于调试和分析。
 
-#### 7.2.1 数据结构
+> 数据结构统一定义在 [TECH.md#3.6-上下文观测数据结构](TECH.md#3.6-上下文观测数据结构)
 
-```rust
-/// 消息摘要信息
-#[derive(Debug, Clone, Serialize)]
-pub struct MessageSummary {
-    pub id: u64,
-    pub role: Role,
-    pub preview: String,
-    pub char_count: usize,
-    pub estimated_tokens: usize,
-    pub timestamp: DateTime<Utc>,
-    pub has_tool_calls: bool,
-}
-
-/// 上下文统计信息
-#[derive(Debug, Clone, Serialize)]
-pub struct ContextStatistics {
-    pub total_messages: usize,
-    pub messages_by_role: HashMap<Role, usize>,
-    pub total_tokens: usize,
-    pub context_window: usize,
-    pub usage_percentage: f64,
-}
-
-/// 上下文观测结果
-#[derive(Debug, Clone, Serialize)]
-pub struct ContextObservation {
-    pub agent_ulid: AgentUlid,
-    pub statistics: ContextStatistics,
-    pub messages: Vec<MessageSummary>,
-    pub messages_by_role: HashMap<Role, Vec<u64>>,
-    pub observed_at: DateTime<Utc>,
-}
-```
-
-#### 7.2.2 观测器接口
+#### 7.2.1 观测器接口
 
 ```rust
 /// 上下文观测器接口
+#[async_trait]
 pub trait ContextObserver: Send + Sync {
     /// 观测Agent上下文
-    fn observe(
+    async fn observe(
         &self,
         agent: &Agent,
         context_window: usize,
@@ -1090,7 +1057,7 @@ pub trait ContextObserver: Send + Sync {
 }
 ```
 
-#### 7.2.3 观测流程
+#### 7.2.2 观测流程
 
 ```mermaid
 graph TD
