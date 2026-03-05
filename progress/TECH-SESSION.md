@@ -123,8 +123,6 @@ pub struct SessionMeta {
     pub metadata: SessionMetadata,
 }
 
-
-```rust
 use std::sync::atomic::{AtomicU64, Ordering};
 
 /// 消息ID分配器错误

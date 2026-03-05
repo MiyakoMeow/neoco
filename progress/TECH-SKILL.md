@@ -710,25 +710,6 @@ impl TuiRenderer {
 }
 ```
 
-### 13.2 命令行支持
-
-```bash
-# 列出Skills
-/neco skill list
-
-# 搜索Skills
-/neco skill search database
-
-# 激活Skill
-/neco skill activate rust-coding-assistant
-
-# 停用Skill
-/neco skill deactivate rust-coding-assistant
-
-# 验证Skill
-/neco skill validate
-```
-
 ---
 
 *关联文档：*

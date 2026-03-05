@@ -101,23 +101,6 @@ pub enum McpServerStatus {
 }
 ```
 
-### 3.2 rmcp 类型
-
-使用 rmcp 提供的类型，不再需要自定义：
-
-```rust
-// rmcp 提供的类型：
-// - rmcp::model::McpTool (工具定义)
-// - rmcp::model::CallToolResult (工具调用结果)
-// - rmcp::model::ToolContent (工具返回内容)
-// - rmcp::service::Peer (MCP 连接接口)
-
-// 示例：使用 rmcp 类型
-use rmcp::model::{McpTool, CallToolResult, ToolContent};
-
-// TODO: 根据需要定义包装类型
-```
-
 ## 4. 传输层实现
 
 基于 rmcp crate 实现。rmcp 提供了完整的 MCP 协议支持，包括传输层。
@@ -354,16 +337,6 @@ stateDiagram-v2
     Error --> Disconnected
     Disconnected --> [*]
 ```
-
-**连接状态定义：**
-
-| 状态 | 描述 |
-|------|------|
-| `Disconnected` | 未连接 |
-| `Connecting` | 连接中 |
-| `Connected` | 已连接 |
-| `Reconnecting` | 重连中 |
-| `Error` | 错误 |
 
 ### 5.4 连接池设计
 

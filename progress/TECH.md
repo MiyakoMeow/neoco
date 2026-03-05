@@ -646,51 +646,7 @@ pub enum ContextSortOrder {
 
 ## 4. 数据流向
 
-### 4.1 用户输入到模型响应的主流程
-
-```mermaid
-sequenceDiagram
-    participant User as 用户
-    participant UI as UI层
-    participant Session as Session管理
-    participant Agent as Agent
-    participant Context as 上下文服务
-    participant Model as 模型服务
-    participant Tool as 工具执行器
-
-    User->>UI: 输入消息
-    UI->>Session: 获取/创建Session
-    Session->>Agent: 路由到Agent
-    
-    Agent->>Context: 构建上下文
-    Context->>Session: 获取消息历史
-    Context->>Session: 检查上下文大小
-    
-    alt 上下文超过阈值
-        Context->>Context: 执行压缩
-        Context->>Session: 存储压缩结果
-    end
-    
-    Context-->>Agent: 返回格式化上下文
-    
-    Agent->>Model: 发送请求(上下文+工具定义)
-    
-    alt 需要工具调用
-        Model-->>Agent: 返回工具调用请求
-        Agent->>Tool: 执行工具
-        Tool-->>Agent: 返回工具结果
-        Agent->>Model: 发送工具结果
-        Model-->>Agent: 返回最终响应
-    else 直接响应
-        Model-->>Agent: 返回响应内容
-    end
-    
-    Agent->>Session: 存储消息
-    Agent-->>UI: 返回响应
-    UI-->>User: 显示响应
-```
-
-### 4.2 SubAgent创建流程
+### 4.1 SubAgent创建流程
 
 ```mermaid
 sequenceDiagram
@@ -718,7 +674,7 @@ sequenceDiagram
     end
 ```
 
-### 4.3 工作流执行流程
+### 4.2 工作流执行流程
 
 ```mermaid
 sequenceDiagram
@@ -767,7 +723,7 @@ sequenceDiagram
     Workflow-->>User: 工作流完成
 ```
 
-### 4.4 模型调用与故障转移流程
+### 4.3 模型调用与故障转移流程
 
 ```mermaid
 sequenceDiagram
@@ -801,7 +757,7 @@ sequenceDiagram
     end
 ```
 
-### 4.5 MCP工具调用流程
+### 4.4 MCP工具调用流程
 
 ```mermaid
 sequenceDiagram
@@ -827,7 +783,7 @@ sequenceDiagram
     ToolMgr-->>Agent: 格式化结果
 ```
 
-### 4.6 上下文压缩流程
+### 4.5 上下文压缩流程
 
 ```mermaid
 sequenceDiagram

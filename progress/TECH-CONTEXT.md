@@ -58,11 +58,6 @@ pub enum CompactStrategy {
 ### 3.1 上下文观测服务接口
 
 ```rust
-/// 上下文观测服务
-pub struct ContextObservationService {
-    token_counter: Arc<dyn TokenCounter>,
-}
-
 /// 上下文观测服务接口
 #[async_trait]
 pub trait ContextObservationService: Send + Sync {
@@ -144,9 +139,6 @@ sequenceDiagram
 ### 3.5 输出格式化接口
 
 ```rust
-/// 上下文观测输出格式化器
-pub struct ObservationFormatter;
-
 /// 上下文观测输出格式化器接口
 pub trait ObservationFormatter: Send + Sync {
     /// 格式化为表格

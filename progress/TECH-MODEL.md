@@ -6,6 +6,13 @@
 
 模型服务模块负责与各种LLM提供商交互，提供统一的调用接口，支持故障转移、重试和流式输出。
 
+### 1.1 交叉引用说明
+
+本文档涉及以下其他文档定义的类型：
+- **Role, Message**: 见 [TECH-SESSION.md](TECH-SESSION.md#33-消息结构)
+- **Tool, ToolCall, ResponseFormat**: 见 [TECH-TOOL.md](TECH-TOOL.md#3-核心trait设计)
+- **AppError**: 见 [TECH.md#53-统一错误类型设计](TECH.md#53-统一错误类型设计)
+
 ## 2. 架构设计
 
 ### 2.1 模块结构
@@ -72,7 +79,7 @@ pub trait ModelProvider: Send + Sync {
     async fn chat_completion_stream(&self, request: ChatRequest) -> Result<BoxStream<Result<ChatChunk, ProviderError>>, ProviderError>;
     
     /// 获取模型能力
-    fn capabilities(&self) -> ProviderCapabilities;
+    fn capabilities(&self) -> ModelCapabilities;
     
     /// 健康检查
     async fn health_check(&self) -> Result<(), ProviderError>;
@@ -82,17 +89,20 @@ pub trait ModelProvider: Send + Sync {
 }
 
 /// 模型能力
-pub struct ProviderCapabilities {
-    /// 是否支持原生函数调用
-    pub native_tool_calling: bool,
-    /// 是否支持视觉输入
-    pub vision: bool,
+#[derive(Debug, Clone)]
+pub struct ModelCapabilities {
+    /// 是否支持流式输出
+    pub streaming: bool,
+    /// 是否支持工具调用
+    pub tools: bool,
+    /// 是否支持函数调用
+    pub functions: bool,
     /// 是否支持JSON模式
     pub json_mode: bool,
+    /// 是否支持视觉输入
+    pub vision: bool,
     /// 上下文窗口大小
     pub context_window: usize,
-    /// 最大输出token
-    pub max_output_tokens: usize,
 }
 ```
 
@@ -136,14 +146,14 @@ graph TB
 ### 4.4 可靠性机制
 
 ```rust
-/// 可靠Provider包装器
+/// 可靠Provider包装器（支持故障转移和重试）
 pub struct ReliableProvider {
     primary: Box<dyn ModelProvider>,
     fallbacks: Vec<Box<dyn ModelProvider>>,
     retry_policy: RetryPolicy,
 }
 
-/// 模型路由器
+/// 模型路由器（根据复杂度选择合适的模型）
 pub struct RouterProvider {
     routes: HashMap<String, Box<dyn ModelProvider>>,
     default: Box<dyn ModelProvider>,
@@ -155,8 +165,7 @@ pub struct RouterProvider {
 
 ### 5.1 请求数据结构
 
-> **注意**: `Role` 类型定义见 [TECH-SESSION.md](TECH-SESSION.md#33-消息结构)。
-> 模型层请求使用 `ModelMessage`（不含 `id`），与 Session 层 `Message`（含 `id`）分离。
+> **设计说明**: 模型层请求使用 `ModelMessage`（不含 `id`），与 Session 层 `Message`（含 `id`）分离，实现层次职责隔离。
 
 ```rust
 /// 模型层消息（不含Session管理的id字段）
@@ -181,7 +190,7 @@ pub struct ChatRequest {
     pub tools: Option<Vec<Tool>>,
     /// 工具选择策略
     pub tool_choice: Option<ToolChoice>,
-    /// 响应格式（定义见 TECH-TOOL.md）
+    /// 响应格式
     pub response_format: Option<ResponseFormat>,
     
     /// 停止序列
@@ -489,8 +498,7 @@ impl StreamHandler {
 
 ## 8. 工具调用支持
 
-> **注意**: 核心的 `ToolCall` 类型定义见 [TECH-TOOL.md](TECH-TOOL.md#3-核心trait设计)。
-> `ToolCallRequest` 和 `ToolCallResult` 是模型层用于处理工具调用的辅助类型。
+> **设计说明**: `ToolCallRequest` 和 `ToolCallResult` 是模型层用于处理工具调用的辅助类型，与核心的 `ToolCall` 类型（定义见 TECH-TOOL.md）分离。
 
 ### 8.1 工具调用处理
 
@@ -576,9 +584,7 @@ pub async fn execute_tool_calls_parallel(
 
 ## 9. 错误处理
 
-> **注意**: 所有模块错误类型统一在 `neco-core` 中汇总为 `AppError`。见 [TECH.md#53-统一错误类型设计](TECH.md#53-统一错误类型设计)。
-> 
-> `ModelError` 为模块内部错误，在模块边界通过 `From` 实现或映射函数转换为 `AppError`。例如，`ModelError::OpenAi` 携带的原生错误会通过 `#[source]` 属性传播到上层的 `AppError::Model`。
+> **设计说明**: `ModelError` 为模块内部错误，在模块边界通过 `From` 实现或映射函数转换为 `AppError`。例如，`ModelError::OpenAi` 携带的原生错误会通过 `#[source]` 属性传播到上层的 `AppError::Model`。
 
 ```rust
 use thiserror::Error;

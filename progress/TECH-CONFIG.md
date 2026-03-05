@@ -309,36 +309,6 @@ pub enum RunMode {
 }
 ```
 
-### 3.6 Provider Factory 配置
-
-> 参考 ZeroClaw 的 Factory 模式
-
-```rust
-/// Provider工厂配置
-pub struct ProviderFactoryConfig {
-    /// 是否启用自动发现
-    pub auto_discover: bool,
-    /// Provider目录
-    pub provider_dirs: Vec<PathBuf>,
-    /// 默认Provider
-    pub default_provider: String,
-    /// 重试策略
-    pub retry_policy: RetryPolicy,
-}
-
-/// Provider注册信息
-pub struct ProviderRegistration {
-    /// Provider ID
-    pub id: String,
-    /// Provider类型
-    pub provider_type: ProviderType,
-    /// 配置
-    pub config: ModelProviderConfig,
-    /// 是否启用
-    pub enabled: bool,
-}
-```
-
 ## 4. Channel抽象配置
 
 > 参考 ZeroClaw 的 Channel 抽象设计

@@ -475,50 +475,7 @@ Workflow: PRD工作流 | Nodes: 2/6 | Agents: 3 运行中, 1 完成 | 14:32:05
 
 ### 5.6 命令系统
 
-```rust
-impl ReplInterface {
-    /// 处理工作流命令
-    pub async fn handle_workflow_command(&mut self, args: &[&str]) -> Result<(), UiError> {
-        match args[0] {
-            "status" => self.show_workflow_status().await?,
-            "graph" => self.export_workflow_graph().await?,
-            _ => return Err(UiError::UnknownCommand("workflow".to_string())),
-        }
-        Ok(())
-    }
-    
-    /// 处理Agent命令
-    pub async fn handle_agent_command(&mut self, args: &[&str]) -> Result<(), UiError> {
-        match args[0] {
-            "tree" => self.show_agent_tree().await?,
-            "stats" => self.show_agent_stats().await?,
-            _ => return Err(UiError::UnknownCommand("agents".to_string())),
-        }
-        Ok(())
-    }
-}
-```
-
-#### 命令输出示例
-
-```
-/workflow status
-Workflow: PRD工作流
-  write-prd        ● Success  (2次)
-  review-prd       ● Running
-  write-tech-doc   ○ Waiting
-  ...
-
-/agents tree
-Agent(01HF8...): Root [Running] 15 msgs
-├── Agent(01HG9...): research [Idle] 8 msgs
-│   └── Agent(01HJ2...): detail [Idle] 3 msgs
-└── Agent(01HK3...): writer [Completed] 4 msgs
-
-/agents stats
-总计: 4 Agents (运行中:1 完成:1 空闲:2)
-消息总数: 30 | 平均响应: 2.3s
-```
+命令由5.1节的 `handle_command` 方法统一处理，工作流和Agent相关命令分别调用 `render_workflow_status` 和 `render_agent_tree` 方法进行渲染。
 
 ### 5.7 实时更新
 
@@ -710,16 +667,6 @@ pub enum ControlAction {
     Pause,
     Resume,
     Terminate,
-}
-
-impl std::fmt::Display for ControlAction {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ControlAction::Pause => write!(f, "paused"),
-            ControlAction::Resume => write!(f, "resumed"),
-            ControlAction::Terminate => write!(f, "terminated"),
-        }
-    }
 }
 
 impl<'de> Deserialize<'de> for ControlAction {
