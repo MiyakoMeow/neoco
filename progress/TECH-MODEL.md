@@ -136,9 +136,105 @@ impl ProviderFactory {
 }
 ```
 
-## 4. 数据结构设计
+## 4. Provider抽象与Factory
 
-### 4.1 请求数据结构
+> 参考 ZeroClaw 的 Provider 抽象设计
+
+### 4.1 Provider Trait 扩展
+
+```rust
+/// 模型提供者接口
+#[async_trait]
+pub trait ModelProvider: Send + Sync {
+    /// 发送聊天完成请求
+    async fn chat_completion(&self, request: ChatRequest) -> Result<ChatResponse, ProviderError>;
+    
+    /// 发送流式聊天完成请求
+    async fn chat_completion_stream(&self, request: ChatRequest) -> Result<BoxStream<Result<ChatChunk, ProviderError>>, ProviderError>;
+    
+    /// 获取模型能力
+    fn capabilities(&self) -> ProviderCapabilities;
+    
+    /// 健康检查
+    async fn health_check(&self) -> Result<(), ProviderError>;
+    
+    /// 提供商名称
+    fn name(&self) -> &str;
+}
+
+/// 模型能力
+pub struct ProviderCapabilities {
+    /// 是否支持原生函数调用
+    pub native_tool_calling: bool,
+    /// 是否支持视觉输入
+    pub vision: bool,
+    /// 是否支持JSON模式
+    pub json_mode: bool,
+    /// 上下文窗口大小
+    pub context_window: usize,
+    /// 最大输出token
+    pub max_output_tokens: usize,
+}
+```
+
+### 4.2 ProviderFactory 注册机制
+
+```mermaid
+graph TB
+    subgraph "配置"
+        C[Config]
+    end
+    
+    subgraph "Factory注册"
+        PF[ProviderFactory]
+        R[注册表]
+    end
+    
+    subgraph "Providers"
+        P1[OpenAI]
+        P2[Anthropic]
+        P3[OpenRouter]
+        P4[自定义]
+    end
+    
+    C --> PF
+    PF --> R
+    R --> P1
+    R --> P2
+    R --> P3
+    R --> P4
+```
+
+### 4.3 已支持Provider
+
+| Provider | 类型 | 特性 |
+|----------|------|------|
+| OpenAI | 官方 | GPT-4o, GPT-4o-mini, 完整支持 |
+| Anthropic | 官方 | Claude 3.5, Claude 3, 预留 |
+| OpenRouter | 兼容 | 50+模型, 自动路由 |
+| 自定义 | 兼容 | OpenAI兼容API |
+
+### 4.4 可靠性机制
+
+```rust
+/// 可靠Provider包装器
+pub struct ReliableProvider {
+    primary: Box<dyn ModelProvider>,
+    fallbacks: Vec<Box<dyn ModelProvider>>,
+    retry_policy: RetryPolicy,
+}
+
+/// 模型路由器
+pub struct RouterProvider {
+    routes: HashMap<String, Box<dyn ModelProvider>>,
+    default: Box<dyn ModelProvider>,
+    complexity_scorer: ComplexityScorer,
+}
+```
+
+## 5. 数据结构设计
+
+### 5.1 请求数据结构
 
 > **注意**: `Role` 类型定义见 [TECH-SESSION.md](TECH-SESSION.md#33-消息结构)。
 > 模型层请求使用 `ModelMessage`（不含 `id`），与 Session 层 `Message`（含 `id`）分离。
@@ -178,7 +274,7 @@ pub struct ChatRequest {
 
 > **注意**: `Tool` 和 `ToolCall` 类型定义见 [TECH-TOOL.md](TECH-TOOL.md#3-核心trait设计)
 
-### 4.2 模型组与故障转移
+### 5.2 模型组与故障转移
 
 ```rust
 /// 模型组客户端
@@ -293,11 +389,11 @@ impl ModelError {
 }
 ```
 
-## 5. OpenAI客户端实现
+## 6. OpenAI客户端实现
 
 基于 [async-openai](https://crates.io/crates/async-openai) crate (版本 0.33.0) 实现。
 
-### 5.1 客户端结构
+### 6.1 客户端结构
 
 ```rust
 use async_openai::{
@@ -401,9 +497,9 @@ impl ModelClient for OpenAiClient {
 }
 ```
 
-## 6. 流式输出处理
+## 7. 流式输出处理
 
-### 6.1 流处理器
+### 7.1 流处理器
 
 ```rust
 use futures::{Stream, StreamExt};
@@ -472,12 +568,12 @@ impl StreamHandler {
 }
 ```
 
-## 7. 工具调用支持
+## 8. 工具调用支持
 
 > **注意**: 核心的 `ToolCall` 类型定义见 [TECH-TOOL.md](TECH-TOOL.md#3-核心trait设计)。
 > `ToolCallRequest` 和 `ToolCallResult` 是模型层用于处理工具调用的辅助类型。
 
-### 7.1 工具调用处理
+### 8.1 工具调用处理
 
 ```rust
 /// 工具调用请求
@@ -533,7 +629,7 @@ impl ToolCallHandler {
 }
 ```
 
-### 7.2 并行工具调用
+### 8.2 并行工具调用
 
 ```rust
 use futures::future::join_all;
@@ -559,7 +655,7 @@ pub async fn execute_tool_calls_parallel(
 }
 ```
 
-## 8. 错误处理
+## 9. 错误处理
 
 > **注意**: 所有模块错误类型统一在 `neco-core` 中汇总为 `AppError`。见 [TECH.md#53-统一错误类型设计](TECH.md#53-统一错误类型设计)。
 > 
@@ -603,9 +699,9 @@ pub enum ModelError {
 }
 ```
 
-## 9. 使用示例
+## 10. 使用示例
 
-### 9.1 基本调用
+### 10.1 基本调用
 
 ```rust
 use neco_model::{ModelGroupClient, ChatRequest, ModelMessage, Role};
@@ -645,7 +741,7 @@ let response = client.chat_completion(request).await?;
 println!("Response: {}", response.choices[0].message.content.as_ref().unwrap());
 ```
 
-### 9.2 流式输出
+### 10.2 流式输出
 
 ```rust
 use neco_model::{StreamHandler};
@@ -663,7 +759,7 @@ let response = StreamHandler::process_stream_with_callback(
 ).await?;
 ```
 
-### 9.3 工具调用
+### 10.3 工具调用
 
 ```rust
 use neco_model::{Tool, Function, ToolChoice};

@@ -309,9 +309,88 @@ pub enum RunMode {
 }
 ```
 
-## 4. 配置合并策略
+### 3.6 Provider Factory 配置
 
-### 4.1 合并规则
+> 参考 ZeroClaw 的 Factory 模式
+
+```rust
+/// Provider工厂配置
+pub struct ProviderFactoryConfig {
+    /// 是否启用自动发现
+    pub auto_discover: bool,
+    /// Provider目录
+    pub provider_dirs: Vec<PathBuf>,
+    /// 默认Provider
+    pub default_provider: String,
+    /// 重试策略
+    pub retry_policy: RetryPolicy,
+}
+
+/// Provider注册信息
+pub struct ProviderRegistration {
+    /// Provider ID
+    pub id: String,
+    /// Provider类型
+    pub provider_type: ProviderType,
+    /// 配置
+    pub config: ModelProviderConfig,
+    /// 是否启用
+    pub enabled: bool,
+}
+```
+
+## 4. Channel抽象配置
+
+> 参考 ZeroClaw 的 Channel 抽象设计
+
+### 4.1 Channel Trait 定义
+
+```rust
+/// 消息通道接口
+#[async_trait]
+pub trait Channel: Send + Sync {
+    /// 发送消息
+    async fn send(&self, message: OutgoingMessage) -> Result<(), ChannelError>;
+    
+    /// 接收消息
+    async fn receive(&self) -> Result<IncomingMessage, ChannelError>;
+    
+    /// 通道名称
+    fn name(&self) -> &str;
+    
+    /// 健康检查
+    async fn health_check(&self) -> bool;
+}
+
+/// 发送消息
+pub struct OutgoingMessage {
+    pub content: String,
+    pub recipient: String,
+    pub subject: Option<String>,
+}
+
+/// 接收消息
+pub struct IncomingMessage {
+    pub id: String,
+    pub sender: String,
+    pub content: String,
+    pub channel: String,
+    pub timestamp: DateTime<Utc>,
+}
+```
+
+### 4.2 已支持Channel
+
+| Channel | 描述 | 模式 |
+|---------|------|------|
+| StdIO | 标准输入输出 | 本地 |
+| HTTP | HTTP Webhook | 远程 |
+| WebSocket | WebSocket | 双向 |
+| MCP | MCP协议 | 扩展 |
+
+## 5. 配置合并策略
+
+### 5.1 合并规则
 
 ```mermaid
 graph TD
@@ -331,7 +410,7 @@ graph TD
 | 数组追加 | 特殊语法 `+` | `models = ["+c", "+d"]` 追加元素 |
 | 对象 | 递归深度合并 | 字段级合并，子对象递归 |
 
-### 4.2 合并实现
+### 5.2 合并实现
 
 ```rust
 /// 配置合并器
@@ -349,9 +428,9 @@ impl ConfigMerger {
 }
 ```
 
-## 5. 配置加载流程
+## 6. 热重载支持
 
-### 5.1 加载时序
+### 6.1 热重载流程
 
 ```mermaid
 sequenceDiagram

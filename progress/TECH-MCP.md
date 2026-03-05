@@ -316,6 +316,81 @@ impl McpManager {
 }
 ```
 
+### 5.2 连接管理器扩展
+
+```mermaid
+graph TB
+    subgraph "McpManager"
+        CM[连接管理器]
+        LR[生命周期管理]
+        RR[重试管理]
+    end
+    
+    subgraph "连接池"
+        CP1[连接1]
+        CP2[连接2]
+        CP3[连接N]
+    end
+    
+    CM --> LR
+    CM --> RR
+    CM --> CP1
+    CM --> CP2
+    CM --> CP3
+```
+
+### 5.3 连接状态机
+
+```mermaid
+stateDiagram-v2
+    [*] --> Disconnected
+    Disconnected --> Connecting: connect()
+    Connecting --> Connected: 成功
+    Connecting --> Error: 失败
+    Connected --> Reconnecting: 心跳失败
+    Reconnecting --> Connected: 重连成功
+    Reconnecting --> Disconnected: 重连失败
+    Connected --> Disconnected: disconnect()
+    Error --> Disconnected
+    Disconnected --> [*]
+```
+
+**连接状态定义：**
+
+| 状态 | 描述 |
+|------|------|
+| `Disconnected` | 未连接 |
+| `Connecting` | 连接中 |
+| `Connected` | 已连接 |
+| `Reconnecting` | 重连中 |
+| `Error` | 错误 |
+
+### 5.4 连接池设计
+
+```rust
+/// MCP连接池配置
+pub struct McpPoolConfig {
+    /// 最大连接数
+    pub max_connections: usize,
+    /// 最小空闲连接
+    pub min_idle: usize,
+    /// 连接超时
+    pub connection_timeout: Duration,
+    /// 空闲超时
+    pub idle_timeout: Duration,
+    /// 最大生命周期
+    pub max_lifetime: Duration,
+}
+
+/// 连接池统计
+pub struct PoolStats {
+    pub active: usize,
+    pub idle: usize,
+    pub waiting: usize,
+    pub total: usize,
+}
+```
+
 ## 6. 工具集成
 
 ### 6.1 MCP工具包装器

@@ -631,9 +631,68 @@ pub enum SkillError {
 }
 ```
 
-## 11. UI集成
+## 11. Skill生命周期管理
 
-### 11.1 Skill面板
+```mermaid
+stateDiagram-v2
+    [*] --> Discovered
+    Discovered --> Loaded: 加载索引
+    Loaded --> Activated: 激活Skill
+    Activated --> Deactivated: 停用Skill
+    Deactivated --> Activated: 重新激活
+    Deactivated --> Loaded: 卸载Skill
+    Loaded --> [*]
+```
+
+**生命周期状态：**
+
+| 状态 | 描述 |
+|------|------|
+| `Discovered` | 发现Skill但未加载 |
+| `Loaded` | 已加载索引到内存 |
+| `Activated` | Skill已激活 |
+| `Deactivated` | Skill已停用 |
+
+## 12. Skill发现与注册
+
+```mermaid
+graph TB
+    subgraph "发现阶段"
+        D1[扫描Skill目录]
+        D2[解析SKILL.md]
+        D3[构建索引]
+    end
+    
+    subgraph "注册阶段"
+        R1[验证格式]
+        R2[注册到工厂]
+        R3[发布事件]
+    end
+    
+    D1 --> D2
+    D2 --> D3
+    D3 --> R1
+    R1 --> R2
+    R2 --> R3
+```
+
+**发现配置：**
+
+```rust
+/// Skill发现配置
+pub struct SkillDiscoveryConfig {
+    /// Skill目录列表
+    pub skill_dirs: Vec<PathBuf>,
+    /// 自动加载
+    pub auto_load: bool,
+    /// 扫描深度
+    pub max_depth: usize,
+}
+```
+
+## 13. UI集成
+
+### 13.1 Skill面板
 
 ```rust
 /// 渲染Skill面板
@@ -651,7 +710,7 @@ impl TuiRenderer {
 }
 ```
 
-### 11.2 命令行支持
+### 13.2 命令行支持
 
 ```bash
 # 列出Skills

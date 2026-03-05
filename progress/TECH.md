@@ -1021,6 +1021,33 @@ pub enum WorkflowEvent {
 // - 事件监听器管理
 ```
 
+#### 5.2.1 TriggerEngine 触发器
+
+> 参考 OpenFang 的 TriggerEngine 设计
+
+```mermaid
+graph LR
+    E[Event] --> T[TriggerEngine]
+    T -->|匹配模式| M1[All]
+    T -->|匹配模式| M2[Lifecycle]
+    T -->|匹配模式| M3[AgentSpawned]
+    T -->|匹配模式| M4[SystemKeyword]
+    T -->|匹配模式| M5[MemoryUpdate]
+    T -->|匹配模式| M6[ContentMatch]
+```
+
+**触发模式定义：**
+
+| 模式 | 描述 |
+|------|------|
+| `All` | 匹配所有事件 |
+| `Lifecycle` | 生命周期事件 |
+| `AgentSpawned` | Agent创建匹配 |
+| `AgentTerminated` | Agent终止 |
+| `SystemKeyword` | 关键词匹配 |
+| `MemoryUpdate` | 内存更新 |
+| `ContentMatch` | 内容匹配 |
+
 ### 5.3 统一错误类型设计
 
 > **设计原则**: 所有模块错误类型统一在 `neco-core` 中定义，便于错误传播和转换。
@@ -1275,17 +1302,23 @@ graph TB
 
 ```mermaid
 graph TB
-    subgraph "N Layer 安全体系"
-        S1[1. 工具执行沙箱]
-        S2[2. 文件系统隔离]
-        S3[3. 网络访问控制]
-        S4[4. 环境变量隔离]
-        S5[5. 密钥管理]
-        S6[6. 路径穿越防护]
-        S7[7. 输入验证层]
-        S8[8. 输出脱敏层]
-        S9[9. 会话状态隔离]
-        S10[10. 审计日志]
+    subgraph "N Layer 安全体系 (对齐OpenFang 16层)"
+        S1[1. WASM双计量沙箱]
+        S2[2. Merkle哈希链审计]
+        S3[3. 信息流污点追踪]
+        S4[4. Ed25519签名清单]
+        S5[5. SSRF防护]
+        S6[6. 密钥零化]
+        S7[7. OFP双向认证]
+        S8[8. Capability能力门]
+        S9[9. 安全响应头]
+        S10[10. 健康端点管控]
+        S11[11. 子进程沙箱]
+        S12[12. Prompt注入扫描]
+        S13[13. 循环守卫]
+        S14[14. 会话修复]
+        S15[15. 路径穿越防护]
+        S16[16. GCRA速率限制]
     end
     
     S1 --> S2
@@ -1297,24 +1330,36 @@ graph TB
     S7 --> S8
     S8 --> S9
     S9 --> S10
+    S10 --> S11
+    S11 --> S12
+    S12 --> S13
+    S13 --> S14
+    S14 --> S15
+    S15 --> S16
 ```
 
 ### 9.2 核心安全机制
 
-| 层级 | 安全机制 | 实现方式 |
-|------|----------|----------|
-| **L1 工具执行沙箱** | 资源限制 | 超时控制、燃料计量 |
-| **L2 文件系统隔离** | 路径白名单 | 配置文件指定可访问目录 |
-| **L3 网络访问控制** | SSRF 防护 | 阻止内网 IP、云元数据端点 |
-| **L4 环境变量隔离** | 敏感信息隔离 | 环境变量注入而非硬编码 |
-| **L5 密钥管理** | 密钥轮询 | 多 API Key 自动切换 |
-| **L6 路径穿越防护** | 路径规范化 | symlink 转义检测 |
-| **L7 输入验证层** | Schema 验证 | JSON Schema + 类型检查 |
-| **L8 输出脱敏层** | 敏感信息过滤 | 正则匹配脱敏 |
-| **L9 会话状态隔离** | Session 隔离 | 每个 Session 独立存储 |
-| **L10 审计日志** | 操作记录 | 完整操作链追溯 |
+| 层级 | 安全机制 | 描述 |
+|------|----------|------|
+| L1 | WASM双计量沙箱 | 燃料计量+时代中断 |
+| L2 | Merkle哈希链审计 | 加密链接，防篡改 |
+| L3 | 信息流污点追踪 | 敏感信息追踪 |
+| L4 | Ed25519签名清单 | 身份密码学验证 |
+| L5 | SSRF防护 | 阻止内网IP、云元数据 |
+| L6 | 密钥零化 | Zeroizing自动内存擦除 |
+| L7 | OFP双向认证 | HMAC-SHA256 P2P认证 |
+| L8 | Capability能力门 | RBAC能力驱动访问控制 |
+| L9 | 安全响应头 | CSP, HSTS, X-Frame-Options |
+| L10 | 健康端点管控 | 公开/私有诊断分离 |
+| L11 | 子进程沙箱 | env_clear+进程树隔离 |
+| L12 | Prompt注入扫描 | 检测override/exfiltration |
+| L13 | 循环守卫 | SHA256循环检测+断路器 |
+| L14 | 会话修复 | 7阶段消息历史验证 |
+| L15 | 路径穿越防护 | 规范化+symlink转义检测 |
+| L16 | GCRA速率限制 | 成本感知令牌桶限流 |
 
-### 9.3 能力驱动安全模型
+### 9.3 Capability能力驱动安全模型
 
 ```mermaid
 classDiagram
@@ -1329,16 +1374,48 @@ classDiagram
         AgentMessage
     }
     
-    class Agent {
+    class AgentManifest {
+        +identity: Ed25519PublicKey
         +capabilities: Vec~Capability~
+        +signature: Ed25519Signature
+    }
+    
+    class CapabilityGate {
+        +check(agent, capability): bool
+        +authorize(agent, tool): Result
     }
     
     class Tool {
         +required_capability: Capability
     }
     
-    Agent --> Capability: 授权
+    AgentManifest --> Capability: 声明
+    CapabilityGate --> Capability: 检查
     Tool --> Capability: 要求
+```
+
+**Capability 定义：**
+
+```rust
+/// 能力枚举
+#[derive(Clone, Debug, Hash, Eq, PartialEq)]
+pub enum Capability {
+    FileRead,
+    FileWrite,
+    FileDelete,
+    NetConnect,
+    ShellExec,
+    AgentSpawn,
+    AgentMessage,
+    ToolExecute(String),
+}
+
+/// Agent能力清单
+pub struct AgentManifest {
+    pub identity: Ed25519PublicKey,
+    pub capabilities: Vec<Capability>,
+    pub signature: Ed25519Signature,
+}
 ```
 
 ### 9.4 输入验证
@@ -1359,9 +1436,20 @@ stateDiagram-v2
     ToolFreeze --> Normal: 手动恢复
     Normal --> NetworkKill: 触发网络切断
     NetworkKill --> Normal: 手动恢复
+    Normal --> DomainBlock: 触发域名屏蔽
+    DomainBlock --> Normal: 手动恢复
     Normal --> KillAll: 触发完全停止
     KillAll --> [*]
 ```
+
+**E-Stop 级别：**
+
+| 级别 | 名称 | 描述 |
+|------|------|------|
+| L1 | ToolFreeze | 冻结指定工具 |
+| L2 | NetworkKill | 禁用网络访问 |
+| L3 | DomainBlock | 屏蔽指定域名 |
+| L4 | KillAll | 完全停止 |
 
 ---
 
@@ -1438,6 +1526,42 @@ graph LR
 | `cli` | CLI 界面 | 启用 |
 | `daemon` | 守护进程模式 | 启用 |
 
+### 10.6 内核抽象层
+
+> 参考 OpenFang 的 Kernel Handle Trait 设计
+
+```mermaid
+graph TB
+    subgraph "运行时"
+        R1[CLI运行时]
+        R2[REPL运行时]
+        R3[Daemon运行时]
+    end
+    
+    subgraph "NecoKernel Trait"
+        NK[NecoKernel]
+    end
+    
+    subgraph "内核实现"
+        K1[KernelImpl]
+    end
+    
+    R1 --> NK
+    R2 --> NK
+    R3 --> NK
+    NK --> K1
+```
+
+**NecoKernel Trait 定义：**
+
+| 方法 | 描述 |
+|------|------|
+| `agent_engine(&self) -> &dyn AgentEngine` | 获取Agent引擎 |
+| `workflow_engine(&self) -> &dyn WorkflowEngine` | 获取工作流引擎 |
+| `tool_registry(&self) -> &dyn ToolRegistry` | 获取工具注册表 |
+| `context_manager(&self) -> &dyn ContextManager` | 获取上下文管理器 |
+| `security_policy(&self) -> &dyn SecurityPolicy` | 获取安全策略 |
+
 ## 11. 性能考虑
 
 ### 11.1 优化策略
@@ -1454,6 +1578,25 @@ graph LR
 - 工具超时：默认30s（可配置）
 - 上下文上限：模型限制
 - 并发Agent数：由运行时配置决定
+
+## 性能目标
+
+| 指标 | 目标值 | 参考 |
+|------|--------|------|
+| 内存占用 | <50MB | OpenFang ~40MB |
+| 冷启动 | <200ms | OpenFang <200ms |
+| 二进制大小 | <20MB | OpenFang ~32MB |
+| 工具超时 | 默认30s | 可配置 |
+| 上下文上限 | 模型限制 | - |
+
+编译优化配置：
+```toml
+[profile.release]
+opt-level = "z"
+lto = "fat"
+codegen-units = 1
+strip = true
+```
 
 ## 12. 参考项目
 

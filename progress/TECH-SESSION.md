@@ -1128,6 +1128,85 @@ pub enum StorageError {
 
 ---
 
+## 9. Memory抽象层
+
+> 参考 ZeroClaw 的 Memory 抽象设计
+
+### 9.1 Memory Trait 定义
+
+```rust
+/// Memory后端接口
+#[async_trait]
+pub trait Memory: Send + Sync {
+    /// 存储记忆
+    async fn store(&self, entry: MemoryEntry) -> Result<(), MemoryError>;
+    
+    /// 检索记忆
+    async fn recall(&self, query: &str, limit: usize) -> Result<Vec<MemoryEntry>, MemoryError>;
+    
+    /// 获取指定记忆
+    async fn get(&self, key: &str) -> Result<Option<MemoryEntry>, MemoryError>;
+    
+    /// 删除记忆
+    async fn delete(&self, key: &str) -> Result<(), MemoryError>;
+    
+    /// 清空记忆
+    async fn clear(&self) -> Result<(), MemoryError>;
+}
+
+/// 记忆条目
+pub struct MemoryEntry {
+    /// 唯一键
+    pub key: String,
+    /// 内容
+    pub content: String,
+    /// 分类
+    pub category: MemoryCategory,
+    /// 重要性
+    pub importance: f32,
+    /// 创建时间
+    pub created_at: DateTime<Utc>,
+}
+
+/// 记忆分类
+#[derive(Debug, Clone)]
+pub enum MemoryCategory {
+    /// 全局记忆
+    Global,
+    /// 目录记忆
+    Directory(PathBuf),
+    /// 会话记忆
+    Session(SessionId),
+}
+```
+
+### 9.2 Memory后端实现
+
+| 后端 | 描述 | 适用场景 |
+|------|------|---------|
+| `MemoryBackend::File` | 文件系统存储 | 本地开发 |
+| `MemoryBackend::Sqlite` | SQLite持久化 | 单机部署 |
+| `MemoryBackend::Postgres` | PostgreSQL存储 | 生产部署 |
+| `MemoryBackend::None` | 禁用 | 调试 |
+
+### 9.3 记忆加载策略
+
+```mermaid
+graph TB
+    subgraph "加载阶段"
+        L1[阶段1: 加载标题+摘要]
+        L2[阶段2: 按需加载完整内容]
+    end
+    
+    L1 -->|模型决策| L2
+```
+
+**两层加载模式：**
+- 第一层（始终加载）：标题 + 摘要
+- 第二层（按需加载）：完整内容
+
+---
+
 *关联文档：*
 - [TECH.md](TECH.md) - 总体架构文档
 - [TECH-MODEL.md](TECH-MODEL.md) - 模型服务模块

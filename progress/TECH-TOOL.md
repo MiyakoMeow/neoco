@@ -843,6 +843,100 @@ impl ToolExecutor {
 
 ---
 
+## 9. 工具Factory注册中心
+
+> 参考 ZeroClaw 的 Factory 模式设计
+
+### 9.1 Factory Trait 定义
+
+```rust
+/// 工具工厂
+pub trait ToolFactory: Send + Sync {
+    /// 创建工具实例
+    fn create(&self, config: ToolConfig) -> Result<Box<dyn ToolProvider>, ToolError>;
+    
+    /// 列出所有可用工具
+    fn list_tools(&self) -> Vec<ToolInfo>;
+    
+    /// 获取工具能力
+    fn capabilities(&self, name: &str) -> Option<ToolCapabilities>;
+}
+
+/// 工具能力
+pub struct ToolCapabilities {
+    /// 是否支持流式
+    pub streaming: bool,
+    /// 是否需要网络
+    pub requires_network: bool,
+    /// 资源消耗级别
+    pub resource_level: ResourceLevel,
+    /// 并发支持
+    pub concurrent: bool,
+}
+
+pub enum ResourceLevel {
+    Low,
+    Medium,
+    High,
+}
+```
+
+### 9.2 内置工具注册
+
+```mermaid
+graph LR
+    subgraph "注册阶段"
+        R1[fs工具注册]
+        R2[activate工具注册]
+        R3[multi-agent工具注册]
+        R4[context工具注册]
+    end
+    
+    subgraph "工厂中心"
+        F[ToolFactoryRegistry]
+    end
+    
+    R1 --> F
+    R2 --> F
+    R3 --> F
+    R4 --> F
+```
+
+### 9.3 动态工具发现
+
+```rust
+/// 动态工具发现配置
+pub struct ToolDiscoveryConfig {
+    /// 工具目录
+    pub tool_dirs: Vec<PathBuf>,
+    /// 自动加载
+    pub auto_load: bool,
+    /// 工具前缀
+    pub prefix: String,
+}
+
+/// 工具发现结果
+pub struct DiscoveredTool {
+    pub name: String,
+    pub path: PathBuf,
+    pub metadata: ToolMetadata,
+}
+```
+
+### 9.4 工具生命周期
+
+| 阶段 | 描述 |
+|------|------|
+| `Registered` | 注册到工厂 |
+| `Initialized` | 初始化完成 |
+| `Ready` | 可执行 |
+| `Executing` | 执行中 |
+| `Completed` | 执行完成 |
+| `Failed` | 执行失败 |
+| `Disposed` | 已释放 |
+
+---
+
 *关联文档：*
 - [TECH.md](TECH.md) - 总体架构文档
 - [TECH-MCP.md](TECH-MCP.md) - MCP模块

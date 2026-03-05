@@ -332,27 +332,100 @@ graph TB
 
 ```mermaid
 graph LR
-    T[TriggerEngine] -->|监听| E[EventBus]
-    E -->|触发| T
+    subgraph "事件源"
+        A[Agent]
+        W[Workflow]
+        S[Session]
+        M[Model]
+    end
     
-    T -->|匹配模式| M1[All]
-    T -->|匹配模式| M2[Lifecycle]
-    T -->|匹配模式| M3[AgentSpawned]
-    T -->|匹配模式| M4[SystemKeyword]
-    T -->|匹配模式| M5[MemoryUpdate]
-    T -->|匹配模式| M6[ContentMatch]
+    subgraph "TriggerEngine"
+        TE[事件路由器]
+        TP[TriggerPattern]
+        TH[TriggerHandler]
+    end
+    
+    subgraph "触发动作"
+        UA[更新UI]
+        LG[记录日志]
+        MT[发送指标]
+        TR[触发器动作]
+    end
+    
+    A --> TE
+    W --> TE
+    S --> TE
+    M --> TE
+    
+    TE --> TP
+    TP --> TH
+    TH --> UA
+    TH --> LG
+    TH --> MT
+    TH --> TR
 ```
 
-| 触发模式 | 描述 |
-|----------|------|
-| `All` | 匹配所有事件 |
-| `Lifecycle` | 生命周期事件 |
-| `AgentSpawned` | Agent创建匹配 |
-| `AgentTerminated` | Agent终止 |
-| `System` | 系统事件 |
-| `SystemKeyword` | 关键词匹配 |
-| `MemoryUpdate` | 内存更新 |
-| `ContentMatch` | 内容匹配 |
+**TriggerPattern 数据结构：**
+
+```rust
+/// 触发模式
+pub enum TriggerPattern {
+    /// 匹配所有事件
+    All,
+    /// 生命周期事件
+    Lifecycle {
+        events: Vec<LifecycleEvent>,
+    },
+    /// Agent创建匹配
+    AgentSpawned {
+        agent_type: Option<String>,
+    },
+    /// Agent终止
+    AgentTerminated,
+    /// 系统关键词匹配
+    SystemKeyword {
+        keywords: Vec<String>,
+    },
+    /// 内存更新
+    MemoryUpdate {
+        threshold: f32,
+    },
+    /// 内容匹配
+    ContentMatch {
+        pattern: String,
+    },
+}
+```
+
+**TriggerHandler 数据结构：**
+
+```rust
+/// 触发处理器
+pub struct TriggerHandler {
+    /// 处理器ID
+    pub id: String,
+    /// 触发模式
+    pub pattern: TriggerPattern,
+    /// 动作类型
+    pub action: TriggerAction,
+    /// 是否启用
+    pub enabled: bool,
+}
+
+/// 触发动作
+pub enum TriggerAction {
+    /// 执行工具
+    ExecuteTool { tool_name: String, args: Value },
+    /// 发送消息
+    SendMessage { target: AgentUlid, content: String },
+    /// 调用回调
+    Callback { callback_id: String },
+    /// 记录日志
+    Log { level: LogLevel, message: String },
+    /// 发出事件
+    EmitEvent { event_type: String, payload: Value },
+}
+```
 
 ### 5.4 事件流处理
 
@@ -369,6 +442,33 @@ sequenceDiagram
     Handler->>Handler: 处理逻辑
     Handler->>Agent: 触发操作
 ```
+
+### 5.5 事件过滤与转换
+
+```mermaid
+graph TD
+    E[原始事件] --> F[过滤器]
+    F -->|过滤后| T[转换器]
+    T -->|处理后| D[分发器]
+    D --> H[处理器]
+```
+
+**事件过滤器：**
+
+| 过滤器类型 | 描述 |
+|-----------|------|
+| `EventFilter` | 按事件类型过滤 |
+| `AgentFilter` | 按Agent过滤 |
+| `TimeFilter` | 按时间范围过滤 |
+| `ContentFilter` | 按内容过滤 |
+
+**事件转换器：**
+
+| 转换器类型 | 描述 |
+|-----------|------|
+| `Enricher` | 添加额外上下文 |
+| `Aggregator` | 聚合多个事件 |
+| `Splitter` | 拆分为多个事件 |
 
 ## 5. Agent通信工具
 
