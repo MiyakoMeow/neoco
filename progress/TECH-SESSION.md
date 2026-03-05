@@ -121,14 +121,15 @@ pub struct SessionMeta {
 }
 
 
+```rust
+use std::sync::atomic::{AtomicU64, Ordering};
+
 /// 消息ID分配器错误
 #[derive(Debug, Error)]
 pub enum Error {
     #[error("消息ID已溢出")]
     MessageIdOverflow,
 }
-
-use std::sync::atomic::{AtomicU64, Ordering};
 
 /// 消息ID分配器
 pub struct MessageIdAllocator {
@@ -723,8 +724,8 @@ pub struct SessionManager {
 /// 
 /// **策略说明：**
 /// - `push_front` 添加最新条目（队首为最新）
-/// - `pop_front` 移除最新条目
 /// - `pop_back` 移除最旧条目（队尾为最旧）
+/// - 新条目在队首，最旧条目在队尾，驱逐时从队尾移除
 pub struct LruCache<K, V> {
     cache: VecDeque<(K, V)>,
     capacity: usize,

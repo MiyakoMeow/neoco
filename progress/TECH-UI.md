@@ -803,6 +803,11 @@ async fn control_workflow(
     
     // TODO: 解析workflow_id为SessionId
     // TODO: 根据请求action执行相应操作
+    let action_label = match req.action {
+        ControlAction::Pause => "paused",
+        ControlAction::Resume => "resumed",
+        ControlAction::Terminate => "terminated",
+    };
     match req.action {
         ControlAction::Pause => todo!(),
         ControlAction::Resume => todo!(),
@@ -811,7 +816,7 @@ async fn control_workflow(
     
     Ok(Json(ControlResponse {
         success: true,
-        message: format!("Workflow {}", req.action),
+        message: format!("Workflow {}", action_label),
     }))
 }
 
