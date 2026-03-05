@@ -199,7 +199,7 @@ impl Default for RetryConfig {
 
 ### 3.4 MCP服务器配置
 
-> 注意: MCP传输配置定义在 [TECH-MCP.md](./TECH-MCP.md) 的 `McpTransportConfig` 中
+> 注意: MCP传输配置定义在 [TECH-MCP.md#31-mcp服务器配置](./TECH-MCP.md#31-mcp服务器配置) 的 `McpTransportConfig` 中
 
 ```rust
 /// MCP服务器配置

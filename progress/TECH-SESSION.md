@@ -888,12 +888,9 @@ impl Session {
 
 ### 7.1 上下文组装
 
-```rust
-/// Token计数器trait
-pub trait TokenCounter: Send + Sync {
-    fn count_tokens(&self, text: &str) -> usize;
-}
+> Token计数器接口定义见 [TECH-CONTEXT.md#61-token计数器](TECH-CONTEXT.md#61-token计数器)
 
+```rust
 /// Token截断错误
 #[derive(Debug, Error)]
 pub enum ContextError {
