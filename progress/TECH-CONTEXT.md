@@ -172,7 +172,7 @@ pub trait ObservationFormatter: Send + Sync {
 **输出格式示例：**
 
 *table格式：*
-```
+```text
 ## 上下文统计
 - 总消息数: 15
 - 总字符数: 12,458
@@ -187,7 +187,7 @@ pub trait ObservationFormatter: Send + Sync {
 ```
 
 *summary格式：*
-```
+```text
 # 上下文摘要
 当前上下文共有 15 条消息，总计 3,245 tokens，使用率为 2.5%
 

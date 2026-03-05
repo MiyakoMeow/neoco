@@ -696,7 +696,6 @@ impl ToolProvider for ContextObserveTool {
 
 #### table格式（默认）
 
-```
 ```text
 ## 上下文统计
 
@@ -728,7 +727,6 @@ impl ToolProvider for ContextObserveTool {
 用户消息: 6 条
 助手消息: 5 条
 工具返回: 2 条
-```
 ```
 
 #### json格式
