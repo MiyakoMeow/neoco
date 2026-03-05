@@ -182,7 +182,7 @@ sequenceDiagram
     Service-->>Agent: 返回ContextObservation
 ```
 
-### 3.3 工具接口
+### 3.4 工具接口
 
 ```rust
 /// context::observe 工具

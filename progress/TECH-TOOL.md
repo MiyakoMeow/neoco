@@ -623,13 +623,41 @@ impl ToolProvider for ContextObserveTool {
         "查看当前上下文的详细信息，包括消息列表、统计信息和内容分组"
     }
     
-    fn parameters_schema(&self) -> Value;
+    fn parameters_schema(&self) -> Value {
+        json!({
+            "type": "object",
+            "properties": {
+                "format": {
+                    "type": "string",
+                    "enum": ["table", "json", "summary"],
+                    "description": "输出格式"
+                },
+                "roles": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "按角色过滤"
+                },
+                "sort": {
+                    "type": "string",
+                    "enum": ["id", "size", "time"],
+                    "description": "排序字段"
+                }
+            }
+        })
+    }
     
     fn timeout(&self) -> Duration {
         Duration::from_secs(5)
     }
     
-    async fn execute(&self, args: Value) -> Result<ToolResult, ToolError>;
+    async fn execute(&self, args: Value) -> Result<ToolResult, ToolError> {
+        // TODO: 实现上下文观测逻辑
+        // 1. 解析format、roles、sort参数
+        // 2. 调用ContextObservationService.observation_context()
+        // 3. 根据format格式化输出（table/json/summary）
+        // 4. 返回结果
+        unimplemented!()
+    }
 }
 ```
 
@@ -772,7 +800,7 @@ impl ToolProvider for QuestionTool {
 
 ## 8. 工具执行器
 
-### 7.1 执行流程
+### 8.1 执行流程
 
 ```rust
 /// 工具执行器
