@@ -1036,6 +1036,82 @@ impl ContextBuilder {
 }
 ```
 
+### 7.2 上下文观测
+
+上下文观测功能提供了查看当前Agent上下文状态的能力，用于调试和分析。
+
+#### 7.2.1 数据结构
+
+```rust
+/// 消息摘要信息
+#[derive(Debug, Clone, Serialize)]
+pub struct MessageSummary {
+    pub id: u64,
+    pub role: Role,
+    pub preview: String,
+    pub char_count: usize,
+    pub estimated_tokens: usize,
+    pub timestamp: DateTime<Utc>,
+    pub has_tool_calls: bool,
+}
+
+/// 上下文统计信息
+#[derive(Debug, Clone, Serialize)]
+pub struct ContextStatistics {
+    pub total_messages: usize,
+    pub messages_by_role: HashMap<Role, usize>,
+    pub total_tokens: usize,
+    pub context_window: usize,
+    pub usage_percentage: f64,
+}
+
+/// 上下文观测结果
+#[derive(Debug, Clone, Serialize)]
+pub struct ContextObservation {
+    pub agent_ulid: AgentUlid,
+    pub statistics: ContextStatistics,
+    pub messages: Vec<MessageSummary>,
+    pub messages_by_role: HashMap<Role, Vec<u64>>,
+    pub observed_at: DateTime<Utc>,
+}
+```
+
+#### 7.2.2 观测器接口
+
+```rust
+/// 上下文观测器
+pub struct ContextObserver {
+    token_counter: Arc<dyn TokenCounter>,
+}
+
+impl ContextObserver {
+    pub fn new(token_counter: Arc<dyn TokenCounter>) -> Self;
+    
+    /// 观测Agent上下文
+    pub fn observe(
+        &self,
+        agent: &Agent,
+        context_window: usize,
+    ) -> ContextObservation;
+}
+```
+
+#### 7.2.3 观测流程
+
+```mermaid
+graph TD
+    A[输入: Agent] --> B[遍历消息列表]
+    B --> C[统计各角色消息数]
+    B --> D[计算每条消息token]
+    B --> E[生成消息摘要]
+    C --> F[计算总token数]
+    D --> F
+    E --> G[按角色分组]
+    F --> H[计算使用率]
+    G --> I[输出ContextObservation]
+    H --> I
+```
+
 ## 8. 错误处理
 
 > **注意**: 所有模块错误类型统一在 `neco-core` 中汇总为 `AppError`。见 [TECH.md#53-统一错误类型设计](TECH.md#53-统一错误类型设计)。

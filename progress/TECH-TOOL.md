@@ -23,6 +23,8 @@ graph TB
                激活工具]
             MA[multi-agent::*
                多智能体]
+            CT[context::*
+               上下文观测]
             WF[workflow::*
                工作流转场]
             QU[question
@@ -39,6 +41,7 @@ graph TB
         TR --> FS
         TR --> AC
         TR --> MA
+        TR --> CT
         TR --> WF
         TR --> QU
         TR --> MCP
@@ -65,6 +68,7 @@ graph TB
 | 文件系统 | `fs::action` | `fs::read`, `fs::write` |
 | MCP | `mcp::server_name` | `mcp::context7` |
 | 多智能体 | `multi-agent::action` | `multi-agent::spawn` |
+| 上下文观测 | `context::action` | `context::observe` |
 | 工作流 | `workflow::option` | `workflow::approve` |
 | 激活 | `activate::type` | `activate::mcp`, `activate::skill` |
 
@@ -594,7 +598,130 @@ impl ActivateTool {
 }
 ```
 
-## 6. question工具
+## 6. context工具
+
+### 6.1 工具概述
+
+| 工具 | 功能 | 超时 |
+|------|------|------|
+| `context::observe` | 查看当前上下文的详细信息 | 5秒 |
+
+### 6.2 context::observe 接口
+
+```rust
+/// 上下文观测工具
+pub struct ContextObserveTool {
+    observation_service: Arc<ContextObservationService>,
+}
+
+impl ToolProvider for ContextObserveTool {
+    fn name(&self) -> &str {
+        "context::observe"
+    }
+    
+    fn description(&self) -> &str {
+        "查看当前上下文的详细信息，包括消息列表、统计信息和内容分组"
+    }
+    
+    fn parameters_schema(&self) -> Value;
+    
+    fn timeout(&self) -> Duration {
+        Duration::from_secs(5)
+    }
+    
+    async fn execute(&self, args: Value) -> Result<ToolResult, ToolError>;
+}
+```
+
+### 6.3 参数Schema
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "roles": {
+      "type": "array",
+      "items": {"type": "string", "enum": ["system", "user", "assistant", "tool"]},
+      "description": "只显示指定角色的消息"
+    },
+    "min_id": {"type": "integer", "description": "最小消息ID"},
+    "max_id": {"type": "integer", "description": "最大消息ID"},
+    "with_tool_calls": {"type": "boolean", "description": "是否只显示包含工具调用的消息"},
+    "sort": {
+      "type": "string",
+      "enum": ["id_asc", "id_desc", "size_asc", "size_desc", "time_asc", "time_desc"],
+      "description": "排序方式"
+    },
+    "format": {
+      "type": "string",
+      "enum": ["table", "json", "summary"],
+      "description": "输出格式"
+    }
+  }
+}
+```
+
+### 6.4 输出格式示例
+
+#### table格式（默认）
+
+```
+## 上下文统计
+
+- 总消息数: 15
+- 总字符数: 12,458
+- 总token数: 3,245
+- 使用率: 2.5%
+
+## 消息列表
+
+| ID | 角色      | 大小   | Token | 预览                          |
+|----|-----------|--------|-------|-------------------------------|
+| 1  | system    | 1,245  | 320   | You are a helpful AI...      |
+| 2  | user      | 156    | 40    | Hello, how are you?          |
+| 3  | assistant | 892    | 230   | I'm doing well, thank you... |
+| 4  | user      | 234    | 60    | What can you help me with?   |
+```
+
+#### summary格式
+
+```
+# 上下文摘要
+
+当前上下文共有 15 条消息，总计 3,245 tokens，使用率为 2.5%
+
+## 按角色分组
+
+系统提示词: 2 条
+用户消息: 6 条
+助手消息: 5 条
+工具返回: 2 条
+```
+
+#### json格式
+
+```json
+{
+  "agent_ulid": "01HF8X5JQC8",
+  "statistics": {
+    "total_messages": 15,
+    "total_chars": 12458,
+    "total_tokens": 3245,
+    "usage_percentage": 2.5
+  },
+  "messages": [
+    {
+      "id": 1,
+      "role": "system",
+      "char_count": 1245,
+      "estimated_tokens": 320,
+      "timestamp": "2026-03-06T10:00:00Z"
+    }
+  ]
+}
+```
+
+## 7. question工具
 
 ```rust
 /// 用户提问工具（仅限REPL模式）
@@ -643,7 +770,7 @@ impl ToolProvider for QuestionTool {
 }
 ```
 
-## 7. 工具执行器
+## 8. 工具执行器
 
 ### 7.1 执行流程
 
