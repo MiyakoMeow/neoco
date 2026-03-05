@@ -8,27 +8,57 @@ env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
 jobs:
-  build:
+  clippy:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
       - uses: actions/checkout@v6
-      - name: Setup rustfmt and clippy
+      - name: Setup clippy
         uses: dtolnay/rust-toolchain@v1
         with:
           toolchain: stable
-          components: rustfmt, clippy
+          components: clippy
       - name: Cache cargo build
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: |
             . -> target
-      - name: "Clippy Check"
+      - name: Run clippy
         run: cargo clippy --all-targets --verbose -- -D warnings
-      - name: Test crate
+
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v6
+      - name: Setup rust
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: stable
+      - name: Cache cargo build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            . -> target
+      - name: Run tests
         run: cargo test --verbose --all-features
-      - name: Format Check
+
+  fmt:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v6
+      - name: Setup rustfmt
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: stable
+          components: rustfmt
+      - name: Run format check
         run: cargo fmt --check
 
