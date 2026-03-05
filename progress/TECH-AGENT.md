@@ -38,7 +38,6 @@ graph TB
 ```
 
 **设计原则：**
-
 - **层次化结构**：上级Agent可以创建多个下级Agent
 - **通信隔离**：下级Agent不能直接相互通信，必须通过上级
 - **生命周期管理**：上级Agent可以监控和控制下级Agent
@@ -85,8 +84,8 @@ graph TB
 ## 3. 数据结构设计
 
 > **注意**: 
-> - `Agent` 和 `AgentConfig` 结构定义见 [TECH-SESSION.md](TECH-SESSION.md#32-agent结构)
-> - `Message` 类型定义见 [TECH-SESSION.md](TECH-SESSION.md#33-消息结构)
+> - `Agent` 和 `AgentConfig` 结构定义见 [TECH-SESSION.md#32-agent结构](TECH-SESSION.md#32-agent结构)
+> - `Message` 类型定义见 [TECH-SESSION.md#33-消息结构](TECH-SESSION.md#33-消息结构)
 
 ### 3.1 Agent间通信
 

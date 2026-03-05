@@ -120,7 +120,6 @@ pub struct SessionMeta {
     pub metadata: SessionMetadata,
 }
 
-use std::sync::atomic::{AtomicU64, Ordering};
 
 /// 消息ID分配器错误
 #[derive(Debug, Error)]
@@ -157,6 +156,8 @@ impl MessageIdAllocator {
     }
 }
 ```
+
+use std::sync::atomic::{AtomicU64, Ordering};
 
 ### 3.2 Agent结构
 
@@ -707,7 +708,7 @@ impl SessionManager {
 ### 6.2 恢复Session
 
 ```rust
-use std::collections::{HashMap, LinkedList};
+use std::collections::{HashMap, VecDeque};
 
 /// Session管理器
 pub struct SessionManager {
@@ -718,9 +719,9 @@ pub struct SessionManager {
     max_agent_cache_size: usize,
 }
 
-/// LRU缓存实现（简化版）
+/// LRU缓存实现（使用VecDeque优化性能）
 pub struct LruCache<K, V> {
-    cache: LinkedList<(K, V)>,
+    cache: VecDeque<(K, V)>,
     capacity: usize,
 }
 

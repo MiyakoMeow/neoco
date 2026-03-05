@@ -190,7 +190,7 @@ pub enum Role {
 
 > **注意**: `Tool` 和 `ToolCall` 类型定义见 [TECH-TOOL.md](TECH-TOOL.md#3-核心trait设计)
 
-### 4.3 模型组与故障转移
+### 4.2 模型组与故障转移
 
 ```rust
 /// 模型组客户端

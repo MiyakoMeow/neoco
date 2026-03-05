@@ -402,7 +402,8 @@ graph TB
     end
 ```
 
-**说明**：
+#### 说明
+
 - 使用`ratatui`的`Viewport::Inline`模式（非全屏TUI）
 - 状态栏分两部分：输入框上方显示Session/模型信息，下方显示工作流进度/Agent统计
 
@@ -432,9 +433,6 @@ pub struct BottomStatus {
     pub agent_count: usize,
     pub active_agents: usize,
     pub timestamp: String,
-}
-```
-    Dotted,
 }
 ```
 
@@ -703,7 +701,30 @@ pub struct WorkflowCounters {
 #[derive(Debug, Deserialize)]
 pub struct ControlRequest {
     /// 操作动作：pause, resume, terminate
-    pub action: String,
+    pub action: ControlAction,
+}
+
+/// 控制动作枚举
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ControlAction {
+    Pause,
+    Resume,
+    Terminate,
+}
+
+impl<'de> Deserialize<'de> for ControlAction {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        match s.as_str() {
+            "pause" => Ok(ControlAction::Pause),
+            "resume" => Ok(ControlAction::Resume),
+            "terminate" => Ok(ControlAction::Terminate),
+            _ => Err(serde::de::Error::custom(format!("Invalid action: {}", s))),
+        }
+    }
 }
 
 /// 控制响应
@@ -763,22 +784,26 @@ async fn control_workflow(State(state): State<AppState>, Path(workflow_id): Path
         return Err(ApiError::BadRequest("workflow_id cannot be empty".to_string()));
     }
     
-    // 验证action
-    match req.action.as_str() {
-        "pause" | "resume" | "terminate" => {}
-        _ => return Err(ApiError::InvalidAction),
-    }
+        // 验证action
+        match req.action {
+            ControlAction::Pause | ControlAction::Resume | ControlAction::Terminate => {}
+            _ => return Err(ApiError::InvalidAction),
+        }
     
     // TODO: 解析workflow_id为SessionId
-    // TODO: 根据请求action执行相应操作
-    // TODO: "pause": 暂停工作流执行
-    // TODO: "resume": 恢复工作流执行  
-    // TODO: "terminate": 终止工作流执行
-    // TODO: 无效action时返回错误
+        // TODO: 根据请求action执行相应操作
+        // "pause": 暂停工作流执行
+        // "resume": 恢复工作流执行  
+        // "terminate": 终止工作流执行
+        match req.action {
+            ControlAction::Pause => todo!(),
+            ControlAction::Resume => todo!(),
+            ControlAction::Terminate => todo!(),
+        }
     
     Ok(Json(ControlResponse {
         success: true,
-        message: format!("Workflow {}", req.action),
+        message: format!("Workflow {:?}", req.action),
     }))
 }
 

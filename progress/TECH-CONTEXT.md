@@ -24,11 +24,11 @@ graph TD
 
 **触发方式：**
 
-| 方式 | 触发条件 | 配置项 |
-|-----|---------|--------|
-| 自动触发 | 上下文大小 > 窗口大小 × 阈值 | `auto_compact_threshold` (默认90%) |
-| 手动触发 | 用户输入 `/compact` 命令 | - |
-| 程序触发 | 代码显式调用 | `context.compact()` |
+| 方式 | 触发条件 | 配置项 | 说明 |
+|-----|---------|--------|------|
+| 自动触发 | 上下文大小 > 窗口大小 × 阈值 | `auto_compact_threshold` (默认90%) | 当上下文占用超过阈值时自动压缩 |
+| 手动触发 | 用户输入 `/compact` 命令 | - | 用户主动触发 |
+| 程序触发 | 代码显式调用 | `context.compact()` | 开发者通过API触发 |
 
 ### 2.2 压缩策略
 
@@ -80,20 +80,16 @@ impl Default for ContextConfig {
 
 /// 默认压缩提示词
 const DEFAULT_COMPACT_PROMPT: &str = r#"
-# 任务：压缩上下文
+压缩以下对话内容，提取所有有价值的信息。
 
-## 目标
-整理当前的上下文内容，提取**所有**有价值的信息。
-
-## 详细回答以下问题
+需要回答以下问题：
 1. 需求是什么？
 2. 目标在哪里？
 3. 现在做到了哪一步？
 4. 接下来要做什么？
 5. 其它信息。
 
-## 输出格式
-用简洁的语言总结，保留所有关键细节。
+请用简洁的语言总结，保留所有关键细节。
 "#;
 ```
 
@@ -476,21 +472,18 @@ impl Session {
         let context_window = todo!();
         
         // TODO: 检查是否需要压缩
-        // if compression_service.should_compact(
-        //     &agent.messages,
-        //     context_window
-        // ) {
-        if false {
+        if compression_service.should_compact(
+            &agent.messages,
+            context_window
+        ) {
             // TODO: 执行压缩
-            // let result = compression_service.compact(
-            //     &agent.messages,
-            //     CompactStrategy::KeepImportant
-            // ).await?;
-            let result = todo!();
+            let result = compression_service.compact(
+                &agent.messages,
+                CompactStrategy::KeepImportant
+            ).await?;
             
             // TODO: 应用压缩结果
-            // self.apply_compact_result(agent_ulid, &result).await?;
-            todo!();
+            self.apply_compact_result(agent_ulid, &result).await?;
             
             Ok(Some(result))
         } else {

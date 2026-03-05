@@ -423,7 +423,7 @@ pub enum McpError {
 
 ---
 
-*关联文档：*
+**关联文档：**
 - [TECH.md](./TECH.md) - 总体架构文档
 - [TECH-TOOL.md](./TECH-TOOL.md) - 工具模块
 - [TECH-CONFIG.md](./TECH-CONFIG.md) - 配置管理模块

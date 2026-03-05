@@ -158,8 +158,8 @@ pub enum ToolError {
 ```rust
 /// 工具注册表
 pub struct ToolRegistry {
-    /// 工具映射
-    tools: HashMap<String, Box<dyn ToolProvider>>,
+    /// 工具映射（使用Arc支持跨线程共享）
+    tools: HashMap<String, Arc<dyn ToolProvider>>,
     
     /// 超时配置（按工具前缀）
     timeout_overrides: HashMap<String, Duration>,
@@ -177,7 +177,7 @@ impl ToolRegistry {
     /// 注册工具
     pub fn register(
         &mut self,
-        tool: Box<dyn ToolProvider>,
+        tool: Arc<dyn ToolProvider>,
     ) {
         let name = tool.name().to_string();
         self.tools.insert(name, tool);
