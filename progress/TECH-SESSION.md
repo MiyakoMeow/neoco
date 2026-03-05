@@ -1079,16 +1079,10 @@ pub struct ContextObservation {
 #### 7.2.2 观测器接口
 
 ```rust
-/// 上下文观测器
-pub struct ContextObserver {
-    token_counter: Arc<dyn TokenCounter>,
-}
-
-impl ContextObserver {
-    pub fn new(token_counter: Arc<dyn TokenCounter>) -> Self;
-    
+/// 上下文观测器接口
+pub trait ContextObserver: Send + Sync {
     /// 观测Agent上下文
-    pub fn observe(
+    fn observe(
         &self,
         agent: &Agent,
         context_window: usize,

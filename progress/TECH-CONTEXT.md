@@ -189,20 +189,9 @@ sequenceDiagram
 pub struct ContextObserveTool {
     observation_service: Arc<ContextObservationService>,
 }
-
-#[async_trait]
-impl ToolProvider for ContextObserveTool {
-    fn name(&self) -> &str;
-    
-    fn description(&self) -> &str;
-    
-    fn parameters_schema(&self) -> Value;
-    
-    async fn execute(&self, args: Value) -> Result<ToolResult, ToolError>;
-}
 ```
 
-### 3.4 工具参数Schema
+### 3.5 工具参数Schema
 
 ```json
 {
@@ -242,7 +231,7 @@ impl ToolProvider for ContextObserveTool {
 }
 ```
 
-### 3.5 输出格式化接口
+### 3.6 输出格式化接口
 
 ```rust
 /// 上下文观测输出格式化器
