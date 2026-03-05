@@ -797,8 +797,8 @@ impl SessionManager {
         // 3. 添加到缓存
         let mut cache = self.agent_cache.write().await;
         if cache.len() >= self.max_agent_cache_size {
-            // 移除最旧的条目
-            if let Some((old_key, _)) = cache.pop_front() {
+            // 移除最旧的条目（队尾为最旧）
+            if let Some((old_key, _)) = cache.pop_back() {
                 tracing::debug!("Evicting agent from cache: {:?}", old_key);
             }
         }
@@ -1038,6 +1038,8 @@ impl ContextBuilder {
 ## 8. 错误处理
 
 > **注意**: 所有模块错误类型统一在 `neco-core` 中汇总为 `AppError`。见 [TECH.md#53-统一错误类型设计](TECH.md#53-统一错误类型设计)。
+> 
+> `SessionError` 和 `StorageError` 为模块内部错误，在模块边界通过 `From` 实现或映射函数转换为 `AppError`。
 
 ```rust
 #[derive(Debug, Error)]

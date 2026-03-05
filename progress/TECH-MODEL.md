@@ -166,7 +166,7 @@ pub struct ChatRequest {
     pub tools: Option<Vec<Tool>>,
     /// 工具选择策略
     pub tool_choice: Option<ToolChoice>,
-/// 响应格式
+    /// 响应格式（定义见 TECH-TOOL.md）
     pub response_format: Option<ResponseFormat>,
     
     /// 停止序列
@@ -336,7 +336,7 @@ impl OpenAiClient {
     }
     
     /// 转换消息格式
-    fn convert_message(msg: &Message) -> ChatCompletionRequestMessage {
+    fn convert_message(msg: &ModelMessage) -> ChatCompletionRequestMessage {
         // TODO: 实现消息格式转换
         // 将通用Message格式转换为OpenAI特定的消息格式
         // TODO: 实现代码:
@@ -562,6 +562,8 @@ pub async fn execute_tool_calls_parallel(
 ## 8. 错误处理
 
 > **注意**: 所有模块错误类型统一在 `neco-core` 中汇总为 `AppError`。见 [TECH.md#53-统一错误类型设计](TECH.md#53-统一错误类型设计)。
+> 
+> `ModelError` 为模块内部错误，在模块边界通过 `From` 实现或映射函数转换为 `AppError`。例如，`ModelError::OpenAi` 携带的原生错误会通过 `#[source]` 属性传播到上层的 `AppError::Model`。
 
 ```rust
 use thiserror::Error;
@@ -606,7 +608,7 @@ pub enum ModelError {
 ### 9.1 基本调用
 
 ```rust
-use neco_model::{ModelGroupClient, ChatRequest, Message, Role};
+use neco_model::{ModelGroupClient, ChatRequest, ModelMessage, Role};
 
 // 创建模型组客户端
 let client = ModelGroupClient::new(
@@ -619,17 +621,13 @@ let client = ModelGroupClient::new(
 let request = ChatRequest {
     model: "glm-4.7".to_string(),
     messages: vec![
-        Message {
+        ModelMessage {
             role: Role::System,
-            content: Some("你是一个 helpful assistant".to_string()),
-            tool_calls: None,
-            tool_call_id: None,
+            content: "你是一个 helpful assistant".to_string(),
         },
-        Message {
+        ModelMessage {
             role: Role::User,
-            content: Some("Hello!".to_string()),
-            tool_calls: None,
-            tool_call_id: None,
+            content: "Hello!".to_string(),
         },
     ],
     stream: false,

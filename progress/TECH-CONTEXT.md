@@ -465,11 +465,8 @@ impl Session {
         let agent = self.agents.get(&agent_ulid)
             .ok_or(SessionError::AgentNotFound)?;
         
-        // 示意代码：获取模型上下文窗口大小（需根据实际配置实现）
-        // let context_window = self.get_model_context_window(
-        //     &agent.config.model_group
-        // );
-        let context_window = todo!();
+        // 获取模型上下文窗口大小（从Agent配置获取）
+        let context_window = agent.config.context_window.unwrap_or(128_000);
         
         // 检查是否需要压缩
         if compression_service.should_compact(

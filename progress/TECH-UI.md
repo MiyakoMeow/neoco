@@ -799,7 +799,7 @@ async fn control_workflow(
     }
     
     // 映射反序列化错误
-    let req = result.map_err(|_| ApiError::BadRequest("Invalid request body".to_string()))?;
+    let Json(req) = result.map_err(|_| ApiError::BadRequest("Invalid request body".to_string()))?;
     
     // TODO: 解析workflow_id为SessionId
     // TODO: 根据请求action执行相应操作
@@ -838,6 +838,8 @@ async fn handle_socket(
 ## 7. 错误处理
 
 > **注意**: 所有模块错误类型统一在 `neco-core` 中汇总为 `AppError`。见 [TECH.md#53-统一错误类型设计](TECH.md#53-统一错误类型设计)。
+> 
+> `UiError` 和 `ApiError` 作为模块特定错误，在模块边界通过 `From` 实现或映射函数转换为 `AppError`。
 
 ```rust
 #[derive(Debug, Error)]
