@@ -125,13 +125,6 @@ pub struct SessionMeta {
 
 use std::sync::atomic::{AtomicU64, Ordering};
 
-/// 消息ID分配器错误
-#[derive(Debug, Error)]
-pub enum Error {
-    #[error("消息ID已溢出")]
-    MessageIdOverflow,
-}
-
 /// 消息ID分配器
 pub struct MessageIdAllocator {
     counter: AtomicU64,
@@ -147,16 +140,17 @@ impl MessageIdAllocator {
     /// 获取下一个消息ID
     /// 
     /// 使用 fetch_update 实现原子检查+递增，避免 TOCTOU 并发漏洞
-    pub fn next_id(&self) -> Result<u64, Error> {
+    /// 返回 None 表示 ID 已溢出
+    pub fn next_id(&self) -> Option<u64> {
         self.counter
             .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |current| {
                 if current >= u64::MAX - 1 {
-                    None // 返回None表示不更新，fetch_update会返回Err
+                    None
                 } else {
                     Some(current + 1)
                 }
             })
-            .map_err(|_| Error::MessageIdOverflow)
+            .ok()
     }
 }
 ```
@@ -830,7 +824,7 @@ impl Session {
         
         // 2. 生成下一个消息ID
         let message_id = self.id_allocator.next_id()
-            .map_err(|e| SessionError::MessageIdOverflow(e.to_string()))?;
+            .ok_or_else(|| SessionError::MessageIdOverflow("Message ID allocator overflow".to_string()))?;
         
         // 3. 创建Message实例
         let message = Message {

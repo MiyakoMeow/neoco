@@ -101,10 +101,6 @@ impl FromStr for ModelRef {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         // TODO: 实现 ModelRef 的解析逻辑
         // 解析格式: "provider/model?temperature=0.1&reasoning_effort=high"
-        // 1. 分割查询字符串和路径部分
-        // 2. 分割提供商ID和模型名称
-        // 3. 解析查询参数到 HashMap
-        // 4. 返回 ModelRef 实例
         unimplemented!()
     }
 }
@@ -163,9 +159,6 @@ impl ApiKeyConfig {
     /// 获取API密钥
     pub fn get_key(&self) -> Result<SecretString, ConfigError> {
         // TODO: 实现API密钥获取逻辑
-        // 1. 根据配置类型（单环境变量、环境变量列表、直接值）
-        // 2. 尝试获取环境变量或使用直接值
-        // 3. 返回 SecretString 或错误
         match self {
             ApiKeyConfig::Env(var) => {
                 // TODO: 从环境变量获取密钥
@@ -194,7 +187,6 @@ pub struct RetryConfig {
 
 impl Default for RetryConfig {
     fn default() -> Self {
-        // TODO: 设置合理的重试默认值
         Self {
             max_retries: 3,
             initial_backoff: Duration::from_secs(1),
@@ -228,16 +220,12 @@ impl McpServer {
     /// 判断是否使用stdio模式
     pub fn is_stdio(&self) -> bool {
         // TODO: 检查传输类型是否为 Stdio
-        // 使用模式匹配判断 transport 类型
         unimplemented!()
     }
     
     /// 获取bearer token（HTTP模式）
     pub fn get_bearer_token(&self) -> Option<String> {
         // TODO: 获取HTTP模式的bearer token
-        // 1. 检查传输类型是否为Http
-        // 2. 如果有bearer_token_env环境变量，尝试获取其值
-        // 3. 返回token或None
         unimplemented!()
     }
 }
@@ -289,9 +277,6 @@ impl ToolsConfig {
     /// 获取工具超时（最长前缀匹配）
     pub fn get_timeout(&self, tool_id: &str) -> Duration {
         // TODO: 实现工具超时获取逻辑
-        // 1. 遍历所有timeout前缀配置
-        // 2. 找到与tool_id匹配的最长前缀
-        // 3. 返回对应的超时时间，若无匹配则返回默认超时
         unimplemented!()
     }
 }
@@ -390,9 +375,6 @@ impl ConfigMerger {
     /// 合并两个配置值
     pub fn merge(base: &mut Value, override_: Value) {
         // TODO: 实现配置合并逻辑
-        // 1. 处理对象类型的递归合并
-        // 2. 处理数组类型的特殊追加语法（+前缀）
-        // 3. 处理标量类型的直接替换
         unimplemented!()
     }
 }
@@ -445,26 +427,16 @@ impl ConfigValidator {
     /// 验证完整配置
     pub fn validate(config: &NecoConfig) -> Result<(), ConfigError> {
         // TODO: 实现配置验证逻辑
-        // 1. 验证模型组引用有效性
-        // 2. 验证提供商配置
-        // 3. 验证MCP服务器配置
-        // 4. 验证目录存在性
         unimplemented!()
     }
     
     fn validate_model_groups(config: &NecoConfig) -> Result<(), ConfigError> {
         // TODO: 实现模型组验证逻辑
-        // 1. 遍历所有模型组
-        // 2. 验证每个模型引用的格式和有效性
-        // 3. 检查引用的提供商是否存在
         unimplemented!()
     }
     
     fn validate_providers(config: &NecoConfig) -> Result<(), ConfigError> {
         // TODO: 实现提供商验证逻辑
-        // 1. 遍历所有模型提供商
-        // 2. 验证API密钥可访问性
-        // 3. 记录警告而非错误（非阻塞）
         unimplemented!()
     }
 }
@@ -499,26 +471,18 @@ impl ConfigManager {
     /// 获取当前配置（只读）
     pub fn get_config(&self) -> Arc<NecoConfig> {
         // TODO: 实现线程安全的配置获取
-        // 1. 获取读锁
-        // 2. 克隆配置
-        // 3. 释放锁并返回
         unimplemented!()
     }
     
     /// 更新配置（热重载）
     pub fn update_config(&self, new_config: NecoConfig) -> Result<(), ConfigError> {
         // TODO: 实现配置热重载逻辑
-        // 1. 验证新配置
-        // 2. 计算配置差异
-        // 3. 更新内部配置
-        // 4. 通知订阅者变更
         unimplemented!()
     }
     
     /// 订阅配置变更
     pub fn subscribe_changes(&self) -> broadcast::Receiver<ConfigChange> {
         // TODO: 实现配置变更订阅功能
-        // 返回变更通知的广播接收器
         unimplemented!()
     }
 }
@@ -603,13 +567,6 @@ default_timeout = 30
 
 ```rust
 use neco_config::{ConfigLoader, ConfigManager};
-
-// TODO: 实现配置加载和使用逻辑
-// 1. 创建配置加载器并指定配置目录
-// 2. 加载配置文件并处理错误
-// 3. 访问模型组、提供商等配置项
-// 4. 解析模型引用并获取提供商信息
-// 5. 获取API密钥和工具超时等运行时配置
 
 // TODO: 代码示例实现
 ```

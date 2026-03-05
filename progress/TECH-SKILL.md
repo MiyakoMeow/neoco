@@ -147,21 +147,9 @@ pub struct SkillResources {
 
 **rust-coding-assistant/SKILL.md:**
 
-```yaml
----
-name: rust-coding-assistant
-description: 提供Rust语言最佳实践、unsafe代码检查、生命周期分析等能力
-license: MIT
-compatibility:
-  - neco
-metadata:
-  author: neco-team
-  version: 1.0.0
-allowed-tools:
-  - fs::read
-  - fs::edit
----
+YAML前置元数据格式见 [3.2节 SKILL.md 格式](#32-skillmd-格式)。
 
+```markdown
 # Rust编码最佳实践
 
 你擅长编写高质量的Rust代码。以下是你的核心能力：

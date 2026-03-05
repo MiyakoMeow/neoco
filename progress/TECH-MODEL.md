@@ -58,11 +58,7 @@ graph TB
     CH --> MSG
 ```
 
-## 3. 核心Trait设计
-
-> Provider抽象与Factory设计见第4节。
-
-## 4. Provider抽象与Factory
+## 3. Provider抽象与Factory
 
 > 参考 ZeroClaw 的 Provider 抽象设计
 
@@ -161,9 +157,9 @@ pub struct RouterProvider {
 }
 ```
 
-## 5. 数据结构设计
+## 4. 数据结构设计
 
-### 5.1 请求数据结构
+### 4.1 请求数据结构
 
 > **设计说明**: 模型层请求使用 `ModelMessage`（不含 `id`），与 Session 层 `Message`（含 `id`）分离，实现层次职责隔离。
 
@@ -202,7 +198,7 @@ pub struct ChatRequest {
 
 > **注意**: `Tool` 和 `ToolCall` 类型定义见 [TECH-TOOL.md](TECH-TOOL.md#3-核心trait设计)
 
-### 5.2 模型组与故障转移
+### 4.2 模型组与故障转移
 
 ```rust
 /// 模型组客户端
@@ -317,11 +313,11 @@ impl ModelError {
 }
 ```
 
-## 6. OpenAI客户端实现
+## 5. OpenAI客户端实现
 
 基于 [async-openai](https://crates.io/crates/async-openai) crate (版本 0.33.0) 实现。
 
-### 6.1 客户端结构
+### 5.1 客户端结构
 
 ```rust
 use async_openai::{
@@ -425,9 +421,9 @@ impl ModelClient for OpenAiClient {
 }
 ```
 
-## 7. 流式输出处理
+## 6. 流式输出处理
 
-### 7.1 流处理器
+### 6.1 流处理器
 
 ```rust
 use futures::{Stream, StreamExt};
@@ -496,11 +492,11 @@ impl StreamHandler {
 }
 ```
 
-## 8. 工具调用支持
+## 7. 工具调用支持
 
 > **设计说明**: `ToolCallRequest` 和 `ToolCallResult` 是模型层用于处理工具调用的辅助类型，与核心的 `ToolCall` 类型（定义见 TECH-TOOL.md）分离。
 
-### 8.1 工具调用处理
+### 7.1 工具调用处理
 
 ```rust
 /// 工具调用请求
@@ -556,7 +552,7 @@ impl ToolCallHandler {
 }
 ```
 
-### 8.2 并行工具调用
+### 7.2 并行工具调用
 
 ```rust
 use futures::future::join_all;
@@ -582,7 +578,7 @@ pub async fn execute_tool_calls_parallel(
 }
 ```
 
-## 9. 错误处理
+## 8. 错误处理
 
 > **设计说明**: `ModelError` 为模块内部错误，在模块边界通过 `From` 实现或映射函数转换为 `AppError`。例如，`ModelError::OpenAi` 携带的原生错误会通过 `#[source]` 属性传播到上层的 `AppError::Model`。
 
@@ -624,9 +620,9 @@ pub enum ModelError {
 }
 ```
 
-## 10. 使用示例
+## 9. 使用示例
 
-### 10.1 基本调用
+### 9.1 基本调用
 
 ```rust
 use neco_model::{ModelGroupClient, ChatRequest, ModelMessage, Role};
@@ -666,7 +662,7 @@ let response = client.chat_completion(request).await?;
 println!("Response: {}", response.choices[0].message.content.as_ref().unwrap());
 ```
 
-### 10.2 流式输出
+### 9.2 流式输出
 
 ```rust
 use neco_model::{StreamHandler};
@@ -684,7 +680,7 @@ let response = StreamHandler::process_stream_with_callback(
 ).await?;
 ```
 
-### 10.3 工具调用
+### 9.3 工具调用
 
 ```rust
 use neco_model::{Tool, Function, ToolChoice};

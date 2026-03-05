@@ -314,33 +314,6 @@ impl ToolProvider for FileReadTool {
         // 4. 返回结果
         unimplemented!()
     }
-
-    /// Verify验证结果枚举
-    #[derive(Debug, Clone, PartialEq)]
-    pub enum VerifyResult {
-        /// 完全匹配
-        ExactMatch,
-        /// 前缀匹配（内容≥20字符）
-        PrefixMatch,
-        /// 不匹配
-        Mismatch,
-        /// 内容长度不足20字符且非完全匹配
-        TooShort,
-        /// 编码错误
-        EncodingError,
-    }
-    
-    /// Verify验证
-    fn verify_line_content(
-        actual_line: &str,
-        verify_content: &str,
-    ) -> VerifyResult {
-        // TODO: 实现Verify验证逻辑
-        // 1. 去除行尾换行符（统一LF和CRLF）
-        // 2. 检查完全匹配或前缀匹配（≥20字符）
-        // 3. 处理编码问题（降级为字节匹配）
-        unimplemented!()
-    }
 }
 
 /// Verify验证

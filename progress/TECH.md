@@ -1044,39 +1044,6 @@ pub enum AppError {
 }
 ```
 
-**各模块错误类型定义位置**:
-
-| 模块 | 错误类型 | 定义位置 |
-|------|----------|----------|
-| Session | `SessionError` | TECH-SESSION.md |
-| Agent | `AgentError` | TECH-AGENT.md |
-| Workflow | `WorkflowError` | TECH-WORKFLOW.md |
-| Model | `ModelError` | TECH-MODEL.md |
-| Tool | `ToolError` | TECH-TOOL.md |
-| Config | `ConfigError` | TECH-CONFIG.md |
-| Storage | `StorageError` | TECH-SESSION.md |
-| MCP | `McpError` | TECH-MCP.md |
-| Context | `ContextError` | TECH-CONTEXT.md |
-| Skill | `SkillError` | TECH-SKILL.md |
-
-**错误转换示例**:
-
-```rust
-// 模块错误转换为统一错误
-impl From<SessionError> for AppError {
-    fn from(e: SessionError) -> Self {
-        AppError::Session(e)
-    }
-}
-
-// 使用 ? 运算符自动传播
-fn some_operation() -> Result<Output, AppError> {
-    let session = load_session()?;  // SessionError -> AppError
-    let agent = create_agent()?;   // AgentError -> AppError
-    // ...
-}
-```
-
 ## 6. 存储设计
 
 ### 6.1 文件系统布局

@@ -96,6 +96,8 @@ pub enum McpServerStatus {
     Connecting,
     /// 已连接
     Connected,
+    /// 重连中（用于自动重连场景）
+    Reconnecting,
     /// 错误
     Error,
 }
@@ -167,48 +169,45 @@ impl ClientHandler for RmcpClient {
 }
 ```
 
-### 4.2 Stdio 传输
+### 4.2 传输层连接
 
 ```rust
+/// 连接辅助函数（统一连接逻辑）
+async fn connect_with_transport<T>(
+    transport: T,
+) -> Result<Peer, McpError>
+where
+    T: rmcp::transport::Transport + Unpin + 'static,
+{
+    let client = RmcpClient;
+    client.serve(transport).await
+}
+
 /// 连接到 MCP 服务器 (stdio 模式)
 pub async fn connect_stdio(
     command: String,
     args: Vec<String>,
 ) -> Result<Peer, McpError> {
-    let client = RmcpClient;
+    let transport = TokioChildProcess::new(
+        Command::new(command).configure(|cmd| {
+            for arg in args {
+                cmd.arg(arg);
+            }
+        })?
+    )?;
     
-    // 使用 rmcp 的 TokioChildProcess
-    let peer = client
-        .serve(TokioChildProcess::new(
-            Command::new(command).configure(|cmd| {
-                for arg in args {
-                    cmd.arg(arg);
-                }
-            })?
-        )?)
-        .await?;
-    
-    Ok(peer)
+    connect_with_transport(transport).await
 }
 
 // TODO: 补充环境变量处理
-// 提示：使用 Command::env() 设置环境变量
-```
+// 提示：使用 Command::envs() 设置环境变量
 
-### 4.3 HTTP 传输
-
-```rust
 /// 连接到 MCP 服务器 (HTTP 模式)
 pub async fn connect_http(
     url: &str,
 ) -> Result<Peer, McpError> {
-    let client = RmcpClient;
-    
-    let peer = client
-        .serve(StreamableHttpClientTransport::new(url))
-        .await?;
-    
-    Ok(peer)
+    let transport = StreamableHttpClientTransport::new(url);
+    connect_with_transport(transport).await
 }
 
 // TODO: 补充认证头处理
@@ -244,7 +243,9 @@ pub struct McpManager {
     config: HashMap<String, McpServerConfig>,
 }
 
-/// MCP连接
+/// MCP连接（基础连接信息）
+/// 
+/// 注意：连接池和高级生命周期管理见 5.2 和 5.4 节
 pub struct McpConnection {
     pub name: String,
     pub config: McpServerConfig,

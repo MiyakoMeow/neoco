@@ -534,23 +534,7 @@ pub struct DaemonInterface {
     workflow_engine: Arc<WorkflowEngine>,
 }
 
-#[derive(Debug, Clone)]
-pub struct DaemonConfig {
-    /// 监听地址
-    pub host: String,
-    /// 监听端口
-    pub port: u16,
-    /// API密钥（可选）
-    pub api_key: Option<String>,
-    /// CORS允许的源
-    pub cors_allowed_origins: Vec<String>,
-    /// 速率限制配置
-    pub rate_limit_config: Option<RateLimitConfig>,
-    /// TLS配置
-    pub tls_config: Option<TlsConfig>,
-    /// 健康检查路径
-    pub health_check_paths: Vec<String>,
-}
+
 
 #[derive(Debug, Clone)]
 pub struct RateLimitConfig {
@@ -572,25 +556,21 @@ pub struct TlsConfig {
 
 impl DaemonInterface {
     pub async fn run(self) -> Result<(), UiError> {
-        // TODO: 构建Axum路由器
-        // TODO: 配置Session相关API端点（创建、获取、消息）
-        // TODO: 配置Agent相关API端点（树形结构、消息获取）
-        // TODO: 配置Workflow相关API端点（启动、状态、控制）
-        // TODO: 配置WebSocket实时事件端点
-        // TODO: 设置应用状态（session_manager、workflow_engine）
+        // 构建Axum路由器，配置Session相关API端点（创建、获取、消息）
+        // 配置Agent相关API端点（树形结构、消息获取）
+        // 配置Workflow相关API端点（启动、状态、控制）
+        // 配置WebSocket实时事件端点
+        // 设置应用状态（session_manager、workflow_engine）
         
-        // TODO: 添加CORS中间件
-        // TODO: 添加速率限制中间件
-        // TODO: 添加日志中间件
-        // TODO: 添加压缩中间件
+        // 添加CORS中间件
+        // 添加速率限制中间件
+        // 添加日志中间件
+        // 添加压缩中间件
         
-        // TODO: 如果配置了TLS，启动HTTPS服务器
-        // TODO: 否则启动普通HTTP服务器
-        
-        // TODO: 启动HTTP服务器
-        // TODO: 绑定监听地址和端口
-        // TODO: 打印服务器启动信息
-        // TODO: 启动Axum服务
+        // 启动HTTP服务器，绑定监听地址和端口
+        // 打印服务器启动信息
+        // 如果配置了TLS，启动HTTPS服务器
+        // 否则启动普通HTTP服务器
         
         Ok(())
     }
@@ -602,7 +582,6 @@ struct AppState {
     session_manager: Arc<SessionManager>,
     workflow_engine: Arc<WorkflowEngine>,
 }
-```
 
 ### 6.2 API端点
 
