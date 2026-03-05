@@ -256,7 +256,7 @@ pub struct ToolDefinition {
 |------|------|------|
 | `fs::read` | 读取文件内容 | 5秒 |
 | `fs::write` | 写入文件（完全覆盖） | 10秒 |
-| `fs::edit` | 编辑文件（基于行哈希） | 10秒 |
+| `fs::edit` | 编辑文件（基于verify） | 10秒 |
 | `fs::delete` | 删除文件 | 5秒 |
 
 ### 4.2 fs::read 实现
@@ -271,7 +271,7 @@ impl ToolProvider for FileReadTool {
     }
     
     fn description(&self) -> &str {
-        "读取文件内容，返回带有Hashline的内容"
+        "读取文件内容（内容可用于后续verify验证）"
     }
     
     fn parameters_schema(&self) -> Value {
@@ -307,33 +307,42 @@ impl ToolProvider for FileReadTool {
         // 1. 解析路径参数
         // 2. 应用offset和limit参数
         // 3. 读取文件内容
-        // 4. 应用Hashline标记
-        // 5. 返回结果
+        // 4. 返回结果
         unimplemented!()
     }
 }
 
-/// Hashline应用
-fn apply_hashline(
-    content: &str,
-    offset: usize,
-    limit: Option<usize>,
-) -> String {
-    // TODO: 实现Hashline应用逻辑
-    // 1. 按offset和limit裁剪内容
-    // 2. 为每行计算哈希值
-    // 3. 格式化为 "hash|content" 形式
+/// Verify验证
+/// 返回 VerifyResult 枚举以提供更丰富的验证结果信息
+fn verify_line_content(
+    actual_line: &str,
+    verify_content: &str,
+) -> VerifyResult {
+    // TODO: 实现Verify验证逻辑
+    // 1. 去除行尾换行符（统一LF和CRLF）
+    // 2. 检查完全匹配或前缀匹配（≥20字符）
+    //    - 完全匹配 -> ExactMatch
+    //    - 前缀匹配（内容≥20字符）-> PrefixMatch
+    //    - 内容不足20字符且非完全匹配 -> TooShort
+    // 3. 处理编码问题（降级为字节匹配）-> EncodingError
+    // 4. 以上都不满足 -> Mismatch
     unimplemented!()
 }
 
-/// 计算行哈希
-fn compute_line_hash(content: &str, line_num: usize) -> String {
-    // TODO: 实现行哈希计算逻辑
-    // 1. 获取当前行及上下文窗口（前5行）
-    // 2. 使用xxHash计算哈希
-    // 3. 处理哈希冲突
-    // 4. 返回4位十六进制哈希值
-    unimplemented!()
+/// Verify验证结果枚举
+/// 用于提供更丰富的验证结果信息
+#[derive(Debug, Clone, PartialEq)]
+pub enum VerifyResult {
+    /// 完全匹配
+    ExactMatch,
+    /// 前缀匹配（内容≥20字符）
+    PrefixMatch,
+    /// 不匹配
+    Mismatch,
+    /// 内容长度不足20字符且非完全匹配
+    TooShort,
+    /// 编码错误
+    EncodingError,
 }
 ```
 
@@ -349,7 +358,7 @@ impl ToolProvider for FileEditTool {
     }
     
     fn description(&self) -> &str {
-        "基于行哈希编辑文件内容"
+        "基于verify编辑文件内容"
     }
     
     fn parameters_schema(&self) -> Value {
@@ -360,20 +369,27 @@ impl ToolProvider for FileEditTool {
                     "type": "string",
                     "description": "文件路径"
                 },
-                "start_hash": {
-                    "type": "string",
-                    "description": "开始行的哈希值"
-                },
-                "end_hash": {
-                    "type": "string",
-                    "description": "结束行的哈希值"
+                "verify": {
+                    "type": "object",
+                    "description": "行内容验证",
+                    "properties": {
+                        "line": {
+                            "type": "integer",
+                            "description": "要验证的行号"
+                        },
+                        "content": {
+                            "type": "string",
+                            "description": "该行内容（完全匹配或前缀匹配，≥20字符）"
+                        }
+                    },
+                    "required": ["line", "content"]
                 },
                 "new_content": {
                     "type": "string",
                     "description": "替换的新内容"
                 }
             },
-            "required": ["path", "start_hash", "end_hash", "new_content"]
+            "required": ["path", "verify", "new_content"]
         })
     }
     
@@ -386,27 +402,66 @@ impl ToolProvider for FileEditTool {
         args: Value,
     ) -> Result<ToolResult, ToolError> {
         // TODO: 实现文件编辑逻辑
-        // 1. 解析路径、起始/结束哈希、新内容参数
+        // 1. 解析路径、verify、新内容参数
         // 2. 读取当前文件内容
-        // 3. 查找哈希匹配的位置
-        // 4. 处理唯一匹配/多个匹配/无匹配情况
-        // 5. 执行文件编辑和写入
+        // 3. 验证指定行的内容（verify）
+        //    - 验证失败时返回 EditError::VerifyFailed，包含期望内容和实际内容
+        // 4. 执行文件编辑和写入
+        //    - 采用原子写入模式：先写入临时文件，然后 rename 替换原文件
+        //    - 并发控制：写入前重新读取并比对内容，冲突时返回错误（可重试）
         unimplemented!()
     }
 }
 
-/// 查找哈希匹配位置
-fn find_hash_matches(
+/// Verify验证处理
+/// 
+/// # 替换语义
+/// - verify_line: 1-based 行号，指定要验证和替换的单行
+/// - new_content: 替换该行的内容，可以包含多行（会展开文档）
+/// 
+/// # 验证逻辑
+/// 调用 verify_line_content 获取 VerifyResult：
+/// - ExactMatch / PrefixMatch: 验证通过，执行替换
+/// - Mismatch / TooShort / EncodingError: 返回 EditError::VerifyFailed
+fn verify_and_apply_edit(
     content: &str,
-    start_hash: &str,
-    end_hash: &str,
-) -> Vec<(usize, usize)> {
-    // TODO: 实现哈希匹配查找逻辑
-    // 1. 遍历文件所有行
-    // 2. 查找与start_hash匹配的起始位置
-    // 3. 从起始位置向后查找与end_hash匹配的结束位置
-    // 4. 返回所有匹配的位置对
+    verify_line: usize,
+    verify_content: &str,
+    new_content: &str,
+) -> Result<String, EditError> {
+    // TODO: 实现Verify验证编辑逻辑
+    // 1. 按行分割内容
+    // 2. 验证指定行内容（超出范围返回 EditError::LineOutOfRange）
+    //    - 调用 verify_line_content(actual_line, verify_content) -> VerifyResult
+    //    - 根据 VerifyResult 决定下一步：
+    //      - ExactMatch / PrefixMatch: 继续执行替换
+    //      - Mismatch / TooShort / EncodingError: 返回 EditError::VerifyFailed
+    // 3. 替换该行为 new_content（new_content 可包含多行）
+    // 4. 返回修改后的内容
     unimplemented!()
+}
+
+/// 文件编辑错误类型
+#[derive(Debug, Error)]
+pub enum EditError {
+    /// 验证失败：行内容不匹配
+    #[error("验证失败: 第{line}行不匹配\n期望: {expected}\n实际: {actual}")]
+    VerifyFailed {
+        line: usize,
+        expected: String,
+        actual: String,
+    },
+    
+    /// 行号超出文件范围
+    #[error("行号超出范围: {line}，文件共有{total}行")]
+    LineOutOfRange {
+        line: usize,
+        total: usize,
+    },
+    
+    /// IO错误
+    #[error("IO错误: {0}")]
+    Io(#[from] std::io::Error),
 }
 ```
 
