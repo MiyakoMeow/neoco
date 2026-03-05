@@ -271,7 +271,7 @@ impl ToolProvider for FileReadTool {
     }
     
     fn description(&self) -> &str {
-        "读取文件内容"
+        "读取文件内容（内容可用于后续verify验证）"
     }
     
     fn parameters_schema(&self) -> Value {
@@ -322,6 +322,22 @@ fn verify_line_content(
     // 2. 检查完全匹配或前缀匹配（≥20字符）
     // 3. 处理编码问题（降级为字节匹配）
     unimplemented!()
+}
+
+/// Verify验证结果枚举
+/// 用于提供更丰富的验证结果信息
+#[derive(Debug, Clone, PartialEq)]
+pub enum VerifyResult {
+    /// 完全匹配
+    ExactMatch,
+    /// 前缀匹配（内容≥20字符）
+    PrefixMatch,
+    /// 不匹配
+    Mismatch,
+    /// 内容长度不足20字符且非完全匹配
+    TooShort,
+    /// 编码错误
+    EncodingError,
 }
 ```
 
@@ -384,12 +400,19 @@ impl ToolProvider for FileEditTool {
         // 1. 解析路径、verify、新内容参数
         // 2. 读取当前文件内容
         // 3. 验证指定行的内容（verify）
+        //    - 验证失败时返回 EditError::VerifyFailed，包含期望内容和实际内容
         // 4. 执行文件编辑和写入
+        //    - 采用原子写入模式：先写入临时文件，然后 rename 替换原文件
+        //    - 并发控制：写入前重新读取并比对内容，冲突时返回错误（可重试）
         unimplemented!()
     }
 }
 
 /// Verify验证处理
+/// 
+/// # 替换语义
+/// - verify_line: 1-based 行号，指定要验证和替换的单行
+/// - new_content: 替换该行的内容，可以包含多行（会展开文档）
 fn verify_and_apply_edit(
     content: &str,
     verify_line: usize,
@@ -398,10 +421,33 @@ fn verify_and_apply_edit(
 ) -> Result<String, EditError> {
     // TODO: 实现Verify验证编辑逻辑
     // 1. 按行分割内容
-    // 2. 验证指定行内容
-    // 3. 替换该行
+    // 2. 验证指定行内容（超出范围返回 EditError::LineOutOfRange）
+    // 3. 替换该行为 new_content（new_content 可包含多行）
     // 4. 返回修改后的内容
     unimplemented!()
+}
+
+/// 文件编辑错误类型
+#[derive(Debug, Error)]
+pub enum EditError {
+    /// 验证失败：行内容不匹配
+    #[error("验证失败: 第{line}行不匹配\n期望: {expected}\n实际: {actual}")]
+    VerifyFailed {
+        line: usize,
+        expected: String,
+        actual: String,
+    },
+    
+    /// 行号超出文件范围
+    #[error("行号超出范围: {line}，文件共有{total}行")]
+    LineOutOfRange {
+        line: usize,
+        total: usize,
+    },
+    
+    /// IO错误
+    #[error("IO错误: {0}")]
+    Io(#[from] std::io::Error),
 }
 ```
 
