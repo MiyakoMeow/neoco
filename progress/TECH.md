@@ -249,6 +249,13 @@ graph LR
 
 ## 3. 核心数据结构设计
 
+> 详细数据结构定义见各功能模块文档：
+> - [TECH-SESSION.md](TECH-SESSION.md) - Session、Agent、Message、存储结构
+> - [TECH-WORKFLOW.md](TECH-WORKFLOW.md) - 工作流、节点、边定义
+> - [TECH-CONFIG.md](TECH-CONFIG.md) - 配置数据结构
+> - [TECH-TOOL.md](TECH-TOOL.md) - 工具、ToolCall定义
+> - [TECH-CONTEXT.md](TECH-CONTEXT.md) - 上下文观测结构
+
 ### 3.1 标识符系统
 
 ```mermaid
@@ -288,281 +295,6 @@ classDiagram
   - 后续Agent生成新的ULID
   - 通过`parent_ulid`建立树形关系
 - **MessageId**: Session范围内的唯一消息ID，使用原子自增分配器
-
-### 3.2 Session数据结构
-
-```mermaid
-classDiagram
-    class Session {
-        +SessionId id
-        +SessionType type
-        +Agent root_agent
-        +HashMap~AgentUlid, Agent~ agents
-        +MessageIdAllocator id_allocator
-        +DateTime created_at
-        +DateTime updated_at
-    }
-    
-    class SessionType {
-        <<enumeration>>
-        Direct
-        Repl
-        Workflow
-    }
-    
-    class MessageIdAllocator {
-        +AtomicU64 counter
-        +next_id() u64
-    }
-    
-    class Agent {
-        +AgentUlid ulid
-        +Option~AgentUlid~ parent_ulid
-        +AgentConfig config
-        +Vec~Message~ messages
-        +AgentState state
-    }
-    
-    class AgentState {
-        <<enumeration>>
-        Idle
-        Running
-        WaitingForTool
-        WaitingForUser
-        Completed
-        Error
-    }
-    
-    class Message {
-        +u64 id
-        +Role role
-        +Content content
-        +Option~Vec~ToolCall~~ tool_calls
-        +DateTime timestamp
-    }
-    
-    class Role {
-        <<enumeration>>
-        System
-        User
-        Assistant
-        Tool
-    }
-    
-    Session --> SessionType
-    Session --> MessageIdAllocator
-    Session --> Agent
-    Agent --> AgentState
-    Agent --> Message
-    Message --> Role
-```
-
-### 3.3 工作流数据结构
-
-```mermaid
-classDiagram
-    class Workflow {
-        +SessionId session_id
-        +WorkflowDef definition
-        +WorkflowState state
-        +HashMap~NodeId, NodeSession~ node_sessions
-        +HashMap~String, u32~ counters
-    }
-    
-    class WorkflowDef {
-        +String name
-        +Vec~NodeDef~ nodes
-        +Vec~EdgeDef~ edges
-        +HashMap~String, Value~ params
-    }
-    
-    class NodeDef {
-        +NodeId id
-        +Option~String~ agent_id
-        +bool new_session
-    }
-    
-    class EdgeDef {
-        +NodeId from
-        +NodeId to
-        +Option~Vec~String~~ select
-        +Option~Vec~String~~ require
-    }
-    
-    class WorkflowState {
-        <<enumeration>>
-        Pending
-        Running
-        Paused
-        Completed
-        Failed
-    }
-    
-    class NodeSession {
-        +SessionId id
-        +NodeId node_id
-        +Agent node_agent
-        +NodeState state
-    }
-    
-    class NodeState {
-        <<enumeration>>
-        Waiting
-        Running
-        Success
-        Failed
-        Skipped
-    }
-    
-    Workflow --> WorkflowDef
-    Workflow --> WorkflowState
-    Workflow --> NodeSession
-    WorkflowDef --> NodeDef
-    WorkflowDef --> EdgeDef
-    NodeSession --> NodeState
-```
-
-**关键设计：**
-
-- **双层结构**：
-  - 工作流层（Workflow-Level）：管理节点图结构和转换控制
-  - 节点层（Node-Level）：每个节点有自己的Agent树
-  
-- **计数器系统**：边的`select`触发时计数器+1，`require`检查计数器>0
-
-- **节点Agent**：工作流节点的Agent同时也是该节点的最上级Agent，其ULID与节点Session ID相同
-
-### 3.4 配置数据结构
-
-> 详细定义见 [TECH-CONFIG.md](TECH-CONFIG.md)
-
-```mermaid
-classDiagram
-    class NecoConfig {
-        +HashMap~String, ModelGroup~ model_groups
-        +HashMap~String, ModelProvider~ model_providers
-        +HashMap~String, McpServer~ mcp_servers
-        +ConfigPaths paths
-    }
-    
-    class ModelGroup {
-        +Vec~String~ models
-    }
-    
-    class ModelProvider {
-        +ProviderType type
-        +String name
-        +String base_url
-        +ApiKeyConfig api_key
-    }
-    
-    class ProviderType {
-        <<enumeration>>
-        OpenAI
-        Anthropic
-        OpenRouter
-    }
-    
-    class ApiKeyConfig {
-        <<enumeration>>
-        Env(String)
-        EnvList(Vec~String~)
-        Direct(String)
-    }
-    
-    class McpServer {
-        +Option~String~ command
-        +Vec~String~ args
-        +Option~String~ url
-        +Option~String~ bearer_token_env
-        +HashMap~String, String~ env
-    }
-    
-    NecoConfig --> ModelGroup
-    NecoConfig --> ModelProvider
-    NecoConfig --> McpServer
-    ModelProvider --> ProviderType
-    ModelProvider --> ApiKeyConfig
-```
-
-### 3.5 工具数据结构
-
-> 详细定义见 [TECH-TOOL.md](TECH-TOOL.md#3-核心trait设计)
-
-```mermaid
-classDiagram
-    class Tool {
-        +ToolId id
-        +String name
-        +String description
-        +Value parameters_schema
-    }
-    
-    class ToolId {
-        <<enumeration>>
-        Activate
-        Fs(FsTool)
-        Mcp(String)
-        MultiAgent(MaTool)
-        Question
-        Context(ContextTool)
-        Workflow(String)
-    }
-    
-    class FsTool {
-        <<enumeration>>
-        Read
-        Write
-        Edit
-        Delete
-    }
-    
-    class MaTool {
-        <<enumeration>>
-        Spawn
-        Send
-    }
-    
-    class ContextTool {
-        <<enumeration>>
-        Observe
-    }
-    
-    class ToolCall {
-        +String id
-        +ToolId tool
-        +Value arguments
-    }
-    
-    class ToolResult {
-        +String tool_call_id
-        +Result~Value, ToolError~ result
-    }
-    
-    Tool --> ToolId
-    ToolId --> FsTool
-    ToolId --> MaTool
-    ToolId --> ContextTool
-    ToolCall --> ToolId
-```
-
-### 3.6 上下文观测数据结构
-
-> 详细定义见 [TECH-CONTEXT.md](TECH-CONTEXT.md#3-上下文观测功能)
-
-上下文观测工具提供查看当前上下文状态的能力：
-
-- **context::observe**: 查看当前上下文的详细信息
-  - 参数：
-    - `roles`: 可选，过滤特定角色的消息
-    - `min_id`/`max_id`: 可选，按ID范围过滤
-    - `with_tool_calls`: 可选，只显示包含工具调用的消息
-    - `sort`: 可选，排序方式（id_asc/id_desc/size_asc/size_desc/time_asc/time_desc）
-    - `format`: 可选，输出格式（table/json/summary）
-  - 返回：
-    - 统计信息（消息数、token数、使用率等）
-    - 消息列表（ID、角色、大小、预览等）
-    - 按角色分组的信息
 
 
 ## 4. 数据流向
@@ -790,7 +522,7 @@ graph LR
 
 ### 5.3 统一错误类型设计
 
-> **设计原则**: 所有模块错误类型统一在 `neco-core` 中定义，便于错误传播和转换。
+> **设计原则**: 所有模块错误类型统一在 `neco-core` 的 `AppError` 中定义，便于错误传播和转换。各模块详细错误类型定义见各模块文档。
 
 ```rust
 /// 统一错误类型 - 应用层错误
@@ -830,80 +562,21 @@ pub enum AppError {
 
 ## 6. 存储设计
 
+> 详细存储设计见 [TECH-SESSION.md#5-存储设计](TECH-SESSION.md#5-存储设计)
+
 ### 6.1 文件系统布局
 
 ```text
 ~/.config/neco/           # 配置目录
 ├── neco.toml            # 主配置
 ├── prompts/
-│   ├── base.md
-│   └── multi-agent.md
 ├── agents/
-│   ├── coder.md
-│   └── reviewer.md
 └── workflows/
-    └── prd/
-        ├── workflow.toml
-        └── agents/
-            └── review.md
 
 ~/.local/neco/           # 数据目录
 └── {session_id}/        # Session目录
-    ├── workflow.toml    # 工作流状态（如果是工作流）
-    ├── {agent_ulid}.toml # Agent消息文件
-    └── ...
-```
-
-### 6.2 Agent TOML格式
-
-```toml
-# Agent配置
-prompts = ["base", "multi-agent"]
-
-# 层级关系
-parent_ulid = "01HF..."  # 可选
-
-# 消息列表
-[[messages]]
-id = 1
-role = "user"
-content = "..."
-
-[[messages]]
-id = 2
-role = "assistant"
-content = "..."
-tool_calls = [
-    { id = "call_1", type = "function", function = { name = "fs::read", arguments = "..." } }
-]
-```
-
-### 6.3 工作流Session TOML格式
-
-```toml
-# 工作流状态
-workflow_id = "prd"
-created_at = "2026-03-04T10:00:00Z"
-
-# 计数器
-[counters]
-approve_prd = 1
-reject = 0
-
-# 全局变量
-[variables]
-quality_score = 0.85
-
-# 节点状态
-[[nodes]]
-id = "write-prd"
-state = "completed"
-agent_ulid = "01HF..."
-
-[[nodes]]
-id = "review-prd"
-state = "running"
-agent_ulid = "01HG..."
+    ├── session.toml     # Session元数据
+    └── {agent_ulid}.toml  # Agent消息
 ```
 
 ## 7. 错误处理策略

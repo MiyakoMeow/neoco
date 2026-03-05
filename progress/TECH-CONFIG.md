@@ -573,7 +573,7 @@ use neco_config::{ConfigLoader, ConfigManager};
 
 ## 8. 错误类型
 
-> **注意**: 所有模块错误类型统一在 `neco-core` 中汇总为 `AppError`。见 [TECH.md#53-统一错误类型设计](TECH.md#53-统一错误类型设计)。
+> **注意**: 所有模块错误类型统一在 `neco-core` 中汇总为 `AppError`。见 [TECH.md#5.3-统一错误类型设计](TECH.md#5.3-统一错误类型设计)。
 
 ```rust
 #[derive(Debug, Error)]

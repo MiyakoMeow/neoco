@@ -435,7 +435,7 @@ pub async fn register_mcp_tools(
 
 ## 7. 错误处理
 
-> **注意**: 所有模块错误类型统一在 `neco-core` 中汇总为 `AppError`。见 [TECH.md#53-统一错误类型设计](TECH.md#53-统一错误类型设计)。
+> **注意**: 所有模块错误类型统一在 `neco-core` 中汇总为 `AppError`。见 [TECH.md#5.3-统一错误类型设计](TECH.md#5.3-统一错误类型设计)。
 
 MCP模块使用 `rmcp::ErrorData` 作为基础错误类型，相关错误会统一转换并汇总到 `neco-core::AppError` 中。
 

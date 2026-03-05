@@ -11,7 +11,7 @@
 本文档涉及以下其他文档定义的类型：
 - **Role, Message**: 见 [TECH-SESSION.md](TECH-SESSION.md#33-消息结构)
 - **Tool, ToolCall, ResponseFormat**: 见 [TECH-TOOL.md](TECH-TOOL.md#3-核心trait设计)
-- **AppError**: 见 [TECH.md#53-统一错误类型设计](TECH.md#53-统一错误类型设计)
+- **AppError**: 见 [TECH.md#5.3-统一错误类型设计](TECH.md#5.3-统一错误类型设计)
 
 ## 2. 架构设计
 
