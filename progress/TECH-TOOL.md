@@ -313,14 +313,19 @@ impl ToolProvider for FileReadTool {
 }
 
 /// Verify验证
+/// 返回 VerifyResult 枚举以提供更丰富的验证结果信息
 fn verify_line_content(
     actual_line: &str,
     verify_content: &str,
-) -> bool {
+) -> VerifyResult {
     // TODO: 实现Verify验证逻辑
     // 1. 去除行尾换行符（统一LF和CRLF）
     // 2. 检查完全匹配或前缀匹配（≥20字符）
-    // 3. 处理编码问题（降级为字节匹配）
+    //    - 完全匹配 -> ExactMatch
+    //    - 前缀匹配（内容≥20字符）-> PrefixMatch
+    //    - 内容不足20字符且非完全匹配 -> TooShort
+    // 3. 处理编码问题（降级为字节匹配）-> EncodingError
+    // 4. 以上都不满足 -> Mismatch
     unimplemented!()
 }
 
@@ -413,6 +418,11 @@ impl ToolProvider for FileEditTool {
 /// # 替换语义
 /// - verify_line: 1-based 行号，指定要验证和替换的单行
 /// - new_content: 替换该行的内容，可以包含多行（会展开文档）
+/// 
+/// # 验证逻辑
+/// 调用 verify_line_content 获取 VerifyResult：
+/// - ExactMatch / PrefixMatch: 验证通过，执行替换
+/// - Mismatch / TooShort / EncodingError: 返回 EditError::VerifyFailed
 fn verify_and_apply_edit(
     content: &str,
     verify_line: usize,
@@ -422,6 +432,10 @@ fn verify_and_apply_edit(
     // TODO: 实现Verify验证编辑逻辑
     // 1. 按行分割内容
     // 2. 验证指定行内容（超出范围返回 EditError::LineOutOfRange）
+    //    - 调用 verify_line_content(actual_line, verify_content) -> VerifyResult
+    //    - 根据 VerifyResult 决定下一步：
+    //      - ExactMatch / PrefixMatch: 继续执行替换
+    //      - Mismatch / TooShort / EncodingError: 返回 EditError::VerifyFailed
     // 3. 替换该行为 new_content（new_content 可包含多行）
     // 4. 返回修改后的内容
     unimplemented!()
