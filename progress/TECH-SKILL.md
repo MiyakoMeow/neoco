@@ -236,12 +236,13 @@ impl SkillService {
     /// 加载Skill索引（发现阶段）
     pub async fn load_index(&self) -> Result<SkillIndex, SkillError> {
         // 扫描skills目录，构建索引
-        // 1. 按优先级从低到高遍历五个配置根下的 skills/ 子目录：
-        //    ~/.agents/skills/ -> ~/.config/neco/skills/ -> .agents/skills/ -> .neco/skills/ -> <workflow_skills_dir>/
+        // 1. 按优先级从低到高遍历四个配置根下的 skills/ 子目录：
+        //    ~/.agents/skills/ -> ~/.config/neco/skills/ -> .agents/skills/ -> .neco/skills/
+        //    (注: <workflow_dir>/skills/ 在 Agent 运行时由调用方传入)
         // 2. 读取每个子目录中的 SKILL.md
-        // 3. 解析YAML前置元数据，提取name和description
+        // 3. 解析YAML前置元数据，提取name、description、tags等
         // 4. 返回 SkillIndex（包含 id、name、description、license、compatibility、tags）
-        //    其中 tags 从 SKILL.md 元数据中的 metadata.tags 字段提取，若无则为空数组
+        //    其中 tags 从 SKILL.md 顶层元数据中的 tags 字段提取，若无则为空数组
         // 5. 同名 Skill 由后遍历到的高优先级项覆盖（workflow 级最高）
     }
     
@@ -344,9 +345,9 @@ Neco作为基于文件系统的代理，通过`activate::skill`工具激活Skill
 /// 激活Skill时执行的命令
 /// 详见 [TECH-CONFIG.md](./TECH-CONFIG.md#21-配置目录结构) 配置目录优先级规则
 fn get_skill_activation_command(skill_id: &str) -> String {
-    // 按优先级遍历配置目录，查找第一个存在的SKILL.md
-    // 实际实现应调用 SkillService 的查找逻辑
-    format!("cat <config_dir>/skills/{}/SKILL.md", skill_id)
+    // 实际实现应调用 SkillService::load_skill()，
+    // 由服务层完成多根优先级查找与覆盖解析。
+    format!("SkillService::load_skill({})", skill_id)
 }
 ```
 
