@@ -183,8 +183,10 @@ pub trait ObservationFormatter: Send + Sync {
 
 ### 4.1 压缩配置
 
+> 通用系统配置定义见 [TECH-CONFIG.md#3.5](./TECH-CONFIG.md#35-系统配置)。
+
 ```rust
-/// 上下文配置
+/// 上下文压缩配置（模块内部使用）
 pub struct ContextConfig {
     /// 是否启用自动压缩
     pub auto_compact_enabled: bool,

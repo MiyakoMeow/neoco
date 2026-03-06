@@ -220,27 +220,7 @@ graph TD
 
 ### 2.2 依赖反转接口
 
-为解决 `session → agent → context → session` 的循环依赖问题，在 `neco-core` 中定义抽象接口：
-
-```mermaid
-graph LR
-    subgraph "依赖关系"
-        Context[neco-context] -->|依赖| SessionContainer[SessionContainer trait]
-        Session[neco-session] -->|实现| SessionContainer
-    end
-```
-
-**SessionContainer 接口定义：**
-
-| 方法 | 描述 |
-|------|------|
-| `session_id(&self) -> &SessionId` | 获取Session ID |
-| `root_agent_id(&self) -> Option<&AgentUlid>` | 获取根Agent ID |
-| `agent_count(&self) -> usize` | 获取Agent数量 |
-| `message_count(&self) -> usize` | 获取消息数量 |
-| `get_messages(&self) -> Vec<Message>` | 获取所有消息 |
-| `get_agent(&self, ulid: &AgentUlid) -> Option<Agent>` | 获取指定Agent |
-| `add_message(&self, message: Message) -> Result<MessageId, SessionError>` | 添加消息 |
+> 详细定义见 [TECH-SESSION.md#2.2-依赖反转接口](TECH-SESSION.md#22-依赖反转接口sessioncontainer)
 
 **依赖反转说明：**
 - `neco-context` 依赖 `neco-core::SessionContainer` trait
@@ -438,58 +418,30 @@ sequenceDiagram
 
 ### 5.1 核心Trait定义
 
-> 核心Trait定义分布在各功能模块中，详细定义请参考各模块文档：
+> 核心Trait定义分布在各功能模块中，详细定义请参考各模块文档。
 
-| Trait | 定义位置 | 说明 |
+| Trait | 定义模块 | 说明 |
 |-------|---------|------|
-| `ToolProvider` | [TECH-TOOL.md](TECH-TOOL.md#31-toolprovider-trait) | 工具提供者接口 |
-| `ToolRegistry` | [TECH-TOOL.md](TECH-TOOL.md#32-工具注册表) | 工具注册表 |
-| `ModelProvider` | [TECH-MODEL.md](TECH-MODEL.md#41-provider-trait-扩展) | 模型提供者接口 |
-| `StorageBackend` | [TECH-SESSION.md](TECH-SESSION.md#53-存储后端trait) | 存储后端接口 |
-| `TokenCounter` | [TECH-CONTEXT.md](TECH-CONTEXT.md#61-token计数器) | Token计数器接口 |
-| `Channel` | [TECH-CONFIG.md](TECH-CONFIG.md#41-channel-trait-定义) | 消息通道接口 |
+| `ToolProvider` | TECH-TOOL.md | 工具提供者接口 |
+| `ToolRegistry` | TECH-TOOL.md | 工具注册表 |
+| `ModelProvider` | TECH-MODEL.md | 模型提供者接口 |
+| `StorageBackend` | TECH-SESSION.md | 存储后端接口 |
+| `TokenCounter` | TECH-CONTEXT.md | Token计数器接口 |
+| `Channel` | TECH-CONFIG.md | 消息通道接口 |
+| `SessionContainer` | TECH-SESSION.md | Session容器接口 |
 
 ### 5.2 事件系统
 
 > 完整的事件驱动架构设计见 [TECH-AGENT.md#5-事件驱动架构](TECH-AGENT.md#5-事件驱动架构)
 
-```mermaid
-graph LR
-    subgraph "事件发布者"
-        A[Agent]
-        W[工作流]
-        S[Session]
-        M[模型]
-    end
-    
-    subgraph "事件总线"
-        Bus[EventBus]
-    end
-    
-    subgraph "事件消费者"
-        UI[UI更新]
-        Log[日志]
-        Metric[指标]
-    end
-    
-    A -->|AgentEvent| Bus
-    W -->|WorkflowEvent| Bus
-    S -->|SessionEvent| Bus
-    M -->|ModelEvent| Bus
-    
-    Bus --> UI
-    Bus --> Log
-    Bus --> Metric
-```
-
 **事件类型说明：**
 
 | 事件类型 | 定义位置 | 描述 |
 |----------|---------|------|
-| `AgentEvent` | [TECH-AGENT.md#52-事件类型定义](TECH-AGENT.md#52-事件类型定义) | Agent相关事件 |
-| `WorkflowEvent` | [TECH-AGENT.md#52-事件类型定义](TECH-AGENT.md#52-事件类型定义) | 工作流相关事件 |
-| `TriggerPattern` | [TECH-AGENT.md#53-触发器模式](TECH-AGENT.md#53-触发器模式) | 触发器匹配模式 |
-| `TriggerHandler` | [TECH-AGENT.md#53-触发器模式](TECH-AGENT.md#53-触发器模式) | 触发处理器定义 |
+| `AgentEvent` | TECH-AGENT.md | Agent相关事件 |
+| `WorkflowEvent` | TECH-AGENT.md | 工作流相关事件 |
+| `TriggerPattern` | TECH-AGENT.md | 触发器匹配模式 |
+| `TriggerHandler` | TECH-AGENT.md | 触发处理器定义 |
 
 ### 5.3 统一错误类型设计
 
@@ -728,62 +680,7 @@ graph TB
 
 ### 9.3 Capability能力驱动安全模型
 
-```mermaid
-classDiagram
-    class Capability {
-        <<enumeration>>
-        FileRead
-        FileWrite
-        FileDelete
-        NetConnect
-        ShellExec
-        AgentSpawn
-        AgentMessage
-    }
-    
-    class AgentManifest {
-        +identity: Ed25519PublicKey
-        +capabilities: Vec~Capability~
-        +signature: Ed25519Signature
-    }
-    
-    class CapabilityGate {
-        +check(agent, capability): bool
-        +authorize(agent, tool): Result
-    }
-    
-    class Tool {
-        +required_capability: Capability
-    }
-    
-    AgentManifest --> Capability: 声明
-    CapabilityGate --> Capability: 检查
-    Tool --> Capability: 要求
-```
-
-**Capability 定义：**
-
-```rust
-/// 能力枚举
-#[derive(Clone, Debug, Hash, Eq, PartialEq)]
-pub enum Capability {
-    FileRead,
-    FileWrite,
-    FileDelete,
-    NetConnect,
-    ShellExec,
-    AgentSpawn,
-    AgentMessage,
-    ToolExecute(String),
-}
-
-/// Agent能力清单
-pub struct AgentManifest {
-    pub identity: Ed25519PublicKey,
-    pub capabilities: Vec<Capability>,
-    pub signature: Ed25519Signature,
-}
-```
+> 详细设计见 [TECH-AGENT.md#5-事件驱动架构](TECH-AGENT.md#5-事件驱动架构)
 
 ### 9.4 输入验证
 
@@ -847,15 +744,15 @@ graph TB
 
 ### 10.2 核心扩展 Trait 定义
 
-> 详细Trait定义请参考各模块文档：
+> 详细Trait定义请参考各模块文档。
 
-| Trait | 位置 | 说明 |
-|-------|------|------|
-| `ModelProvider` | [TECH-MODEL.md](TECH-MODEL.md#41-provider-trait-扩展) | 模型提供者接口 |
-| `ToolProvider` | [TECH-TOOL.md](TECH-TOOL.md#31-toolprovider-trait) | 工具提供者接口 |
-| `StorageBackend` | [TECH-SESSION.md](TECH-SESSION.md#53-存储后端trait) | 存储后端接口 |
-| `Channel` | [TECH-CONFIG.md](TECH-CONFIG.md#41-channel-trait-定义) | 消息通道接口 |
-| `Memory` | [TECH-SESSION.md](TECH-SESSION.md#9-memory抽象层) | 记忆抽象接口 |
+| Trait | 定义模块 | 说明 |
+|-------|---------|------|
+| `ModelProvider` | TECH-MODEL.md | 模型提供者接口 |
+| `ToolProvider` | TECH-TOOL.md | 工具提供者接口 |
+| `StorageBackend` | TECH-SESSION.md | 存储后端接口 |
+| `Channel` | TECH-CONFIG.md | 消息通道接口 |
+| `Memory` | TECH-SESSION.md | 记忆抽象接口 |
 
 ### 10.3 Factory 注册机制
 

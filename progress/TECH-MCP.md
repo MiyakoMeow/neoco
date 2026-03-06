@@ -45,46 +45,18 @@ graph TB
 
 ### 3.1 MCP服务器配置
 
-配置与 TOML 文件格式对应，用于定义 MCP 服务器连接参数。
+> 配置与 TOML 文件格式对应，用于定义 MCP 服务器连接参数。传输配置定义见 [TECH-CONFIG.md#3.4](./TECH-CONFIG.md#34-mcp服务器配置)。
 
 ```rust
 /// MCP服务器配置
 #[derive(Debug, Clone, Deserialize)]
 pub struct McpServerConfig {
-    /// 传输类型
-    #[serde(flatten)]
-    pub transport: McpTransportConfig,
+    /// 传输类型（引用自 neco_config::McpTransportConfig）
+    pub transport: crate::config::McpTransportConfig,
     
     /// 环境变量
     #[serde(default)]
     pub env: HashMap<String, String>,
-}
-
-/// MCP传输方式配置
-#[derive(Debug, Clone, Deserialize)]
-#[serde(tag = "type")]
-pub enum McpTransportConfig {
-    /// 本地stdio传输
-    #[serde(rename = "stdio")]
-    Stdio {
-        /// 命令
-        command: String,
-        /// 参数
-        #[serde(default)]
-        args: Vec<String>,
-    },
-    
-    /// HTTP传输
-    #[serde(rename = "http")]
-    Http {
-        /// 服务器URL
-        url: Url,
-        /// Bearer Token环境变量名
-        bearer_token_env: Option<String>,
-        /// 额外HTTP头
-        #[serde(default)]
-        headers: HashMap<String, String>,
-    },
 }
 
 /// MCP服务器状态
