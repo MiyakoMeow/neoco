@@ -40,6 +40,55 @@ classDiagram
 | AgentUlid | Agent实例化时 | 归属于SessionId | 标识Agent实例 |
 | NodeSessionId | 工作流节点启动时 | 归属Workflow Session | 标识工作流节点 |
 
+### 2.2 依赖反转接口（SessionContainer）
+
+> 为解决 `session → agent → context → session` 的循环依赖问题，在 `neco-core` 中定义抽象接口：
+
+```mermaid
+graph LR
+    subgraph "依赖关系"
+        Context[neco-context] -->|依赖| SessionContainer[SessionContainer trait]
+        Session[neco-session] -->|实现| SessionContainer
+    end
+```
+
+**SessionContainer 接口定义：**
+
+```rust
+/// Session容器接口 - 用于依赖反转
+/// 
+/// neco-context 依赖此 trait，neco-session 实现此 trait
+/// 运行时通过依赖注入传递具体实现
+#[async_trait]
+pub trait SessionContainer: Send + Sync {
+    /// 获取Session ID
+    fn session_id(&self) -> &SessionId;
+    
+    /// 获取根Agent ID
+    fn root_agent_id(&self) -> Option<&AgentUlid>;
+    
+    /// 获取Agent数量
+    fn agent_count(&self) -> usize;
+    
+    /// 获取消息数量
+    fn message_count(&self) -> usize;
+    
+    /// 获取所有消息
+    fn get_messages(&self) -> Vec<Message>;
+    
+    /// 获取指定Agent
+    fn get_agent(&self, ulid: &AgentUlid) -> Option<Agent>;
+    
+    /// 添加消息
+    async fn add_message(&self, message: Message) -> Result<MessageId, SessionError>;
+}
+```
+
+**依赖反转说明：**
+- `neco-context` 依赖 `neco-core::SessionContainer` trait
+- `neco-session` 实现 `SessionContainer` trait
+- 运行时通过依赖注入传递具体实现
+
 ### 2.2 Session类型
 
 ```rust

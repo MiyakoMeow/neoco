@@ -123,6 +123,9 @@ pub struct ToolResult {
 }
 
 /// 工具错误
+/// 
+/// 注: 所有模块错误类型统一在 `neco-core` 中汇总为 `AppError`。见 [TECH.md#5.3-统一错误类型设计](TECH.md#5.3-统一错误类型设计)。
+/// `ToolError` 为模块内部错误，在模块边界通过 `From` 实现或映射函数转换为 `AppError::Tool`。
 #[derive(Debug, Error)]
 pub enum ToolError {
     #[error("参数无效: {0}")]

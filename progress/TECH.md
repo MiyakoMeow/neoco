@@ -258,42 +258,11 @@ graph LR
 
 ### 3.1 标识符系统
 
-```mermaid
-classDiagram
-    class Ulid {
-        +u128 value
-        +new() Ulid
-        +to_string() String
-        +from_string(s: &str) Result~Ulid~
-    }
-    
-    class SessionId {
-        +Ulid ulid
-    }
-    
-    class AgentUlid {
-        +Ulid ulid
-        +SessionId session_id
-    }
-    
-    class MessageId {
-        +u64 id
-        +SessionId session_id
-    }
-    
-    SessionId --> Ulid
-    AgentUlid --> Ulid
-    AgentUlid --> SessionId
-    MessageId --> SessionId
-```
+> 详细设计见 [TECH-SESSION.md](TECH-SESSION.md#21-标识符体系)
 
-**设计说明：**
-
+**说明：**
 - **SessionId**: 顶级容器标识，创建工作流或对话时生成
-- **AgentUlid**: 每个Agent实例的唯一标识
-  - 第一个Agent的ULID与SessionId相同
-  - 后续Agent生成新的ULID
-  - 通过`parent_ulid`建立树形关系
+- **AgentUlid**: 每个Agent实例的唯一标识，第一个Agent的ULID与SessionId相同
 - **MessageId**: Session范围内的唯一消息ID，使用原子自增分配器
 
 
@@ -469,11 +438,13 @@ sequenceDiagram
 
 ### 5.1 核心Trait定义
 
+> 核心Trait定义分布在各功能模块中，详细定义请参考各模块文档：
+
 | Trait | 定义位置 | 说明 |
 |-------|---------|------|
-| `ToolProvider` | [TECH-TOOL.md](TECH-TOOL.md#3-核心trait设计) | 工具提供者接口 |
+| `ToolProvider` | [TECH-TOOL.md](TECH-TOOL.md#31-toolprovider-trait) | 工具提供者接口 |
 | `ToolRegistry` | [TECH-TOOL.md](TECH-TOOL.md#32-工具注册表) | 工具注册表 |
-| `ModelProvider` | [TECH-MODEL.md](TECH-MODEL.md#4-provider抽象与factory) | 模型提供者接口 |
+| `ModelProvider` | [TECH-MODEL.md](TECH-MODEL.md#41-provider-trait-扩展) | 模型提供者接口 |
 | `StorageBackend` | [TECH-SESSION.md](TECH-SESSION.md#53-存储后端trait) | 存储后端接口 |
 | `TokenCounter` | [TECH-CONTEXT.md](TECH-CONTEXT.md#61-token计数器) | Token计数器接口 |
 | `Channel` | [TECH-CONFIG.md](TECH-CONFIG.md#41-channel-trait-定义) | 消息通道接口 |
@@ -559,6 +530,22 @@ pub enum AppError {
     Skill(#[from] SkillError),
 }
 ```
+
+**各模块错误类型定义位置：**
+
+| 模块 | 错误类型 | 定义位置 |
+|------|---------|---------|
+| Session | `SessionError` | [TECH-SESSION.md](TECH-SESSION.md#8-错误处理) |
+| Storage | `StorageError` | [TECH-SESSION.md](TECH-SESSION.md#8-错误处理) |
+| Agent | `AgentError` | [TECH-AGENT.md](TECH-AGENT.md#9-错误处理) |
+| Workflow | `WorkflowError`, `NodeError` | [TECH-WORKFLOW.md](TECH-WORKFLOW.md#9-错误处理) |
+| Model | `ModelError` | [TECH-MODEL.md](TECH-MODEL.md#8-错误处理) |
+| Tool | `ToolError`, `EditError` | [TECH-TOOL.md](TECH-TOOL.md#错误处理) |
+| Config | `ConfigError` | [TECH-CONFIG.md](TECH-CONFIG.md#8-错误类型) |
+| Context | `CompactError`, `TokenError` | [TECH-CONTEXT.md](TECH-CONTEXT.md#9-错误处理) |
+| MCP | `McpError` | [TECH-MCP.md](TECH-MCP.md#7-错误处理) |
+| Skill | `SkillError` | [TECH-SKILL.md](TECH-SKILL.md#10-错误处理) |
+| UI | `UiError`, `ApiError` | [TECH-UI.md](TECH-UI.md#7-错误处理) |
 
 ## 6. 存储设计
 
@@ -860,13 +847,15 @@ graph TB
 
 ### 10.2 核心扩展 Trait 定义
 
-| Trait | 位置 | 扩展方式 |
-|-------|------|----------|
-| `ModelClient` | neco-model | 实现 trait + 注册到 Factory |
-| `ToolProvider` | neco-tool | 实现 trait + 注册到 Registry |
-| `StorageBackend` | neco-session | 实现 trait + 配置启用 |
-| `Channel` | neco-daemon | 实现 trait + 配置通道 |
-| `Memory` | neco-context | 实现 trait + 配置后端 |
+> 详细Trait定义请参考各模块文档：
+
+| Trait | 位置 | 说明 |
+|-------|------|------|
+| `ModelProvider` | [TECH-MODEL.md](TECH-MODEL.md#41-provider-trait-扩展) | 模型提供者接口 |
+| `ToolProvider` | [TECH-TOOL.md](TECH-TOOL.md#31-toolprovider-trait) | 工具提供者接口 |
+| `StorageBackend` | [TECH-SESSION.md](TECH-SESSION.md#53-存储后端trait) | 存储后端接口 |
+| `Channel` | [TECH-CONFIG.md](TECH-CONFIG.md#41-channel-trait-定义) | 消息通道接口 |
+| `Memory` | [TECH-SESSION.md](TECH-SESSION.md#9-memory抽象层) | 记忆抽象接口 |
 
 ### 10.3 Factory 注册机制
 

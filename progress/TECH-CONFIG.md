@@ -574,6 +574,8 @@ use neco_config::{ConfigLoader, ConfigManager};
 ## 8. 错误类型
 
 > **注意**: 所有模块错误类型统一在 `neco-core` 中汇总为 `AppError`。见 [TECH.md#5.3-统一错误类型设计](TECH.md#5.3-统一错误类型设计)。
+>
+> `ConfigError` 为模块内部错误，在模块边界通过 `From` 实现或映射函数转换为 `AppError::Config`。
 
 ```rust
 #[derive(Debug, Error)]
@@ -585,17 +587,10 @@ pub enum ConfigError {
     ParseError(#[from] toml::de::Error),
     
     #[error("无效的模型引用 '{model}' 在组 '{group}'")]
-    InvalidModelRef {
-        group: String,
-        model: String,
-        source: ParseError,
-    },
+    InvalidModelRef { group: String, model: String, source: ParseError },
     
     #[error("提供商未找到: {provider} (在组 {group} 中引用)")]
-    ProviderNotFound {
-        group: String,
-        provider: String,
-    },
+    ProviderNotFound { group: String, provider: String },
     
     #[error("环境变量未找到: {0}")]
     EnvVarNotFound(String),
