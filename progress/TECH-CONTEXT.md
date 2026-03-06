@@ -486,6 +486,9 @@ impl ContextCompressionService {
 ```rust
 /// Token计数器接口
 pub trait TokenCounter: Send + Sync {
+    /// 估算字符串的token数
+    fn estimate_string_tokens(&self, text: &str) -> usize;
+    
     /// 估算消息列表的token数
     fn estimate_tokens(&self,
         messages: &[Message]
@@ -513,6 +516,12 @@ impl TiktokenCounter {
 }
 
 impl TokenCounter for TiktokenCounter {
+    fn estimate_string_tokens(&self, text: &str) -> usize {
+        // TODO: 实现基于tiktoken的字符串token估算
+        // self.bpe.encode_with_special_tokens(text).len()
+        todo!()
+    }
+    
     fn estimate_tokens(
         &self,
         messages: &[Message]
@@ -555,6 +564,11 @@ impl TokenCounter for TiktokenCounter {
 pub struct SimpleCounter;
 
 impl TokenCounter for SimpleCounter {
+    fn estimate_string_tokens(&self, text: &str) -> usize {
+        // 粗略估算：平均每个token 4个字符
+        text.len() / 4 + 4
+    }
+    
     fn estimate_tokens(
         &self,
         messages: &[Message]

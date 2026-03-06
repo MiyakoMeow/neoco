@@ -1040,7 +1040,7 @@ impl ContextBuilder {
                 // 从最新的消息开始，保留在token限制内的消息
                 for msg in messages.iter().rev() {
                     let msg_text = msg.content();
-                    let msg_tokens = counter.count_tokens(msg_text);
+                    let msg_tokens = counter.estimate_string_tokens(msg_text);
                     
                     if total_tokens + msg_tokens > max_tokens {
                         break;

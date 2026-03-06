@@ -62,7 +62,7 @@ graph TB
 
 > 参考 ZeroClaw 的 Provider 抽象设计
 
-### 4.1 Provider Trait 扩展
+### 3.1 Provider Trait 扩展
 
 ```rust
 /// 模型提供者接口
@@ -102,7 +102,7 @@ pub struct ModelCapabilities {
 }
 ```
 
-### 4.2 ProviderFactory 注册机制
+### 3.2 ProviderFactory 注册机制
 
 ```mermaid
 graph TB
@@ -130,7 +130,7 @@ graph TB
     R --> P4
 ```
 
-### 4.3 已支持Provider
+### 3.3 已支持Provider
 
 | Provider | 类型 | 特性 |
 |----------|------|------|
@@ -139,7 +139,7 @@ graph TB
 | OpenRouter | 兼容 | 50+模型, 自动路由 |
 | 自定义 | 兼容 | OpenAI兼容API |
 
-### 4.4 可靠性机制
+### 3.4 可靠性机制
 
 ```rust
 /// 可靠Provider包装器（支持故障转移和重试）
