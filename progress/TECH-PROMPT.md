@@ -96,7 +96,7 @@ graph TB
 
 > 详细数据结构定义见 [TECH-SESSION.md#32-agent结构](TECH-SESSION.md#32-agent结构)
 
-Agent配置中的 `prompts` 字段用于指定激活的提示词组件列表。详细数据结构定义见 [TECH-SESSION.md#3.2-Agent结构](TECH-SESSION.md#32-agent结构)。
+Agent配置中的 `prompts` 字段用于指定激活的提示词组件列表。
 
 ### 3.2 提示词组件存储格式
 
@@ -226,7 +226,7 @@ prompts = ["base", "multi-agent"]
 
 > 详细配置说明见 [TECH-CONFIG.md#2.1-配置目录结构](TECH-CONFIG.md#21-配置目录结构)
 
-提示词组件存储在配置目录的 `prompts/` 子目录下。配置目录结构统一定义于 [TECH-CONFIG.md#2.1-配置目录结构](TECH-CONFIG.md#21-配置目录结构)。
+提示词组件存储在配置目录的 `prompts/` 子目录下。
 
 ```text
 ~/.config/neco/prompts/

@@ -875,6 +875,20 @@ Neco提供两种扩展Agent能力的机制：**提示词组件(Prompt Components
 - [TECH-PROMPT.md](TECH-PROMPT.md) - 提示词组件模块
 - [TECH-SKILL.md](TECH-SKILL.md) - Skills模块
 
+### 11.4 选择指南
+
+**使用提示词组件的场景**：
+- 简单的行为规范或指令
+- Agent启动时就需要的核心提示
+- 不需要额外资源文件
+- 示例：base、multi-agent
+
+**使用Skills的场景**：
+- 复杂的领域知识
+- 需要脚本或参考资料
+- 按需加载以节省上下文
+- 示例：rust-coding-assistant、web-security
+
 ## 12. 性能设计
 
 ### 12.1 性能目标

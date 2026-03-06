@@ -482,8 +482,54 @@ pub struct SandboxConfig {
 - 记录所有脚本执行以供审计
 
 ## 9. 错误处理
+
+> 详细错误类型定义见 [TECH-ERROR.md](TECH-ERROR.md)
+
+```rust
+#[derive(Debug, Error)]
+pub enum SkillError {
+    #[error("Skill未找到: {0}")]
+    NotFound(SkillId),
+    
+    #[error("Skill加载失败: {0}")]
+    LoadFailed(String),
+    
+    #[error("激活失败: {0}")]
+    ActivationFailed(String),
+    
+    #[error("执行失败: {0}")]
+    ExecutionFailed(String),
+}
+```
+
 ## 10. Skill生命周期管理
+
+Skill具有以下生命周期状态：
+
+| 状态 | 描述 |
+|------|------|
+| `Discovered` | 已被索引但未激活 |
+| `Activating` | 正在激活中 |
+| `Active` | 已激活，可使用 |
+| `Deactivating` | 正在停用中 |
+| `Inactive` | 已停用 |
+
+状态转换：`Discovered` → `Activating` → `Active` → `Deactivating` → `Inactive`
+
 ## 11. Skill发现与注册
+
+### 11.1 发现流程
+
+1. 扫描 `~/.config/neco/skills/` 目录
+2. 解析每个Skill的 `SKILL.md` 元数据
+3. 构建Skill索引（仅包含name和description）
+4. 提供给Agent发现阶段使用
+
+### 11.2 注册机制
+
+- 首次启动时自动扫描并注册
+- 支持热重载：配置文件变更后自动更新索引
+
 ## 12. UI集成
 
 ### 12.1 Skill面板
