@@ -516,6 +516,7 @@ pub enum AppError {
 ~/.config/neco/           # 配置目录
 ├── neco.toml            # 主配置
 ├── prompts/
+├── skills/
 ├── agents/
 └── workflows/
 
@@ -525,7 +526,7 @@ pub enum AppError {
     └── {agent_ulid}.toml  # Agent消息
 ```
 
-> 详细目录结构定义见 [TECH-CONFIG.md#2.1-配置目录结构](TECH-CONFIG.md#21-配置目录结构)
+> 详细目录结构定义见 [TECH-CONFIG.md#21-配置目录结构](TECH-CONFIG.md#21-配置目录结构)
 
 ## 7. 错误处理策略
 

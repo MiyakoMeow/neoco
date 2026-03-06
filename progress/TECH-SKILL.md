@@ -230,14 +230,18 @@ pub struct SkillInfo {
 impl SkillService {
     /// 加载Skill索引（发现阶段）
     pub async fn load_index(&self) -> Result<SkillIndex, SkillError> {
-        // TODO: 扫描skills目录，构建索引
-        // 每个Skill只加载name和description
+        // 扫描skills目录，构建索引
+        // 1. 遍历 ~/.config/neco/skills/ 下所有子目录
+        // 2. 读取每个子目录中的 SKILL.md
+        // 3. 解析YAML前置元数据，提取name和description
+        // 4. 返回 SkillIndex (仅包含轻量级信息)
     }
     
     /// 获取发现阶段上下文
     pub fn get_discovery_context(&self) -> String {
-        // TODO: 生成用于发现阶段的简短上下文
+        // 生成用于发现阶段的简短上下文
         // 格式: "可用Skills: skill1 - 描述1; skill2 - 描述2; ..."
+        // 每个Skill约50-100 tokens
     }
     
     /// 加载完整Skill（激活阶段）
@@ -245,7 +249,11 @@ impl SkillService {
         &self,
         skill_id: &SkillId,
     ) -> Result<Skill, SkillError> {
-        // TODO: 加载完整SKILL.md内容
+        // 加载完整SKILL.md内容
+        // 1. 验证skill_id合法性
+        // 2. 读取 SKILL.md 完整内容
+        // 3. 解析YAML元数据 + Markdown正文
+        // 4. 返回完整Skill对象
     }
     
     /// 加载Skill资源（执行阶段）
@@ -254,7 +262,10 @@ impl SkillService {
         skill_id: &SkillId,
         path: &Path,
     ) -> Result<String, SkillError> {
-        // TODO: 按需加载scripts/references/assets中的文件
+        // 按需加载scripts/references/assets中的文件
+        // 1. 验证path不包含路径穿越(..)
+        // 2. 读取对应文件内容
+        // 3. 返回文件内容字符串
     }
     
     /// 激活Skill
@@ -263,7 +274,10 @@ impl SkillService {
         session_id: SessionId,
         skill_id: &SkillId,
     ) -> Result<ActivatedSkill, SkillError> {
-        // TODO: 加载完整Skill，添加到激活列表
+        // 加载完整Skill，添加到激活列表
+        // 1. 调用load_skill()获取完整内容
+        // 2. 创建ActivatedSkill实例
+        // 3. 添加到session的active_skills集合
     }
     
     /// 停用Skill
@@ -272,17 +286,21 @@ impl SkillService {
         session_id: SessionId,
         skill_id: &SkillId,
     ) -> Result<(), SkillError> {
-        // TODO: 从激活列表移除
+        // 从激活列表移除
+        // 1. 从session的active_skills集合中移除
+        // 2. 清理相关缓存
     }
     
     /// 列出所有Skills
     pub fn list_skills(&self) -> Vec<SkillInfo> {
-        // TODO: 返回Skill索引
+        // 返回Skill索引
+        // 从index中读取所有SkillInfo
     }
     
     /// 搜索Skills
     pub fn search_skills(&self, query: &str) -> Vec<SkillInfo> {
-        // TODO: 基于名称/描述搜索
+        // 基于名称/描述搜索
+        // 模糊匹配query关键词
     }
 }
 ```
@@ -440,12 +458,17 @@ neco skill deactivate rust-coding-assistant
 # 验证Skill格式
 neco skill validate ./rust-coding-assistant
 
-# 安装来自URL的Skill
-neco skill install https://example.com/skills/my-skill
+# 安装来自URL的Skill（需校验来源）
+neco skill install https://example.com/skills/my-skill --checksum sha256:...
+
+# 或仅允许受信注册表
+neco skill install registry://official/rust-coding-assistant
 
 # 更新Skill
 neco skill update rust-coding-assistant
 ```
+
+> **安全提示**：安装来自远程URL的Skill时，务必校验来源可信性与内容完整性。建议使用 `--checksum` 参数验证SHA256哈希，或仅从受信的官方注册表安装。脚本型Skill默认需要用户显式确认后方可激活。
 
 ## 8. 安全考量
 

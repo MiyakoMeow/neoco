@@ -100,14 +100,7 @@ Agent配置中的 `prompts` 字段用于指定激活的提示词组件列表。
 
 ### 3.2 提示词组件存储格式
 
-Agent消息文件中的提示词配置：
-
-```toml
-# Agent配置
-[config]
-model_group = "smart"
-prompts = ["base", "multi-agent"]
-```
+> 详细配置格式见 [6.2 节](#62-agent定义中的提示词组件)
 
 ## 4. Agent提示词加载实现
 
@@ -224,7 +217,7 @@ prompts = ["base", "multi-agent"]
 
 ### 6.1 配置目录结构
 
-> 详细配置说明见 [TECH-CONFIG.md#2.1-配置目录结构](TECH-CONFIG.md#21-配置目录结构)
+> 详细配置说明见 [TECH-CONFIG.md#21-配置目录结构](TECH-CONFIG.md#21-配置目录结构)
 
 提示词组件存储在配置目录的 `prompts/` 子目录下。
 
