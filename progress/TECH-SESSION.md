@@ -810,7 +810,7 @@ impl SessionManager {
             created_at: metadata.created_at,
             updated_at: metadata.updated_at,
             metadata: metadata.metadata,
-            storage: Arc::new(FileStorage::new(base_dir.clone())?),  // 初始化存储后端
+            storage: Arc::clone(&self.storage),  // 复用SessionManager的存储后端
         };
         
         // 5. 预加载根Agent到缓存

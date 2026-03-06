@@ -559,7 +559,7 @@ pub struct CorsConfig {
 impl Default for CorsConfig {
     fn default() -> Self {
         Self {
-            allowed_origins: vec!["*".to_string()],
+            allowed_origins: vec!["http://localhost".to_string(), "http://127.0.0.1".to_string()],
             allowed_methods: vec!["GET".to_string(), "POST".to_string()],
             allowed_headers: vec!["Content-Type".to_string()],
             allow_credentials: false,

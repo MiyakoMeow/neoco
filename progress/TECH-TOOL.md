@@ -765,7 +765,7 @@ impl ToolExecutor {
 /// 工具工厂
 pub trait ToolFactory: Send + Sync {
     /// 创建工具实例
-    fn create(&self, config: ToolConfig) -> Result<Box<dyn ToolProvider>, ToolError>;
+    fn create(&self, config: ToolConfig) -> Result<Arc<dyn ToolProvider>, ToolError>;
     
     /// 列出所有可用工具
     fn list_tools(&self) -> Vec<ToolInfo>;
