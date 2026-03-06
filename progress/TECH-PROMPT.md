@@ -129,10 +129,7 @@ Agent配置中的 `prompts` 字段用于指定激活的提示词组件列表。
 
 ## 如何加载内容
 
-当需要额外能力时，使用 activate 工具：
-- activate::skill <skill_id>: 激活Skill
-- activate::mcp <server_name>: 连接MCP服务器
-- activate::prompt <prompt_name>: 加载提示词组件
+> 提示词组件在 Agent 初始化时加载，无需运行时激活。
 
 ## 注意事项
 
@@ -216,8 +213,6 @@ Agent配置中的 `prompts` 字段用于指定激活的提示词组件列表。
 ## 6. 提示词组件配置
 
 ### 6.1 配置目录结构
-
-> 详细配置说明见 [TECH-CONFIG.md#21-配置目录结构](TECH-CONFIG.md#21-配置目录结构)
 
 提示词组件存储在配置目录的 `prompts/` 子目录下。
 
