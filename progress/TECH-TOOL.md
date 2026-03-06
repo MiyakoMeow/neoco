@@ -160,11 +160,40 @@ pub enum ToolError {
 }
 ```
 
-### 3.2 工具注册表
+### 3.2 ToolRegistry Trait
 
 ```rust
-/// 工具注册表
-pub struct ToolRegistry {
+/// 工具注册表接口
+/// 
+/// 用于依赖反转：上层模块依赖此Trait，具体实现可注入
+#[async_trait]
+pub trait ToolRegistry: Send + Sync {
+    /// 注册工具
+    fn register(&self, tool: Arc<dyn ToolProvider>);
+    
+    /// 获取工具
+    fn get(&self, name: &str) -> Option<Arc<dyn ToolProvider>>;
+    
+    /// 获取所有工具定义
+    fn get_tool_definitions(&self) -> Vec<ToolDefinition>;
+    
+    /// 获取工具超时配置
+    fn get_timeout(&self, tool_name: &str) -> Duration;
+    
+    /// 配置超时
+    fn set_timeout(&self, prefix: &str, duration: Duration);
+    
+    /// 列出所有工具名称
+    fn list_tools(&self) -> Vec<String>;
+    
+    /// 检查工具是否存在
+    fn has_tool(&self, name: &str) -> bool {
+        self.get(name).is_some()
+    }
+}
+
+/// 工具注册表默认实现
+pub struct DefaultToolRegistry {
     /// 工具映射（使用Arc支持跨线程共享）
     tools: HashMap<String, Arc<dyn ToolProvider>>,
     
@@ -172,7 +201,7 @@ pub struct ToolRegistry {
     timeout_overrides: HashMap<String, Duration>,
 }
 
-impl ToolRegistry {
+impl DefaultToolRegistry {
     /// 创建空注册表
     pub fn new() -> Self {
         Self {
@@ -180,24 +209,25 @@ impl ToolRegistry {
             timeout_overrides: HashMap::new(),
         }
     }
-    
-    /// 注册工具
-    pub fn register(
-        &mut self,
-        tool: Arc<dyn ToolProvider>,
-    ) {
+}
+
+impl Default for DefaultToolRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl ToolRegistry for DefaultToolRegistry {
+    fn register(&self, tool: Arc<dyn ToolProvider>) {
         let name = tool.name().to_string();
         self.tools.insert(name, tool);
     }
     
-    /// 获取工具
-    pub fn get(&self, name: &str) -> Option<&dyn ToolProvider> {
-        self.tools.get(name).map(|t| t.as_ref())
+    fn get(&self, name: &str) -> Option<Arc<dyn ToolProvider>> {
+        self.tools.get(name).cloned()
     }
     
-    /// 获取所有工具定义（用于模型）
-    pub fn get_tool_definitions(&self,
-    ) -> Vec<ToolDefinition> {
+    fn get_tool_definitions(&self) -> Vec<ToolDefinition> {
         self.tools.values()
             .map(|t| ToolDefinition {
                 name: t.name().to_string(),
@@ -207,10 +237,7 @@ impl ToolRegistry {
             .collect()
     }
     
-    /// 获取工具超时（最长前缀匹配）
-    pub fn get_timeout(&self,
-        tool_name: &str,
-    ) -> Duration {
+    fn get_timeout(&self, tool_name: &str) -> Duration {
         let mut best_match: Option<(&str, Duration)> = None;
         
         for (prefix, duration) in &self.timeout_overrides {
@@ -221,7 +248,6 @@ impl ToolRegistry {
             }
         }
         
-        // 如果没有配置，使用工具自身的超时
         if let Some((_, duration)) = best_match {
             return duration;
         }
@@ -230,19 +256,18 @@ impl ToolRegistry {
             return tool.timeout();
         }
         
-        Duration::from_secs(30) // 默认30秒
+        Duration::from_secs(30)
     }
     
-    /// 配置超时
-    pub fn set_timeout(
-        &mut self,
-        prefix: &str,
-        duration: Duration,
-    ) {
+    fn set_timeout(&self, prefix: &str, duration: Duration) {
         self.timeout_overrides.insert(
             prefix.to_string(),
             duration
         );
+    }
+    
+    fn list_tools(&self) -> Vec<String> {
+        self.tools.keys().cloned().collect()
     }
 }
 
@@ -252,6 +277,39 @@ pub struct ToolDefinition {
     pub name: String,
     pub description: String,
     pub parameters: Value,
+}
+
+/// 工具生命周期状态
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ToolLifecycleState {
+    /// 注册到工厂
+    Registered,
+    /// 初始化完成
+    Initialized,
+    /// 可执行
+    Ready,
+    /// 执行中
+    Executing,
+    /// 执行完成
+    Completed,
+    /// 执行失败
+    Failed,
+    /// 已释放
+    Disposed,
+}
+
+impl std::fmt::Display for ToolLifecycleState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ToolLifecycleState::Registered => write!(f, "Registered"),
+            ToolLifecycleState::Initialized => write!(f, "Initialized"),
+            ToolLifecycleState::Ready => write!(f, "Ready"),
+            ToolLifecycleState::Executing => write!(f, "Executing"),
+            ToolLifecycleState::Completed => write!(f, "Completed"),
+            ToolLifecycleState::Failed => write!(f, "Failed"),
+            ToolLifecycleState::Disposed => write!(f, "Disposed"),
+        }
+    }
 }
 ```
 

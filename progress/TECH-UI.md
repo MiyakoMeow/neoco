@@ -537,6 +537,35 @@ pub struct DaemonConfig {
     pub tls_config: Option<TlsConfig>,
     /// 速率限制配置
     pub rate_limit: Option<RateLimitConfig>,
+    /// CORS配置
+    pub cors: Option<CorsConfig>,
+}
+
+/// CORS配置
+#[derive(Debug, Clone)]
+pub struct CorsConfig {
+    /// 允许的来源列表
+    pub allowed_origins: Vec<String>,
+    /// 允许的方法
+    pub allowed_methods: Vec<String>,
+    /// 允许的头部
+    pub allowed_headers: Vec<String>,
+    /// 是否允许凭证
+    pub allow_credentials: bool,
+    /// 预检请求缓存时间（秒）
+    pub max_age: u64,
+}
+
+impl Default for CorsConfig {
+    fn default() -> Self {
+        Self {
+            allowed_origins: vec!["*".to_string()],
+            allowed_methods: vec!["GET".to_string(), "POST".to_string()],
+            allowed_headers: vec!["Content-Type".to_string()],
+            allow_credentials: false,
+            max_age: 3600,
+        }
+    }
 }
 
 /// 后台守护进程

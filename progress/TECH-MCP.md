@@ -313,6 +313,8 @@ stateDiagram-v2
 
 ### 5.4 连接池设计
 
+> **TODO**: 连接池功能尚未实现，当前为设计文档阶段。
+
 ```rust
 /// MCP连接池配置
 pub struct McpPoolConfig {
@@ -330,10 +332,22 @@ pub struct McpPoolConfig {
 
 /// 连接池统计
 pub struct PoolStats {
+    /// 活跃连接数
     pub active: usize,
+    /// 空闲连接数
     pub idle: usize,
+    /// 等待连接的请求数
     pub waiting: usize,
+    /// 总连接数
     pub total: usize,
+}
+
+/// MCP连接池（TODO: 实现）
+pub struct McpConnectionPool {
+    // TODO: 实现连接池
+    // - 使用 channel 实现连接管理
+    // - 支持连接获取/释放
+    // - 实现健康检查和连接回收
 }
 ```
 

@@ -317,6 +317,28 @@ pub trait Channel: Send + Sync {
     async fn health_check(&self) -> bool;
 }
 
+/// Channel错误类型
+#[derive(Debug, Error)]
+pub enum ChannelError {
+    #[error("发送失败: {0}")]
+    SendFailed(String),
+    
+    #[error("接收失败: {0}")]
+    ReceiveFailed(String),
+    
+    #[error("通道已关闭")]
+    ChannelClosed,
+    
+    #[error("连接错误: {0}")]
+    ConnectionError(String),
+    
+    #[error("超时: {0}")]
+    Timeout(String),
+    
+    #[error("IO错误: {0}")]
+    Io(#[from] std::io::Error),
+}
+
 /// 发送消息
 pub struct OutgoingMessage {
     pub content: String,

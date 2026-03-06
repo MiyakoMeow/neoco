@@ -183,7 +183,7 @@ pub trait ObservationFormatter: Send + Sync {
 
 ### 4.1 压缩配置
 
-> 通用系统配置定义见 [TECH-CONFIG.md#3.5](./TECH-CONFIG.md#35-系统配置)。
+> 通用系统配置定义见 [TECH-CONFIG.md#3.5-系统配置](./TECH-CONFIG.md#35-系统配置)。
 
 ```rust
 /// 上下文压缩配置（模块内部使用）

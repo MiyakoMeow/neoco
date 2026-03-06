@@ -193,7 +193,7 @@ impl MessageIdAllocator {
     pub fn next_id(&self) -> Option<u64> {
         self.counter
             .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |current| {
-                if current >= u64::MAX - 1 {
+                if current >= u64::MAX {
                     None
                 } else {
                     Some(current + 1)
@@ -810,6 +810,7 @@ impl SessionManager {
             created_at: metadata.created_at,
             updated_at: metadata.updated_at,
             metadata: metadata.metadata,
+            storage: Arc::new(FileStorage::new(base_dir.clone())?),  // 初始化存储后端
         };
         
         // 5. 预加载根Agent到缓存
@@ -1218,6 +1219,31 @@ pub enum MemoryCategory {
     Directory(PathBuf),
     /// 会话记忆
     Session(SessionId),
+}
+
+/// Memory错误类型
+#[derive(Debug, Error)]
+pub enum MemoryError {
+    #[error("存储失败: {0}")]
+    StoreFailed(String),
+    
+    #[error("检索失败: {0}")]
+    RecallFailed(String),
+    
+    #[error("记忆未找到: {0}")]
+    NotFound(String),
+    
+    #[error("删除失败: {0}")]
+    DeleteFailed(String),
+    
+    #[error("清空失败: {0}")]
+    ClearFailed(String),
+    
+    #[error("序列化错误: {0}")]
+    Serialization(String),
+    
+    #[error("IO错误: {0}")]
+    Io(#[from] std::io::Error),
 }
 ```
 
