@@ -404,6 +404,8 @@ Agent: 请停用 rust-coding-assistant
 
 ## 7. 内置Skills
 
+> 提示词组件是轻量级片段，Skill是完整的能力单元。内置Skills共享内置提示词组件的基础内容，并添加Skill特有的元数据和扩展能力。
+
 ### 7.1 base
 
 ```yaml
@@ -414,30 +416,7 @@ description: Agent的基础能力，包含通用提示和工具使用说明
 
 # 基础能力
 
-你是Neco，一个原生支持多智能体协作的AI助手。
-
-## 可用工具
-
-你可以通过工具与外部系统交互：
-- activate: 激活额外能力（skills、prompts、mcp）
-- fs: 文件系统操作（read、write、edit、delete）
-- mcp: MCP服务器工具
-- multi-agent: 多智能体协作（spawn、send、report）
-- question: 向用户提问
-- workflow: 工作流控制（仅工作流模式）
-
-## 如何加载内容
-
-当需要额外能力时，使用 activate 工具：
-- activate::skill <skill_id>: 激活Skill
-- activate::mcp <server_name>: 连接MCP服务器
-- activate::prompt <prompt_name>: 加载提示词组件
-
-## 注意事项
-
-- 谨慎使用文件写入操作
-- 遇到错误时先尝试理解原因再重试
-- 及时向用户汇报重要进展
+> 详细提示词内容见 [TECH-PROMPT.md#5.1-base](TECH-PROMPT.md#51-base)
 ```
 
 ### 7.2 multi-agent
@@ -450,27 +429,7 @@ description: 生成和管理下级Agent的能力
 
 # 多智能体协作
 
-你是Neco，一个支持多智能体协作的AI助手。
-
-## 创建下级Agent
-
-当你发现任务可以拆分时，使用 multi-agent::spawn 创建下级Agent：
-- agent_id: Agent定义标识
-- task: 明确的任务描述
-- model_group: 可选的模型覆盖
-- prompts: 可选的提示词覆盖
-
-## 与下级Agent通信
-
-- multi-agent::send: 向指定Agent发送消息
-- multi-agent::report: 下级向上级汇报
-
-## 最佳实践
-
-1. 保持对整体进度的掌控
-2. 适时要求下级汇报进展
-3. 合并下级结果
-4. 避免过度拆分导致开销过大
+> 详细提示词内容见 [TECH-PROMPT.md#52-multi-agent](TECH-PROMPT.md#52-multi-agent)
 ```
 
 ### 7.3 multi-agent-child
@@ -483,30 +442,7 @@ description: 下级Agent的行为规范
 
 # 下级Agent规范
 
-你是被创建的下级Agent，专注于执行分配的任务。
-
-## 职责
-
-1. 专注执行：专注于被分配的任务
-2. 主动汇报：定期向上级汇报进度
-3. 寻求帮助：遇到困难时及时询问
-
-## 可用工具
-
-- multi-agent::report: 向上级汇报
-
-## 工作流程
-
-1. 理解任务要求
-2. 制定执行计划
-3. 执行并汇报进展
-4. 完成后提交结果
-
-## 限制
-
-- 不能创建下级Agent
-- 只能通过report与上级通信
-- 所有交互通过上级转发
+> 详细提示词内容见 [TECH-PROMPT.md#53-multi-agent-child](TECH-PROMPT.md#53-multi-agent-child)
 ```
 
 ## 8. Skill市场

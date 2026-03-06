@@ -439,12 +439,14 @@ sequenceDiagram
 
 **事件类型说明：**
 
-| 事件类型 | 定义位置 | 描述 |
-|----------|---------|------|
-| `AgentEvent` | TECH-AGENT.md | Agent相关事件 |
-| `WorkflowEvent` | TECH-AGENT.md | 工作流相关事件 |
-| `TriggerPattern` | TECH-AGENT.md | 触发器匹配模式 |
-| `TriggerHandler` | TECH-AGENT.md | 触发处理器定义 |
+| 事件类型 | 描述 |
+|----------|------|
+| `AgentEvent` | Agent相关事件（创建、状态变更、消息、工具调用） |
+| `WorkflowEvent` | 工作流相关事件（启动、节点执行、转场） |
+| `TriggerPattern` | 触发器匹配模式 |
+| `TriggerHandler` | 触发处理器定义 |
+
+详细设计见 [TECH-AGENT.md#5-事件驱动架构](TECH-AGENT.md#5-事件驱动架构)。
 
 ### 5.3 统一错误类型设计
 
@@ -508,6 +510,8 @@ pub enum AppError {
 
 ### 6.1 文件系统布局
 
+配置目录与数据目录分离：
+
 ```text
 ~/.config/neco/           # 配置目录
 ├── neco.toml            # 主配置
@@ -520,6 +524,8 @@ pub enum AppError {
     ├── session.toml     # Session元数据
     └── {agent_ulid}.toml  # Agent消息
 ```
+
+> 详细目录结构定义见 [TECH-CONFIG.md#2.1-配置目录结构](TECH-CONFIG.md#21-配置目录结构)
 
 ## 7. 错误处理策略
 

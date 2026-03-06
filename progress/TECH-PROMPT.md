@@ -107,17 +107,7 @@ graph TB
 
 > 详细数据结构定义见 [TECH-SESSION.md#32-agent结构](TECH-SESSION.md#32-agent结构)
 
-```rust
-/// Agent配置
-pub struct AgentConfig {
-    /// 使用的模型组
-    pub model_group: String,
-    /// 激活的提示词组件
-    pub prompts: Vec<String>,
-    /// Agent定义来源
-    pub agent_def: Option<PathBuf>,
-}
-```
+Agent配置中的 `prompts` 字段用于指定激活的提示词组件列表。详细数据结构定义见 [TECH-SESSION.md#3.2-Agent结构](TECH-SESSION.md#32-agent结构)。
 
 ### 3.2 提示词组件存储格式
 
@@ -245,14 +235,14 @@ prompts = ["base", "multi-agent"]
 
 ### 6.1 配置目录结构
 
-> 详细配置说明见 [TECH-CONFIG.md#21-配置目录结构](TECH-CONFIG.md#21-配置目录结构)
+> 详细配置说明见 [TECH-CONFIG.md#2.1-配置目录结构](TECH-CONFIG.md#21-配置目录结构)
+
+提示词组件存储在配置目录的 `prompts/` 子目录下。配置目录结构统一定义于 [TECH-CONFIG.md#2.1-配置目录结构](TECH-CONFIG.md#21-配置目录结构)。
 
 ```text
-~/.config/neco/                    # 主配置目录
-├── neco.toml                     # 主配置文件
-├── prompts/
-│   ├── base.md                   # 基础提示词组件
-│   └── multi-agent.md            # 多智能体提示词
+~/.config/neco/prompts/
+├── base.md                   # 基础提示词组件
+└── multi-agent.md            # 多智能体提示词
 ```
 
 ### 6.2 Agent定义中的提示词组件
@@ -289,44 +279,28 @@ pub enum AgentError {
 
 ## 附录：提示词组件与Skills对比
 
-### A.1 概念对比
+> 详细对比见 [TECH-SKILL.md#1-模块概述](TECH-SKILL.md#1-模块概述)
 
 | 维度 | 提示词组件 | Skills |
 |------|-----------|--------|
-| **本质** | 静态Markdown文本片段 | 完整的能力单元 |
-| **复杂度** | 低（仅提示词） | 高（含元数据、工具、脚本） |
+| **本质** | 静态Markdown文本片段 | 完整的能力单元（含元数据、工具、脚本） |
 | **复用性** | 组件复用 | 完整能力复用 |
 | **加载时机** | Agent初始化 | 按需激活 |
-| **卸载能力** | 不支持 | 支持停用 |
 | **渐进披露** | 不支持 | 支持 |
-
-### A.2 使用场景
 
 **提示词组件适用场景**：
 - 简单的行为规范提示
 - 通用能力扩展
-- 与Agent配置紧耦合的能力
 
 **Skills适用场景**：
 - 复杂领域知识
 - 需要脚本执行的能力
-- 可独立发布的扩展包
-
-### A.3 技术差异
-
-| 差异点 | 提示词组件 | Skills |
-|--------|-----------|--------|
-| **文件格式** | 纯Markdown | YAML前置元数据 + Markdown |
-| **目录结构** | 扁平（prompts/*.md） | 目录级（skill_name/SKILL.md） |
-| **资源支持** | 无 | scripts/, references/, assets/ |
-| **发现机制** | 文件扫描 | 目录扫描 + 索引构建 |
-| **激活机制** | 配置决定 | 显式激活/停用 |
 
 ---
 
 *关联文档：*
 - [TECH.md](TECH.md) - 总体架构文档
 - [TECH-AGENT.md](TECH-AGENT.md) - 多智能体协作模块
-- [TECH-SKILL.md](TECH-SKILL.md) - Skills模块
+- [TECH-SKILL.md](TECH-SKILL.md) - Skills模块（完整对比和详细设计）
 - [TECH-SESSION.md](TECH-SESSION.md) - Session管理模块
 - [TECH-CONFIG.md](TECH-CONFIG.md) - 配置管理模块
