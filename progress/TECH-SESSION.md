@@ -89,7 +89,7 @@ pub trait SessionContainer: Send + Sync {
 - `neco-session` 实现 `SessionContainer` trait
 - 运行时通过依赖注入传递具体实现
 
-### 2.2 Session类型
+### 2.3 Session类型
 
 ```rust
 /// Session类型

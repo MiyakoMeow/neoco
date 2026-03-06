@@ -876,7 +876,7 @@ strip = true
 | **内存占用** | <5MB | 待优化 |
 | **启动速度** | <10ms | 待优化 |
 | **Provider** | 多 Provider 抽象 | 多 Provider 支持 |
-| **安全** | OTP/E-Stop/配对/沙箱 | 10 层安全体系 |
+| **安全** | OTP/E-Stop/配对/沙箱 | 16 层安全体系 |
 | **通信** | IPC + Channel 抽象 | EventBus + 工具调用 |
 
 **核心借鉴点：**
@@ -891,7 +891,7 @@ strip = true
 |------|----------|------|
 | **规模** | 137K LOC, 14 crates | 待评估 |
 | **架构** | Kernel Handle Trait | 依赖反转接口 |
-| **安全** | 16 层独立安全系统 | 10 层安全体系 |
+| **安全** | 16 层独立安全系统 | 16 层安全体系 |
 | **通信** | EventBus + Trigger | EventBus |
 | **工具** | Wasmtime 双计量沙箱 | 工具执行沙箱 |
 | **Provider** | 27 个 LLM 驱动 | 多 Provider 支持 |

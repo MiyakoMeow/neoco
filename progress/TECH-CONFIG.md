@@ -587,7 +587,7 @@ pub enum ConfigError {
     ParseError(#[from] toml::de::Error),
     
     #[error("无效的模型引用 '{model}' 在组 '{group}'")]
-    InvalidModelRef { group: String, model: String, source: ParseError },
+    InvalidModelRef { group: String, model: String, source: toml::de::Error },
     
     #[error("提供商未找到: {provider} (在组 {group} 中引用)")]
     ProviderNotFound { group: String, provider: String },

@@ -527,6 +527,18 @@ use axum::{
     response::IntoResponse,
 };
 
+/// 守护进程配置
+pub struct DaemonConfig {
+    /// 监听主机
+    pub host: String,
+    /// 监听端口
+    pub port: u16,
+    /// TLS配置
+    pub tls_config: Option<TlsConfig>,
+    /// 速率限制配置
+    pub rate_limit: Option<RateLimitConfig>,
+}
+
 /// 后台守护进程
 pub struct DaemonInterface {
     config: DaemonConfig,

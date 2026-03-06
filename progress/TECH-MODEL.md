@@ -218,7 +218,7 @@ impl ModelGroupClient {
     pub fn new(
         name: String,
         models: Vec<ModelRef>,
-        providers: &HashMap<String, ModelProvider>,
+        providers: &HashMap<String, Arc<dyn ModelProvider>>,
     ) -> Result<Self, ConfigError> {
         // TODO: 实现模型组客户端初始化
         // 遍历模型列表，为每个模型创建对应的客户端实例
@@ -231,10 +231,10 @@ impl ModelGroupClient {
         //             group: name.clone(),
         //             provider: model.provider_id.clone(),
         //         })?;
-        //     let client = ProviderFactory::create(provider)?;
+        //     let client = provider.as_ref().clone();
         //     clients.insert(
         //         format!("{}/{}", model.provider_id, model.model_name),
-        //         Arc::from(client),
+        //         client,
         //     );
         // }
         // Ok(Self { name, models, clients, retry_config: RetryConfig::default() })
@@ -336,12 +336,12 @@ use async_openai::{
 /// OpenAI兼容API客户端
 pub struct OpenAiClient {
     inner: Client<OpenAIConfig>,
-    config: ModelProvider,
+    config: Arc<dyn ModelProvider>,
 }
 
 impl OpenAiClient {
     /// 创建新客户端
-    pub fn new(config: &ModelProvider) -> Result<Self, ConfigError> {
+    pub fn new(config: Arc<dyn ModelProvider>) -> Result<Self, ConfigError> {
         // TODO: 实现OpenAI客户端初始化
         // 验证配置并创建async-openai客户端实例
         // TODO: 实现代码:
