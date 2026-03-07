@@ -1,10 +1,15 @@
 # TECH-TOOL: 工具模块
 
-本文档描述Neco项目的工具模块设计，包括工具注册、调用和各类工具的实现。
+本文档描述Neco项目的工具模块设计，采用统一的工具接口设计。
 
 ## 1. 模块概述
 
-工具模块提供Agent与外部系统交互的能力，包括文件系统操作、MCP调用、多智能体通信等功能。
+工具模块提供Agent与外部系统交互的能力。
+
+**设计原则：**
+- 统一的工具执行接口（ToolExecutor）
+- 工具注册表管理所有可用工具
+- 工具定义与执行分离
 
 ## 2. 工具架构
 
@@ -12,121 +17,401 @@
 
 ```mermaid
 graph TB
-    subgraph "工具系统"
-        TR[ToolRegistry
-            工具注册表]
-        
-        subgraph "内置工具"
-            FS[fs::*
-               文件系统]
-            AC[activate::*
-               激活工具]
-            MA[multi-agent::*
-               多智能体]
-            CT[context::*
-               上下文观测]
-            WF[workflow::*
-               工作流转场]
-            QU[question
-               用户提问]
-        end
-        
-        subgraph "外部工具"
-            MCP[mcp::*
-               MCP服务器]
-            SK[skill::*
-               Skills]
-        end
-        
-        TR --> FS
-        TR --> AC
-        TR --> MA
-        TR --> CT
-        TR --> WF
-        TR --> QU
-        TR --> MCP
-        TR --> SK
+    subgraph "ToolRegistry"
+        TR[工具注册表]
     end
     
+    subgraph "内置工具"
+        FS[fs::read/write/edit/delete]
+        AC[activate::mcp/skill]
+        MA[multi-agent::spawn/send/report]
+        CT[context::observe]
+        WF[workflow]
+    end
+    
+    subgraph "外部工具"
+        MCP[mcp::*]
+        SK[skill::*]
+    end
+    
+    TR --> FS
+    TR --> AC
+    TR --> MA
+    TR --> CT
+    TR --> WF
+    TR --> MCP
+    TR --> SK
+    
     subgraph "执行层"
-        TE[ToolExecutor
-            工具执行器]
-        TM[TimeoutManager
-            超时管理]
+        TE[ToolExecutor]
     end
     
     TR --> TE
-    TE --> TM
 ```
 
 ### 2.2 工具命名规范
 
-工具名统一使用 `::` 作为分隔符，格式为：`namespace::action` 或 `namespace::name::action`。
-
 | 工具 | 命名格式 | 示例 |
 |------|----------|------|
-| 文件系统 | `fs::action` | `fs::read`, `fs::write` |
+| 文件系统 | `namespace::action` | `fs::read`, `fs::write` |
 | MCP | `mcp::server_name` | `mcp::context7` |
 | 多智能体 | `multi-agent::action` | `multi-agent::spawn` |
-| 上下文观测 | `context::action` | `context::observe` |
+| 上下文 | `context::action` | `context::observe` |
 | 工作流 | `workflow::option` | `workflow::approve` |
-| 激活 | `activate::type` | `activate::mcp`, `activate::skill` |
+| 激活 | `activate::type` | `activate::skill` |
 
-## 3. 核心Trait设计
+## 3. 工具接口设计
 
-### 3.1 ToolProvider Trait
+### 3.1 ToolExecutor Trait
 
 ```rust
-use async_trait::async_trait;
-use serde_json::Value;
-use std::sync::RwLock;
+/// 工具能力
+#[derive(Debug, Clone, Default)]
+pub struct ToolCapabilities {
+    pub streaming: bool,
+    pub requires_network: bool,
+    pub resource_level: ResourceLevel,
+    pub concurrent: bool,
+}
 
-/// 工具提供者接口
-#[async_trait]
-pub trait ToolProvider: Send + Sync {
-    /// 工具名称
-    fn name(&self) -> &str;
-    
-    /// 工具描述
-    fn description(&self) -> &str;
-    
-    /// JSON Schema格式的参数定义
-    fn parameters_schema(&self) -> Value;
-    
-    /// 执行工具
-    async fn execute(
-        &self,
-        args: Value,
-    ) -> Result<ToolResult, ToolError>;
-    
-    /// 工具超时时间（默认30秒）
-    fn timeout(&self) -> Duration {
-        Duration::from_secs(30)
-    }
-    
-    /// 是否需要用户确认（危险操作）
-    fn requires_confirmation(&self) -> bool {
-        false
-    }
+#[derive(Debug, Clone, Copy, Default)]
+pub enum ResourceLevel {
+    #[default]
+    Low,
+    Medium,
+    High,
+}
+
+/// 工具定义
+#[derive(Debug, Clone)]
+pub struct ToolDefinition {
+    pub id: ToolId,
+    pub description: String,
+    pub schema: Value,
+    pub capabilities: ToolCapabilities,
+    pub timeout: Duration,
+}
+
+/// 工具执行上下文
+pub struct ToolContext {
+    pub session_id: SessionId,
+    pub agent_id: AgentId,
+    pub working_dir: PathBuf,
 }
 
 /// 工具执行结果
 #[derive(Debug, Clone)]
 pub struct ToolResult {
-    /// 输出内容
     pub output: String,
-    
-    /// 结构化数据（可选）
     pub data: Option<Value>,
-    
-    /// 是否成功
     pub is_error: bool,
 }
 
-/// 工具错误
-/// 
-/// 注: 所有模块错误类型统一在 `neco-core` 中汇总为 `AppError`。见 [TECH.md#5.3-统一错误类型设计](TECH.md#5.3-统一错误类型设计)。
-/// `ToolError` 为模块内部错误，在模块边界通过 `From` 实现或映射函数转换为 `AppError::Tool`。
+/// 工具执行器Trait
+#[async_trait]
+pub trait ToolExecutor: Send + Sync {
+    fn definition(&self) -> &ToolDefinition;
+    
+    async fn execute(
+        &self,
+        context: &ToolContext,
+        args: Value,
+    ) -> Result<ToolResult, ToolError>;
+}
+```
+
+### 3.2 ToolRegistry Trait
+
+```rust
+/// 工具注册表Trait
+#[async_trait]
+pub trait ToolRegistry: Send + Sync {
+    fn register(&self, tool: Arc<dyn ToolExecutor>);
+    
+    fn get(&self, id: &ToolId) -> Option<Arc<dyn ToolExecutor>>;
+    
+    fn definitions(&self) -> Vec<ToolDefinition>;
+    
+    fn timeout(&self, id: &ToolId) -> Duration;
+    
+    fn set_timeout(&self, prefix: &str, duration: Duration);
+    
+    fn list_tools(&self) -> Vec<ToolId>;
+}
+
+/// 工具ID（强类型）
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct ToolId(pub String);
+
+impl ToolId {
+    pub fn from_parts(namespace: &str, name: &str) -> Self {
+        Self(format!("{}::{}", namespace, name))
+    }
+    
+    pub fn namespace(&self) -> Option<&str> {
+        self.0.split("::").next()
+    }
+    
+    pub fn name(&self) -> Option<&str> {
+        self.0.split("::").nth(1)
+    }
+}
+```
+
+### 3.3 默认工具注册表实现
+
+```rust
+pub struct DefaultToolRegistry {
+    tools: RwLock<HashMap<ToolId, Arc<dyn ToolExecutor>>>,
+    timeouts: RwLock<HashMap<String, Duration>>,
+}
+
+impl DefaultToolRegistry {
+    pub fn new() -> Self {
+        let registry = Self {
+            tools: RwLock::new(HashMap::new()),
+            timeouts: RwLock::new(HashMap::new()),
+        };
+        
+        // 注册内置工具
+        // TODO: 注册 fs 工具
+        // TODO: 注册 multi-agent 工具
+        // TODO: 注册 context 工具
+        
+        registry
+    }
+}
+
+#[async_trait]
+impl ToolRegistry for DefaultToolRegistry {
+    fn register(&self, tool: Arc<dyn ToolExecutor>) {
+        let def = tool.definition();
+        self.tools.write().unwrap().insert(def.id.clone(), tool);
+    }
+    
+    fn get(&self, id: &ToolId) -> Option<Arc<dyn ToolExecutor>> {
+        self.tools.read().unwrap().get(id).cloned()
+    }
+    
+    fn definitions(&self) -> Vec<ToolDefinition> {
+        self.tools.read().unwrap()
+            .values()
+            .map(|t| t.definition().clone())
+            .collect()
+    }
+    
+    fn timeout(&self, id: &ToolId) -> Duration {
+        let timeouts = self.timeouts.read().unwrap();
+        
+        // 前缀匹配
+        let id_str = id.0.as_str();
+        let mut best_match: Option<(&str, Duration)> = None;
+        
+        for (prefix, timeout) in timeouts.iter() {
+            if id_str.starts_with(prefix) {
+                if best_match.map_or(true, |(best, _)| prefix.len() > best.len()) {
+                    best_match = Some((prefix.as_str(), *timeout));
+                }
+            }
+        }
+        
+        best_match.map(|(_, d)| d).unwrap_or_else(|| {
+            self.tools.read().unwrap()
+                .get(id)
+                .map(|t| t.definition().timeout)
+                .unwrap_or(Duration::from_secs(30))
+        })
+    }
+    
+    fn set_timeout(&self, prefix: &str, duration: Duration) {
+        self.timeouts.write().unwrap().insert(prefix.to_string(), duration);
+    }
+    
+    fn list_tools(&self) -> Vec<ToolId> {
+        self.tools.read().unwrap().keys().cloned().collect()
+    }
+}
+```
+
+## 4. 文件系统工具
+
+### 4.1 工具定义
+
+| 工具 | 功能 | 超时 |
+|------|------|------|
+| `fs::read` | 读取文件内容 | 5秒 |
+| `fs::write` | 写入文件（完全覆盖） | 10秒 |
+| `fs::edit` | 编辑文件（基于verify） | 10秒 |
+| `fs::delete` | 删除文件 | 5秒 |
+
+### 4.2 fs::read 实现
+
+```rust
+pub mod fs {
+    pub struct FileReadTool;
+    
+    #[async_trait]
+    impl ToolExecutor for FileReadTool {
+        fn definition(&self) -> &ToolDefinition {
+            static DEF: Lazy<ToolDefinition> = Lazy::new(|| ToolDefinition {
+                id: ToolId("fs::read".into()),
+                description: "读取文件内容".into(),
+                schema: json!({
+                    "type": "object",
+                    "properties": {
+                        "path": {
+                            "type": "string",
+                            "description": "文件路径"
+                        },
+                        "offset": {
+                            "type": "integer",
+                            "description": "起始行号（1-based）"
+                        },
+                        "limit": {
+                            "type": "integer",
+                            "description": "最大读取行数"
+                        }
+                    },
+                    "required": ["path"]
+                }),
+                capabilities: ToolCapabilities::default(),
+                timeout: Duration::from_secs(5),
+            });
+            &DEF
+        }
+        
+        async fn execute(
+            &self,
+            context: &ToolContext,
+            args: Value,
+        ) -> Result<ToolResult, ToolError> {
+            // TODO: 实现文件读取逻辑
+            // 1. 解析path参数
+            // 2. 验证路径安全性（不允许../）
+            // 3. 读取文件内容
+            // 4. 应用offset/limit
+            // 5. 返回结果
+            unimplemented!()
+        }
+    }
+}
+```
+
+### 4.3 fs::write 实现
+
+```rust
+pub struct FileWriteTool;
+    
+#[async_trait]
+impl ToolExecutor for FileWriteTool {
+    fn definition(&self) -> &ToolDefinition {
+        static DEF: Lazy<ToolDefinition> = Lazy::new(|| ToolDefinition {
+            id: ToolId("fs::write".into()),
+            description: "写入文件内容（完全覆盖）".into(),
+            schema: json!({
+                "type": "object",
+                "properties": {
+                    "path": { "type": "string" },
+                    "content": { "type": "string" }
+                },
+                "required": ["path", "content"]
+            }),
+            capabilities: ToolCapabilities::default(),
+            timeout: Duration::from_secs(10),
+        });
+        &DEF
+    }
+    
+    async fn execute(
+        &self,
+        context: &ToolContext,
+        args: Value,
+    ) -> Result<ToolResult, ToolError> {
+        // TODO: 实现文件写入逻辑
+        // 1. 解析参数
+        // 2. 确保父目录存在
+        // 3. 原子写入（临时文件+rename）
+        // 4. 返回结果
+        unimplemented!()
+    }
+}
+```
+
+### 4.4 fs::edit 实现（带verify）
+
+```rust
+pub struct FileEditTool;
+    
+#[async_trait]
+impl ToolExecutor for FileEditTool {
+    fn definition(&self) -> &ToolDefinition {
+        static DEF: Lazy<ToolDefinition> = Lazy::new(|| ToolDefinition {
+            id: ToolId("fs::edit".into()),
+            description: "基于verify编辑文件内容".into(),
+            schema: json!({
+                "type": "object",
+                "properties": {
+                    "path": { "type": "string" },
+                    "verify": {
+                        "type": "object",
+                        "properties": {
+                            "line": { "type": "integer" },
+                            "content": { "type": "string" }
+                        },
+                        "required": ["line", "content"]
+                    },
+                    "new_content": { "type": "string" }
+                },
+                "required": ["path", "verify", "new_content"]
+            }),
+            capabilities: ToolCapabilities::default(),
+            timeout: Duration::from_secs(10),
+        });
+        &DEF
+    }
+    
+    async fn execute(
+        &self,
+        context: &ToolContext,
+        args: Value,
+    ) -> Result<ToolResult, ToolError> {
+        // TODO: 实现文件编辑逻辑
+        // 1. 解析参数
+        // 2. 读取文件内容
+        // 3. 验证指定行内容
+        // 4. 执行编辑
+        // 5. 原子写入
+        unimplemented!()
+    }
+}
+
+/// Verify验证结果
+#[derive(Debug, Clone, PartialEq)]
+pub enum VerifyResult {
+    ExactMatch,
+    PrefixMatch,
+    Mismatch,
+    TooShort,
+}
+
+/// Verify验证
+pub fn verify_line_content(
+    actual: &str,
+    expected: &str,
+) -> VerifyResult {
+    // TODO: 实现verify验证逻辑
+    // 1. 去除行尾换行符
+    // 2. 完全匹配 -> ExactMatch
+    // 3. 前缀匹配（内容≥20字符）-> PrefixMatch
+    // 4. 内容不足20字符且非完全匹配 -> TooShort
+    // 5. 不匹配 -> Mismatch
+    unimplemented!()
+}
+```
+
+## 5. 工具错误
+
+```rust
 #[derive(Debug, Error)]
 pub enum ToolError {
     #[error("参数无效: {0}")]
@@ -144,712 +429,22 @@ pub enum ToolError {
     #[error("资源未找到")]
     NotFound,
     
-    #[error("工具未找到")]
-    ToolNotFound(String),
+    #[error("工具未找到: {0}")]
+    NotFoundTool(String),
     
-    #[error("需要用户确认")]
+    #[error("需要确认")]
     ConfirmationRequired,
-    
-    #[error("用户取消")]
-    UserCancelled,
     
     #[error("序列化错误: {0}")]
     Serialization(#[from] serde_json::Error),
-    
-    #[error("内部错误: {0}")]
-    Internal(String),
 }
 ```
-
-### 3.2 ToolRegistry Trait
-
-```rust
-/// 工具注册表接口
-/// 
-/// 用于依赖反转：上层模块依赖此Trait，具体实现可注入
-#[async_trait]
-pub trait ToolRegistry: Send + Sync {
-    /// 注册工具
-    fn register(&self, tool: Arc<dyn ToolProvider>);
-    
-    /// 获取工具
-    fn get(&self, name: &str) -> Option<Arc<dyn ToolProvider>>;
-    
-    /// 获取所有工具定义
-    fn get_tool_definitions(&self) -> Vec<ToolDefinition>;
-    
-    /// 获取工具超时配置
-    fn get_timeout(&self, tool_name: &str) -> Duration;
-    
-    /// 配置超时
-    fn set_timeout(&self, prefix: &str, duration: Duration);
-    
-    /// 列出所有工具名称
-    fn list_tools(&self) -> Vec<String>;
-    
-    /// 检查工具是否存在
-    fn has_tool(&self, name: &str) -> bool {
-        self.get(name).is_some()
-    }
-}
-
-/// 工具注册表默认实现
-pub struct DefaultToolRegistry {
-    /// 工具映射（使用RwLock支持并发访问）
-    tools: RwLock<HashMap<String, Arc<dyn ToolProvider>>>,
-    
-    /// 超时配置（按工具前缀，使用RwLock支持并发访问）
-    timeout_overrides: RwLock<HashMap<String, Duration>>,
-}
-
-impl DefaultToolRegistry {
-    /// 创建空注册表
-    pub fn new() -> Self {
-        Self {
-            tools: RwLock::new(HashMap::new()),
-            timeout_overrides: RwLock::new(HashMap::new()),
-        }
-    }
-}
-
-impl Default for DefaultToolRegistry {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl ToolRegistry for DefaultToolRegistry {
-    fn register(&self, tool: Arc<dyn ToolProvider>) {
-        let name = tool.name().to_string();
-        self.tools.write().unwrap().insert(name, tool);
-    }
-    
-    fn get(&self, name: &str) -> Option<Arc<dyn ToolProvider>> {
-        self.tools.read().unwrap().get(name).cloned()
-    }
-    
-    fn get_tool_definitions(&self) -> Vec<ToolDefinition> {
-        self.tools.read().unwrap().values()
-            .map(|t| ToolDefinition {
-                name: t.name().to_string(),
-                description: t.description().to_string(),
-                parameters: t.parameters_schema(),
-            })
-            .collect()
-    }
-    
-    fn get_timeout(&self, tool_name: &str) -> Duration {
-        let mut best_match: Option<(&str, Duration)> = None;
-        
-        let timeout_overrides = self.timeout_overrides.read().unwrap();
-        for (prefix, duration) in &*timeout_overrides {
-            if tool_name.starts_with(prefix) {
-                if best_match.map_or(true, |(best, _)| prefix.len() > best.len()) {
-                    best_match = Some((prefix, *duration));
-                }
-            }
-        }
-        
-        if let Some((_, duration)) = best_match {
-            return duration;
-        }
-        
-        drop(timeout_overrides);
-        
-        if let Some(tool) = self.get(tool_name) {
-            return tool.timeout();
-        }
-        
-        Duration::from_secs(30)
-    }
-    
-    fn set_timeout(&self, prefix: &str, duration: Duration) {
-        self.timeout_overrides.write().unwrap().insert(
-            prefix.to_string(),
-            duration
-        );
-    }
-    
-    fn list_tools(&self) -> Vec<String> {
-        self.tools.read().unwrap().keys().cloned().collect()
-    }
-}
-
-/// 工具定义（用于发送给模型）
-#[derive(Debug, Clone, Serialize)]
-pub struct ToolDefinition {
-    pub name: String,
-    pub description: String,
-    pub parameters: Value,
-}
-
-/// 工具生命周期状态
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ToolLifecycleState {
-    /// 注册到工厂
-    Registered,
-    /// 初始化完成
-    Initialized,
-    /// 可执行
-    Ready,
-    /// 执行中
-    Executing,
-    /// 执行完成
-    Completed,
-    /// 执行失败
-    Failed,
-    /// 已释放
-    Disposed,
-}
-
-impl std::fmt::Display for ToolLifecycleState {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ToolLifecycleState::Registered => write!(f, "Registered"),
-            ToolLifecycleState::Initialized => write!(f, "Initialized"),
-            ToolLifecycleState::Ready => write!(f, "Ready"),
-            ToolLifecycleState::Executing => write!(f, "Executing"),
-            ToolLifecycleState::Completed => write!(f, "Completed"),
-            ToolLifecycleState::Failed => write!(f, "Failed"),
-            ToolLifecycleState::Disposed => write!(f, "Disposed"),
-        }
-    }
-}
-```
-
-## 4. 文件系统工具
-
-### 4.1 工具概述
-
-| 工具 | 功能 | 超时 |
-|------|------|------|
-| `fs::read` | 读取文件内容 | 5秒 |
-| `fs::write` | 写入文件（完全覆盖） | 10秒 |
-| `fs::edit` | 编辑文件（基于verify） | 10秒 |
-| `fs::delete` | 删除文件 | 5秒 |
-
-### 4.2 fs::read 实现
-
-```rust
-/// 文件读取工具
-pub struct FileReadTool;
-
-impl ToolProvider for FileReadTool {
-    fn name(&self) -> &str {
-        "fs::read"
-    }
-    
-    fn description(&self) -> &str {
-        "读取文件内容（内容可用于后续verify验证）"
-    }
-    
-    fn parameters_schema(&self) -> Value {
-        json!({
-            "type": "object",
-            "properties": {
-                "path": {
-                    "type": "string",
-                    "description": "文件路径（相对或绝对）"
-                },
-                "offset": {
-                    "type": "integer",
-                    "description": "起始行号（1-based，可选）"
-                },
-                "limit": {
-                    "type": "integer",
-                    "description": "最大读取行数（可选）"
-                }
-            },
-            "required": ["path"]
-        })
-    }
-    
-    fn timeout(&self) -> Duration {
-        Duration::from_secs(5)
-    }
-    
-    async fn execute(
-        &self,
-        args: Value,
-    ) -> Result<ToolResult, ToolError> {
-        // TODO: 实现文件读取逻辑
-        // 1. 解析路径参数
-        // 2. 应用offset和limit参数
-        // 3. 读取文件内容
-        // 4. 返回结果
-        unimplemented!()
-    }
-}
-
-/// Verify验证
-/// 返回 VerifyResult 枚举以提供更丰富的验证结果信息
-fn verify_line_content(
-    actual_line: &str,
-    verify_content: &str,
-) -> VerifyResult {
-    // TODO: 实现Verify验证逻辑
-    // 1. 去除行尾换行符（统一LF和CRLF）
-    // 2. 检查完全匹配或前缀匹配（≥20字符）
-    //    - 完全匹配 -> ExactMatch
-    //    - 前缀匹配（内容≥20字符）-> PrefixMatch
-    //    - 内容不足20字符且非完全匹配 -> TooShort
-    // 3. 处理编码问题（降级为字节匹配）-> EncodingError
-    // 4. 以上都不满足 -> Mismatch
-    unimplemented!()
-}
-
-/// Verify验证结果枚举
-/// 用于提供更丰富的验证结果信息
-#[derive(Debug, Clone, PartialEq)]
-pub enum VerifyResult {
-    /// 完全匹配
-    ExactMatch,
-    /// 前缀匹配（内容≥20字符）
-    PrefixMatch,
-    /// 不匹配
-    Mismatch,
-    /// 内容长度不足20字符且非完全匹配
-    TooShort,
-    /// 编码错误
-    EncodingError,
-}
-```
-
-### 4.3 fs::edit 实现
-
-```rust
-/// 文件编辑工具
-pub struct FileEditTool;
-
-impl ToolProvider for FileEditTool {
-    fn name(&self) -> &str {
-        "fs::edit"
-    }
-    
-    fn description(&self) -> &str {
-        "基于verify编辑文件内容"
-    }
-    
-    fn parameters_schema(&self) -> Value {
-        json!({
-            "type": "object",
-            "properties": {
-                "path": {
-                    "type": "string",
-                    "description": "文件路径"
-                },
-                "verify": {
-                    "type": "object",
-                    "description": "行内容验证",
-                    "properties": {
-                        "line": {
-                            "type": "integer",
-                            "description": "要验证的行号"
-                        },
-                        "content": {
-                            "type": "string",
-                            "description": "该行内容（完全匹配或前缀匹配，≥20字符）"
-                        }
-                    },
-                    "required": ["line", "content"]
-                },
-                "new_content": {
-                    "type": "string",
-                    "description": "替换的新内容"
-                }
-            },
-            "required": ["path", "verify", "new_content"]
-        })
-    }
-    
-    fn timeout(&self) -> Duration {
-        Duration::from_secs(10)
-    }
-    
-    async fn execute(
-        &self,
-        args: Value,
-    ) -> Result<ToolResult, ToolError> {
-        // TODO: 实现文件编辑逻辑
-        // 1. 解析路径、verify、新内容参数
-        // 2. 读取当前文件内容
-        // 3. 验证指定行的内容（verify）
-        //    - 验证失败时返回 EditError::VerifyFailed，包含期望内容和实际内容
-        // 4. 执行文件编辑和写入
-        //    - 采用原子写入模式：先写入临时文件，然后 rename 替换原文件
-        //    - 并发控制：写入前重新读取并比对内容，冲突时返回错误（可重试）
-        unimplemented!()
-    }
-}
-
-/// Verify验证处理
-/// 
-/// # 替换语义
-/// - verify_line: 1-based 行号，指定要验证和替换的单行
-/// - new_content: 替换该行的内容，可以包含多行（会展开文档）
-fn verify_and_apply_edit(
-    content: &str,
-    verify_line: usize,
-    verify_content: &str,
-    new_content: &str,
-) -> Result<String, EditError> {
-    // TODO: 实现Verify验证编辑逻辑
-    // 1. 按行分割内容
-    // 2. 验证指定行内容（调用 verify_line_content）
-    // 3. 替换该行为 new_content（可包含多行）
-    // 4. 返回修改后的内容
-    unimplemented!()
-}
-
-/// 文件编辑错误类型
-#[derive(Debug, Error)]
-pub enum EditError {
-    /// 验证失败：行内容不匹配
-    #[error("验证失败: 第{line}行不匹配\n期望: {expected}\n实际: {actual}")]
-    VerifyFailed {
-        line: usize,
-        expected: String,
-        actual: String,
-    },
-    
-    /// 行号超出文件范围
-    #[error("行号超出范围: {line}，文件共有{total}行")]
-    LineOutOfRange {
-        line: usize,
-        total: usize,
-    },
-    
-    /// IO错误
-    #[error("IO错误: {0}")]
-    Io(#[from] std::io::Error),
-}
-```
-
-### 4.4 fs::write 实现
-
-```rust
-/// 文件写入工具（完全覆盖）
-pub struct FileWriteTool;
-
-impl ToolProvider for FileWriteTool {
-    fn name(&self) -> &str {
-        "fs::write"
-    }
-    
-    fn description(&self) -> &str {
-        "写入文件内容（完全覆盖）"
-    }
-    
-    fn parameters_schema(&self) -> Value {
-        json!({
-            "type": "object",
-            "properties": {
-                "path": {
-                    "type": "string",
-                    "description": "文件路径"
-                },
-                "content": {
-                    "type": "string",
-                    "description": "文件内容"
-                }
-            },
-            "required": ["path", "content"]
-        })
-    }
-    
-    fn requires_confirmation(&self) -> bool {
-        true // 覆盖操作需要确认
-    }
-    
-    async fn execute(
-        &self,
-        args: Value,
-    ) -> Result<ToolResult, ToolError> {
-        // TODO: 实现文件写入逻辑
-        // 1. 解析路径和内容参数
-        // 2. 确保父目录存在
-        // 3. 执行文件写入（完全覆盖）
-        // 4. 返回成功结果
-        unimplemented!()
-    }
-}
-```
-
-## 5. activate工具
-
-### 5.1 工具概述
-
-`activate` 工具用于按需加载内容（提示词、工具、MCP、Skills）。
-
-```rust
-/// activate工具
-pub struct ActivateTool {
-    suffix: String,
-    agent_manager: Arc<AgentManager>,
-    mcp_manager: Arc<McpManager>,
-    skill_manager: Arc<SkillManager>,
-}
-
-impl ToolProvider for ActivateTool {
-    fn name(&self) -> &str {
-        &self.suffix
-    }
-    
-    fn description(&self) -> &str {
-        "激活/加载内容（prompt、mcp、skill、tool）"
-    }
-    
-    fn parameters_schema(&self) -> Value {
-        json!({
-            "type": "object",
-            "properties": {
-                "type": {
-                    "type": "string",
-                    "enum": ["prompt", "mcp", "skill", "tool"],
-                    "description": "要激活的内容类型"
-                },
-                "name": {
-                    "type": "string",
-                    "description": "内容名称"
-                }
-            },
-            "required": ["type", "name"]
-        })
-    }
-    
-    async fn execute(
-        &self,
-        args: Value,
-    ) -> Result<ToolResult, ToolError> {
-        // TODO: 实现内容激活逻辑
-        // 1. 解析内容类型和名称参数
-        // 2. 根据类型分发到对应的激活方法
-        // 3. 处理未知内容类型错误
-        unimplemented!()
-    }
-}
-
-impl ActivateTool {
-    pub fn new(suffix: &str) -> Self {
-        Self {
-            suffix: suffix.to_string(),
-            agent_manager: Arc::new(AgentManager::new()),
-            mcp_manager: Arc::new(McpManager::new()),
-            skill_manager: Arc::new(SkillManager::new()),
-        }
-    }
-
-    pub async fn activate_skill(
-        &self,
-        name: &str,
-    ) -> Result<ToolResult, ToolError> {
-        // TODO: 实现Skill激活逻辑
-        // 1. 加载Skill内容
-        // 2. 添加Skill提示词到Agent
-        // 3. 返回激活结果
-        unimplemented!()
-    }
-    
-    // ... 其他激活方法
-}
-```
-
-## 6. context工具
-
-### 6.1 工具概述
-
-| 工具 | 功能 | 超时 |
-|------|------|------|
-| `context::observe` | 查看当前上下文的详细信息 | 5秒 |
-
-> context::observe 详细定义见 [TECH-CONTEXT.md#3-上下文观测功能](./TECH-CONTEXT.md#3-上下文观测功能)
-
-## 7. question工具
-
-```rust
-/// 用户提问工具（仅限REPL模式）
-pub struct QuestionTool {
-    ui_handle: Arc<dyn UiHandle>,
-}
-
-impl ToolProvider for QuestionTool {
-    fn name(&self) -> &str {
-        "question"
-    }
-    
-    fn description(&self) -> &str {
-        "向用户提问（仅限REPL模式，no-ask模式不可用）"
-    }
-    
-    fn parameters_schema(&self) -> Value {
-        json!({
-            "type": "object",
-            "properties": {
-                "question": {
-                    "type": "string",
-                    "description": "问题内容"
-                },
-                "options": {
-                    "type": "array",
-                    "items": { "type": "string" },
-                    "description": "选项列表（可选，单选）"
-                }
-            },
-            "required": ["question"]
-        })
-    }
-    
-    async fn execute(
-        &self,
-        args: Value,
-    ) -> Result<ToolResult, ToolError> {
-        // TODO: 实现用户提问逻辑
-        // 1. 解析问题内容和选项参数
-        // 2. 通过UI向用户提问
-        // 3. 获取用户回答
-        // 4. 返回结果
-        unimplemented!()
-    }
-}
-```
-
-## 8. 工具执行器
-
-### 8.1 执行流程
-
-```rust
-/// 工具执行器
-pub struct ToolExecutor {
-    registry: Arc<ToolRegistry>,
-}
-
-impl ToolExecutor {
-    /// 执行工具
-    pub async fn execute(
-        &self,
-        tool_call: &ToolCall,
-    ) -> Result<ToolResult, ToolError> {
-        // TODO: 实现工具执行逻辑
-        // 1. 解析工具名称和参数
-        // 2. 从注册表查找工具
-        // 3. 获取工具超时配置
-        // 4. 检查是否需要用户确认
-        // 5. 执行工具（带超时处理）
-        unimplemented!()
-    }
-    
-    /// 并行执行多个工具
-    pub async fn execute_parallel(
-        &self,
-        tool_calls: Vec<ToolCall>,
-    ) -> Vec<Result<ToolResult, ToolError>> {
-        let futures: Vec<_> = tool_calls
-            .into_iter()
-            .map(|tc| self.execute(&tc))
-            .collect();
-        
-        join_all(futures).await
-    }
-}
-```
-
----
-
-## 9. 工具Factory注册中心
-
-> 参考 ZeroClaw 的 Factory 模式设计
-
-### 9.1 Factory Trait 定义
-
-```rust
-/// 工具工厂
-pub trait ToolFactory: Send + Sync {
-    /// 创建工具实例
-    fn create(&self, config: ToolConfig) -> Result<Arc<dyn ToolProvider>, ToolError>;
-    
-    /// 列出所有可用工具
-    fn list_tools(&self) -> Vec<ToolInfo>;
-    
-    /// 获取工具能力
-    fn capabilities(&self, name: &str) -> Option<ToolCapabilities>;
-}
-
-/// 工具能力
-pub struct ToolCapabilities {
-    /// 是否支持流式
-    pub streaming: bool,
-    /// 是否需要网络
-    pub requires_network: bool,
-    /// 资源消耗级别
-    pub resource_level: ResourceLevel,
-    /// 并发支持
-    pub concurrent: bool,
-}
-
-pub enum ResourceLevel {
-    Low,
-    Medium,
-    High,
-}
-```
-
-### 9.2 内置工具注册
-
-```mermaid
-graph LR
-    subgraph "注册阶段"
-        R1[fs工具注册]
-        R2[activate工具注册]
-        R3[multi-agent工具注册]
-        R4[context工具注册]
-    end
-    
-    subgraph "工厂中心"
-        F[ToolFactoryRegistry]
-    end
-    
-    R1 --> F
-    R2 --> F
-    R3 --> F
-    R4 --> F
-```
-
-### 9.3 动态工具发现
-
-```rust
-/// 动态工具发现配置
-pub struct ToolDiscoveryConfig {
-    /// 工具目录
-    pub tool_dirs: Vec<PathBuf>,
-    /// 自动加载
-    pub auto_load: bool,
-    /// 工具前缀
-    pub prefix: String,
-}
-
-/// 工具发现结果
-pub struct DiscoveredTool {
-    pub name: String,
-    pub path: PathBuf,
-    pub metadata: ToolMetadata,
-}
-```
-
-### 9.4 工具生命周期
-
-| 阶段 | 描述 |
-|------|------|
-| `Registered` | 注册到工厂 |
-| `Initialized` | 初始化完成 |
-| `Ready` | 可执行 |
-| `Executing` | 执行中 |
-| `Completed` | 执行完成 |
-| `Failed` | 执行失败 |
-| `Disposed` | 已释放 |
 
 ---
 
 *关联文档：*
 - [TECH.md](TECH.md) - 总体架构文档
+- [TECH-SESSION.md](TECH-SESSION.md) - Session管理模块
+- [TECH-AGENT.md](TECH-AGENT.md) - Agent模块
 - [TECH-MCP.md](TECH-MCP.md) - MCP模块
 - [TECH-SKILL.md](TECH-SKILL.md) - Skills模块

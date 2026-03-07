@@ -1,230 +1,169 @@
 # TECH-CONFIG: 配置管理模块
 
-本文档描述Neco项目的配置管理模块设计，包括配置加载、合并策略和访问接口。
+本文档描述Neco项目的配置管理模块设计，采用类型安全的配置结构。
 
 ## 1. 模块概述
 
-配置管理模块负责加载、验证和提供所有配置数据。配置分为静态配置（用户定义）和动态配置（运行时）。
+配置管理模块负责加载、验证和提供所有配置数据。
+
+**设计原则：**
+- 类型安全的配置结构（不用HashMap）
+- 编译期配置验证
+- 统一的配置加载器
 
 ## 2. 配置来源
 
 ### 2.1 配置目录结构
 
-Neco 支持多级配置目录，按优先级从高到低依次为：
+Neco 支持多级配置目录，按优先级从高到低：
 
-1. **当前项目配置**：项目根目录下的 `.neco` 目录
-2. **当前项目配置**：项目根目录下的 `.agents` 目录
+1. **当前项目配置**：`.neco/` 目录
+2. **当前项目配置**：`.agents/` 目录
 3. **主配置目录**：`~/.config/neco/`
-4. **通用配置目录**：`~/.agents/`（支持 agents、prompts、skills 等子目录）
+4. **通用配置目录**：`~/.agents/`
 
-```text
+```
 # 优先级从高到低
 
-# 1. 当前项目配置（最高优先级）
-./.neco/
+.neco/                          # 当前项目 .neco（最高）
 ├── neco.toml
 ├── prompts/
 ├── agents/
 ├── skills/
 └── workflows/
 
-# 2. 当前项目配置
-./.agents/
+.agents/                        # 当前项目 .agents
 ├── prompts/
 ├── agents/
 ├── skills/
 └── workflows/
 
-# 3. 主配置目录
-~/.config/neco/                   # 主配置目录
-├── neco.toml                    # 主配置文件
-├── neco.<tag>.toml              # 带标签的配置文件
+~/.config/neco/                 # 主配置目录
+├── neco.toml
+├── neco.<tag>.toml
 ├── prompts/
-│   ├── base.md                  # 基础提示词组件
-│   └── multi-agent.md           # 多智能体提示词
 ├── agents/
-│   ├── coder.md                 # Agent定义
-│   └── reviewer.md
-├── skills/                      # Skills目录
+├── skills/
 └── workflows/
-    └── prd/
-        ├── workflow.toml        # 工作流定义
-        ├── neco.toml            # 工作流特定配置
-        └── agents/
-            └── review.md        # 工作流特定Agent
 
-# 4. 通用配置目录（最低优先级）
-~/.agents/
+~/.agents/                      # 通用配置目录（最低）
 ├── prompts/
 ├── agents/
 ├── skills/
 └── workflows/
 ```
 
-#### 配置优先级规则
+## 3. 配置数据结构
 
-- **项目内优先级**（最高到低）：`.neco/` > `.agents/`
-- **全局优先级**（最高到低）：`~/.config/neco/` > `~/.agents/`
-- **整体优先级**：当前项目配置 > 全局配置
-  - 即：当前项目 `.agents/` > 全局 `~/.config/neco/`
-  - 例如：`.neco/agents/reviewer.md` > `.agents/agents/reviewer.md` > `~/.config/neco/agents/reviewer.md` > `~/.agents/agents/reviewer.md`
-- **工作流特定配置**：工作流目录内的配置覆盖所有配置目录（见 [REQUIREMENT.md](./REQUIREMENT.md)），优先级为：工作流特定 > 当前项目配置 > 全局配置
-
-### 2.2 配置优先级
-
-```mermaid
-graph BT
-    subgraph "优先级从高到低"
-        A[环境变量]
-        B[命令行参数]
-        C[工作流特定配置]
-        D[带标签配置 neco.<tag>.toml]
-        E[主配置 neco.toml]
-        F[内置默认值]
-    end
-    
-    A > B > C > D > E > F
-```
-
-## 3. 数据结构设计
-
-### 3.1 配置根结构
+### 3.1 完整配置
 
 ```rust
-/// 完整配置结构
-pub struct NecoConfig {
-    /// 模型组定义
-    pub model_groups: HashMap<String, ModelGroup>,
-    
-    /// 模型提供商定义
-    pub model_providers: HashMap<String, ModelProvider>,
-    
-    /// MCP服务器定义
-    pub mcp_servers: HashMap<String, McpServer>,
-    
-    /// 系统配置
+/// 完整配置（根结构）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Config {
+    pub model_groups: ModelGroups,
+    pub model_providers: ModelProviders,
+    pub mcp_servers: McpServers,
     pub system: SystemConfig,
-    
-    /// 配置来源追踪（用于调试）
-    _sources: ConfigSources,
 }
 
-/// 配置来源追踪
-struct ConfigSources {
-    files: Vec<PathBuf>,
-    env_vars: HashMap<String, String>,
-}
-```
+/// 模型组配置
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ModelGroups(pub HashMap<String, ModelGroup>);
 
-### 3.2 模型组配置
-
-```rust
-/// 模型组：用于故障转移和负载均衡
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModelGroup {
-    /// 模型标识符列表（按优先级排序）
-    /// 格式: "provider/model" 或 "provider/model?param=value"
-    pub models: Vec<String>,
+    pub models: Vec<ModelRef>,
 }
 
-/// 模型标识符解析
+/// 模型引用（支持参数）
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModelRef {
-    /// 提供商ID
-    pub provider_id: String,
-    /// 模型名称
-    pub model_name: String,
-    /// 调用参数（覆盖默认值）
-    pub params: HashMap<String, String>,
+    pub provider: String,
+    pub name: String,
+    #[serde(default)]
+    pub params: HashMap<String, Value>,
 }
 
-impl FromStr for ModelRef {
-    type Err = ConfigError;
-    
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        // TODO: 实现 ModelRef 的解析逻辑
-        // 解析格式: "provider/model?temperature=0.1&reasoning_effort=high"
+impl ModelRef {
+    pub fn parse(s: &str) -> Result<Self, ConfigError> {
+        // 格式：provider/model?param=value
+        // TODO: 实现解析逻辑
         unimplemented!()
     }
 }
-```
 
-### 3.3 模型提供商配置
-
-```rust
 /// 模型提供商配置
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModelProviders(pub HashMap<String, ModelProvider>);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModelProvider {
-    /// 提供商类型（决定如何调用）
+    #[serde(rename = "type")]
     pub provider_type: ProviderType,
-    
-    /// 显示名称
     pub name: String,
-    
-    /// API基础URL
     pub base_url: Url,
-    
-    /// API密钥配置
     pub api_key: ApiKeyConfig,
-    
-    /// 默认请求参数
+    #[serde(default)]
     pub default_params: HashMap<String, Value>,
-    
-    /// 超时配置
-    pub timeout: Duration,
-    
-    /// 重试配置
+    #[serde(default)]
     pub retry: RetryConfig,
+    pub timeout: Duration,
 }
 
-/// 提供商类型
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ProviderType {
-    /// OpenAI兼容API
+    #[serde(rename = "openai")]
     OpenAI,
-    /// Anthropic API
+    #[serde(rename = "anthropic")]
     Anthropic,
-    /// OpenRouter API
+    #[serde(rename = "openrouter")]
     OpenRouter,
-    /// OpenAI Responses API（预留）
-    OpenAIResponses,
 }
 
-/// API密钥配置（三种方式，优先级从高到低）
+/// API密钥配置
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "source", rename_all = "lowercase")]
 pub enum ApiKeyConfig {
-    /// 单个环境变量
-    Env(String),
-    /// 多个环境变量（轮询使用）
-    EnvList(Vec<String>),
-    /// 直接写入（不推荐，仅用于测试）
-    Direct(SecretString),
+    Env { name: String },
+    EnvList { names: Vec<String> },
+    Direct { key: SecretString },
 }
 
 impl ApiKeyConfig {
-    /// 获取API密钥
-    pub fn get_key(&self) -> Result<SecretString, ConfigError> {
-        // TODO: 实现API密钥获取逻辑
+    pub fn resolve(&self) -> Result<SecretString, ConfigError> {
         match self {
-            ApiKeyConfig::Env(var) => {
-                // TODO: 从环境变量获取密钥
-                unimplemented!()
-            },
-            ApiKeyConfig::EnvList(vars) => {
-                // TODO: 遍历环境变量列表，找到第一个可用的
-                unimplemented!()
-            },
-            ApiKeyConfig::Direct(key) => Ok(key.clone()),
+            Self::Env { name } => std::env::var(name)
+                .map(SecretString::from)
+                .map_err(|_| ConfigError::EnvVarNotFound(name.clone())),
+            Self::EnvList { names } => {
+                for name in names {
+                    if let Ok(key) = std::env::var(name) {
+                        return Ok(SecretString::from(key));
+                    }
+                }
+                Err(ConfigError::NoEnvVarFound)
+            }
+            Self::Direct { key } => Ok(key.clone()),
         }
     }
 }
 
 /// 重试配置
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RetryConfig {
-    /// 最大重试次数
+    #[serde(default = "default_max_retries")]
     pub max_retries: u32,
-    /// 初始退避时间
+    #[serde(default)]
     pub initial_backoff: Duration,
-    /// 退避乘数
+    #[serde(default = "default_backoff_multiplier")]
     pub backoff_multiplier: f64,
-    /// 最大退避时间
+    #[serde(default)]
     pub max_backoff: Duration,
 }
+
+fn default_max_retries() -> u32 { 3 }
+fn default_backoff_multiplier() -> f64 { 2.0 }
 
 impl Default for RetryConfig {
     fn default() -> Self {
@@ -236,216 +175,96 @@ impl Default for RetryConfig {
         }
     }
 }
-```
 
-### 3.4 MCP服务器配置
-
-> 注意: MCP传输配置定义在 [TECH-MCP.md#31-mcp服务器配置](./TECH-MCP.md#31-mcp服务器配置) 的 `McpTransportConfig` 中
-
-```rust
 /// MCP服务器配置
-pub struct McpServer {
-    /// 传输类型 (引用自 neco_mcp::McpTransportConfig)
-    pub transport: crate::mcp::McpTransportConfig,
-    
-    /// 环境变量
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct McpServers(pub HashMap<String, McpServerConfig>);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct McpServerConfig {
+    pub transport: McpTransportConfig,
+    #[serde(default)]
     pub env: HashMap<String, String>,
-    
-    /// 服务器状态（运行时填充）
-    #[serde(skip)]
-    pub status: ServerStatus,
+}
+
+/// MCP传输配置
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "lowercase")]
+pub enum McpTransportConfig {
+    Stdio {
+        command: String,
+        args: Vec<String>,
+    },
+    Http {
+        url: Url,
+        #[serde(default)]
+        headers: HashMap<String, String>,
+        #[serde(default)]
+        bearer_token: Option<SecretString>,
+    },
 }
 ```
 
-impl McpServer {
-    /// 判断是否使用stdio模式
-    pub fn is_stdio(&self) -> bool {
-        // TODO: 检查传输类型是否为 Stdio
-        unimplemented!()
-    }
-    
-    /// 获取bearer token（HTTP模式）
-    pub fn get_bearer_token(&self) -> Option<String> {
-        // TODO: 获取HTTP模式的bearer token
-        unimplemented!()
-    }
-}
-```
-
-### 3.5 系统配置
+### 3.2 系统配置
 
 ```rust
-/// 系统级配置
+/// 系统配置
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SystemConfig {
-    /// 存储配置
     pub storage: StorageConfig,
-    
-    /// 上下文压缩配置
     pub context: ContextConfig,
-    
-    /// 工具配置
     pub tools: ToolsConfig,
-    
-    /// UI配置
     pub ui: UiConfig,
 }
 
-/// 存储配置
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StorageConfig {
-    /// Session存储目录
     pub session_dir: PathBuf,
-    /// 是否启用压缩
+    #[serde(default = "default_compression")]
     pub compression: bool,
 }
 
-/// 上下文配置
+fn default_compression() -> bool { true }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ContextConfig {
-    /// 自动压缩阈值（上下文窗口百分比）
+    #[serde(default = "default_compact_threshold")]
     pub auto_compact_threshold: f64,
-    /// 是否启用自动压缩
+    #[serde(default = "default_true")]
     pub auto_compact_enabled: bool,
 }
 
-/// 工具配置
+fn default_compact_threshold() -> f64 { 0.9 }
+fn default_true() -> bool { true }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolsConfig {
-    /// 超时配置（按工具前缀匹配）
+    #[serde(default)]
     pub timeouts: HashMap<String, Duration>,
-    /// 默认超时
+    #[serde(default = "default_tool_timeout")]
     pub default_timeout: Duration,
 }
 
-impl ToolsConfig {
-    /// 获取工具超时（最长前缀匹配）
-    pub fn get_timeout(&self, tool_id: &str) -> Duration {
-        // TODO: 实现工具超时获取逻辑
-        unimplemented!()
-    }
-}
+fn default_tool_timeout() -> Duration { Duration::from_secs(30) }
 
-/// UI配置
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UiConfig {
-    /// 默认运行模式
+    #[serde(default)]
     pub default_mode: RunMode,
 }
 
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
 pub enum RunMode {
+    #[default]
     Direct,
     Repl,
     Daemon,
 }
 ```
 
-## 4. Channel抽象配置
+## 4. 配置加载器
 
-> 参考 ZeroClaw 的 Channel 抽象设计
-
-### 4.1 Channel Trait 定义
-
-```rust
-/// 消息通道接口
-#[async_trait]
-pub trait Channel: Send + Sync {
-    /// 发送消息
-    async fn send(&self, message: OutgoingMessage) -> Result<(), ChannelError>;
-    
-    /// 接收消息
-    async fn receive(&self) -> Result<IncomingMessage, ChannelError>;
-    
-    /// 通道名称
-    fn name(&self) -> &str;
-    
-    /// 健康检查
-    async fn health_check(&self) -> bool;
-}
-
-/// Channel错误类型
-#[derive(Debug, Error)]
-pub enum ChannelError {
-    #[error("发送失败: {0}")]
-    SendFailed(String),
-    
-    #[error("接收失败: {0}")]
-    ReceiveFailed(String),
-    
-    #[error("通道已关闭")]
-    ChannelClosed,
-    
-    #[error("连接错误: {0}")]
-    ConnectionError(String),
-    
-    #[error("超时: {0}")]
-    Timeout(String),
-    
-    #[error("IO错误: {0}")]
-    Io(#[from] std::io::Error),
-}
-
-/// 发送消息
-pub struct OutgoingMessage {
-    pub content: String,
-    pub recipient: String,
-    pub subject: Option<String>,
-}
-
-/// 接收消息
-pub struct IncomingMessage {
-    pub id: String,
-    pub sender: String,
-    pub content: String,
-    pub channel: String,
-    pub timestamp: DateTime<Utc>,
-}
-```
-
-### 4.2 已支持Channel
-
-| Channel | 描述 | 模式 |
-|---------|------|------|
-| StdIO | 标准输入输出 | 本地 |
-| HTTP | HTTP Webhook | 远程 |
-| WebSocket | WebSocket | 双向 |
-| MCP | MCP协议 | 扩展 |
-
-## 5. 配置合并策略
-
-### 5.1 合并规则
-
-```mermaid
-graph TD
-    subgraph "合并策略"
-        A[标量类型] -->|后覆盖前| B[直接替换]
-        C[数组类型] -->|默认替换| D[特殊语法 +追加]
-        E[对象类型] -->|递归合并| F[深度合并]
-    end
-```
-
-**详细规则：**
-
-| 类型 | 策略 | 示例 |
-|------|------|------|
-| 标量（字符串、数字、布尔） | 后覆盖前 | `name = "new"` 覆盖旧值 |
-| 数组 | 后替换前 | `models = ["a", "b"]` 完全替换 |
-| 数组追加 | 特殊语法 `+` | `models = ["+c", "+d"]` 追加元素 |
-| 对象 | 递归深度合并 | 字段级合并，子对象递归 |
-
-### 5.2 合并实现
-
-```rust
-/// 配置合并器
-pub struct ConfigMerger;
-
-impl ConfigMerger {
-    /// 合并两个配置值
-    pub fn merge(base: &mut Value, override_: Value) {
-        // TODO: 实现配置合并逻辑
-        unimplemented!()
-    }
-}
-```
-
-## 6. 热重载支持
-
-### 6.1 配置加载流程
+### 4.1 配置加载流程
 
 ```mermaid
 sequenceDiagram
@@ -455,160 +274,168 @@ sequenceDiagram
     participant Merger as ConfigMerger
     participant Validator as ConfigValidator
 
-    App->>Loader: load_config()
+    App->>Loader: load()
     
-    Loader->>Loader: 查找配置文件
-    Note over Loader: 按优先级顺序：
-    Note over Loader: neco.toml <br/> neco.*.toml <br/> 工作流配置
-    
-    loop 遍历配置文件
+    loop 遍历配置目录
         Loader->>Parser: 解析文件
         Parser-->>Loader: 返回Value
         Loader->>Merger: 合并配置
     end
     
     Loader->>Validator: 验证配置
-    Validator->>Validator: 检查必需字段
-    Validator->>Validator: 检查引用完整性
-    Validator->>Validator: 验证路径存在性
-    
     alt 验证失败
         Validator-->>App: 返回错误
     else 验证成功
-        Validator-->>Loader: 返回NecoConfig
-        Loader-->>App: 返回配置
+        Loader-->>App: 返回Config
     end
 ```
 
-### 6.2 配置验证
+### 4.2 配置加载器实现
 
 ```rust
-/// 配置验证器
+pub struct ConfigLoader {
+    config_dirs: Vec<PathBuf>,
+}
+
+impl ConfigLoader {
+    pub fn new() -> Self {
+        let dirs = vec![
+            PathBuf::from(".neco"),
+            PathBuf::from(".agents"),
+            dirs::config_dir().join("neco"),
+            dirs::home_dir().unwrap_or_default().join(".agents"),
+        ];
+        Self { config_dirs: dirs }
+    }
+    
+    pub fn load(&self) -> Result<Config, ConfigError> {
+        // TODO: 实现配置加载逻辑
+        // 1. 查找所有配置文件
+        // 2. 按优先级解析和合并
+        // 3. 验证配置
+        // 4. 返回Config
+        unimplemented!()
+    }
+    
+    pub fn load_workflow_config(&self, workflow_dir: &Path) -> Result<Config, ConfigError> {
+        // TODO: 加载工作流特定配置
+        unimplemented!()
+    }
+}
+```
+
+### 4.3 配置验证
+
+```rust
 pub struct ConfigValidator;
 
 impl ConfigValidator {
-    /// 验证完整配置
-    pub fn validate(config: &NecoConfig) -> Result<(), ConfigError> {
-        // TODO: 实现配置验证逻辑
-        unimplemented!()
+    pub fn validate(config: &Config) -> Result<(), ConfigError> {
+        // 验证模型组
+        Self::validate_model_groups(config)?;
+        // 验证提供商
+        Self::validate_providers(config)?;
+        // 验证MCP服务器
+        Self::validate_mcp_servers(config)?;
+        
+        Ok(())
     }
     
-    fn validate_model_groups(config: &NecoConfig) -> Result<(), ConfigError> {
-        // TODO: 实现模型组验证逻辑
-        unimplemented!()
+    fn validate_model_groups(config: &Config) -> Result<(), ConfigError> {
+        for (name, group) in &config.model_groups.0 {
+            if group.models.is_empty() {
+                return Err(ConfigError::ValidationError(
+                    format!("Model group '{}' has no models", name)
+                ));
+            }
+            
+            for model in &group.models {
+                if !config.model_providers.0.contains_key(&model.provider) {
+                    return Err(ConfigError::ValidationError(
+                        format!("Provider '{}' not found for model in group '{}'", 
+                            model.provider, name)
+                    ));
+                }
+            }
+        }
+        Ok(())
     }
     
-    fn validate_providers(config: &NecoConfig) -> Result<(), ConfigError> {
-        // TODO: 实现提供商验证逻辑
-        unimplemented!()
+    fn validate_providers(config: &Config) -> Result<(), ConfigError> {
+        for (name, provider) in &config.model_providers.0 {
+            // 验证API密钥
+            if let Err(e) = provider.api_key.resolve() {
+                return Err(ConfigError::ValidationError(
+                    format!("Provider '{}': {}", name, e)
+                ));
+            }
+            
+            // 验证base_url
+            if provider.base_url.host_str().is_none() {
+                return Err(ConfigError::ValidationError(
+                    format!("Provider '{}' has invalid base_url", name)
+                ));
+            }
+        }
+        Ok(())
+    }
+    
+    fn validate_mcp_servers(config: &Config) -> Result<(), ConfigError> {
+        // TODO: 验证MCP服务器配置
+        Ok(())
     }
 }
 ```
 
-### 6.3 热重载机制
-
-```mermaid
-graph TB
-    subgraph "热重载机制"
-        W[文件系统Watcher] -->|文件变更| D[去抖动]
-        D -->|延迟500ms| L[重新加载]
-        L -->|解析&合并| M[配置合并]
-        M -->|验证| V[配置验证]
-        V -->|成功| U[更新共享配置]
-        V -->|失败| R[回滚&记录日志]
-    end
-```
-
-### 6.4 线程安全配置访问
-
-```rust
-/// 线程安全的配置管理器
-pub struct ConfigManager {
-    /// 当前配置（读写锁）
-    config: RwLock<Arc<NecoConfig>>,
-    /// 配置变更通知
-    change_tx: broadcast::Sender<ConfigChange>,
-}
-
-impl ConfigManager {
-    /// 获取当前配置（只读）
-    pub fn get_config(&self) -> Arc<NecoConfig> {
-        // TODO: 实现线程安全的配置获取
-        unimplemented!()
-    }
-    
-    /// 更新配置（热重载）
-    pub fn update_config(&self, new_config: NecoConfig) -> Result<(), ConfigError> {
-        // TODO: 实现配置热重载逻辑
-        unimplemented!()
-    }
-    
-    /// 订阅配置变更
-    pub fn subscribe_changes(&self) -> broadcast::Receiver<ConfigChange> {
-        // TODO: 实现配置变更订阅功能
-        unimplemented!()
-    }
-}
-
-/// 配置变更通知
-pub struct ConfigChange {
-    pub changes: Vec<ConfigDiff>,
-}
-
-pub enum ConfigDiff {
-    ModelGroupAdded(String),
-    ModelGroupRemoved(String),
-    ModelProviderChanged(String),
-    McpServerAdded(String),
-    McpServerRemoved(String),
-}
-```
-
-## 7. 使用示例
-
-### 7.1 TOML配置示例
+## 5. 配置示例
 
 ```toml
-# neco.toml - 主配置文件
+# neco.toml
 
-# 模型组定义
 [model_groups.frontier]
-models = ["zhipuai/glm-4.7"]
+models = [{ provider = "zhipuai", name = "glm-4.7" }]
 
 [model_groups.smart]
-models = ["zhipuai/glm-4.7?reasoning_effort=high"]
+models = [{ provider = "zhipuai", name = "glm-4.7", params = { reasoning_effort = "high" } }]
 
 [model_groups.balanced]
-models = ["zhipuai/glm-4.7", "minimax-cn/MiniMax-M2.5"]
+models = [
+    { provider = "zhipuai", name = "glm-4.7" },
+    { provider = "minimax-cn", name = "MiniMax-M2.5" }
+]
 
-# 模型提供商定义
+[model_groups.fast]
+models = [{ provider = "zhipuai", name = "glm-4.7-flashx" }]
+
 [model_providers.zhipuai]
 type = "openai"
 name = "ZhipuAI"
 base_url = "https://open.bigmodel.cn/api/paas/v4"
-api_key_env = "ZHIPU_API_KEY"
+api_key = { source = "env", name = "ZHIPU_API_KEY" }
+timeout = { secs = 60, nanos = 0 }
 
 [model_providers.zhipuai.retry]
 max_retries = 3
-initial_backoff = 1
-backoff_multiplier = 2
 
-# MCP服务器定义
+[model_providers.minimax-cn]
+type = "openai"
+name = "MiniMax (CN)"
+base_url = "https://api.minimaxi.com/v1"
+api_key = { source = "env_list", names = ["MINIMAX_API_KEY", "MINIMAX_API_KEY_2"] }
+
 [mcp_servers.context7]
+type = "stdio"
 command = "npx"
 args = ["-y", "@upstash/context7-mcp"]
-
-[mcp_servers.context7.env]
-MY_ENV_VAR = "MY_ENV_VALUE"
+env = { MY_ENV_VAR = "MY_ENV_VALUE" }
 
 [mcp_servers.figma]
+type = "http"
 url = "https://mcp.figma.com/mcp"
-bearer_token_env = "FIGMA_OAUTH_TOKEN"
-http_headers = { "X-Figma-Region" = "us-east-1" }
+headers = { "X-Figma-Region" = "us-east-1" }
+bearer_token = { source = "env", name = "FIGMA_OAUTH_TOKEN" }
 
-# 系统配置
 [system]
-
 [system.storage]
 session_dir = "~/.local/neco"
 compression = true
@@ -618,27 +445,14 @@ auto_compact_threshold = 0.9
 auto_compact_enabled = true
 
 [system.tools]
-default_timeout = 30
+default_timeout = { secs = 30, nanos = 0 }
+timeouts = { "fs" = { secs = 10, nanos = 0 }, "mcp" = { secs = 60, nanos = 0 } }
 
-[system.tools.timeouts]
-"fs" = 10
-"fs::read" = 5
-"mcp" = 60
+[system.ui]
+default_mode = "repl"
 ```
 
-### 7.2 代码使用示例
-
-```rust
-use neco_config::{ConfigLoader, ConfigManager};
-
-// TODO: 代码示例实现
-```
-
-## 8. 错误类型
-
-> **注意**: 所有模块错误类型统一在 `neco-core` 中汇总为 `AppError`。见 [TECH.md#5.3-统一错误类型设计](TECH.md#5.3-统一错误类型设计)。
->
-> `ConfigError` 为模块内部错误，在模块边界通过 `From` 实现或映射函数转换为 `AppError::Config`。
+## 6. 错误类型
 
 ```rust
 #[derive(Debug, Error)]
@@ -646,14 +460,11 @@ pub enum ConfigError {
     #[error("配置文件未找到: {0}")]
     FileNotFound(PathBuf),
     
-    #[error("TOML解析错误: {0}")]
-    ParseError(#[from] toml::de::Error),
+    #[error("解析错误: {0}")]
+    ParseError(String),
     
-    #[error("无效的模型引用 '{model}' 在组 '{group}'")]
-    InvalidModelRef { group: String, model: String, source: toml::de::Error },
-    
-    #[error("提供商未找到: {provider} (在组 {group} 中引用)")]
-    ProviderNotFound { group: String, provider: String },
+    #[error("验证失败: {0}")]
+    ValidationError(String),
     
     #[error("环境变量未找到: {0}")]
     EnvVarNotFound(String),
@@ -661,10 +472,7 @@ pub enum ConfigError {
     #[error("没有可用的环境变量")]
     NoEnvVarFound,
     
-    #[error("配置验证失败: {0}")]
-    ValidationError(String),
-    
-    #[error("热重载失败，已回滚")]
+    #[error("热重载失败")]
     HotReloadFailed,
 }
 ```

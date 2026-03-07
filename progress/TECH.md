@@ -1,20 +1,18 @@
 # Neco 技术架构文档
 
-本文档描述Neco项目的技术架构，包括模块划分、数据结构设计、数据流向和模块间关系。
+本文档描述Neco项目的技术架构，采用领域驱动设计理念，重新划分模块边界、数据结构设计和数据流向。
 
-## 1. 架构概述
-
-Neco是一个原生支持多智能体协作的智能体应用，采用Rust开发，遵循模块化、可扩展的设计原则。
+## 1. 架构设计原则
 
 ### 1.1 核心设计原则
 
-- **模块化设计**：每个功能模块独立成crate，通过清晰的trait接口交互
-- **类型安全**：利用Rust的类型系统防止无效状态
-- **异步优先**：基于tokio的异步运行时，支持高并发
-- **可扩展性**：通过trait抽象支持不同的模型提供商、工具和通道
-- **数据驱动**：所有状态变化通过显式的数据结构传递
+- **领域驱动设计**：分离领域模型与基础设施，领域模型不含外部依赖
+- **强类型标识符**：使用 newtype 模式替代类型别名，提供编译期校验
+- **零成本抽象**：通过 trait 对象和静态分发结合实现性能与灵活性的平衡
+- **统一消息系统**：消除 Session 层与 Model 层的消息类型重复
+- **事件驱动架构**：所有状态变更通过事件传播
 
-### 1.2 架构分层
+### 1.2 领域分层架构
 
 ```mermaid
 graph TB
@@ -23,59 +21,132 @@ graph TB
         REPL[REPL模式]
         Daemon[守护进程模式]
     end
-
-    subgraph "应用核心层 Application Core"
+    
+    subgraph "应用编排层 Application Orchestration"
         SessionMgr[Session管理]
         Workflow[工作流引擎]
-        AgentMgr[Agent管理]
-        ToolMgr[工具管理]
+        AgentMgr[Agent引擎]
     end
-
+    
+    subgraph "领域模型层 Domain Model"
+        SessionDomain[Session领域]
+        AgentDomain[Agent领域]
+        WorkflowDomain[Workflow领域]
+        ToolDomain[工具领域]
+    end
+    
     subgraph "服务层 Service Layer"
         ModelService[模型服务]
         MCPService[MCP服务]
         SkillService[Skills服务]
         ContextService[上下文服务]
     end
-
+    
     subgraph "基础设施层 Infrastructure"
         Config[配置管理]
-        Storage[存储层]
-        Network[网络层]
+        Storage[存储抽象]
     end
-
-    subgraph "内核抽象层 Kernel Core"
-        Core[neco-core]
+    
+    subgraph "内核抽象层 Kernel Core (neco-core)"
         Types[核心类型定义]
         Traits[抽象接口定义]
+        Events[事件系统]
     end
-
+    
     CLI --> SessionMgr
     REPL --> SessionMgr
     Daemon --> SessionMgr
     
     SessionMgr --> AgentMgr
     SessionMgr --> Workflow
-    AgentMgr --> ToolMgr
     
-    AgentMgr --> ModelService
-    ToolMgr --> MCPService
-    ToolMgr --> SkillService
-    AgentMgr --> ContextService
+    AgentMgr --> SessionDomain
+    AgentMgr --> AgentDomain
+    Workflow --> WorkflowDomain
     
-    ModelService --> Config
-    ModelService --> Network
-    SessionMgr --> Storage
+    AgentDomain --> ModelService
+    AgentDomain --> ToolDomain
+    ToolDomain --> MCPService
+    ToolDomain --> SkillService
+    AgentDomain --> ContextService
     
-    SessionMgr --> Core
-    AgentMgr --> Core
-    ToolMgr --> Core
-    Workflow --> Core
-    Config --> Core
-    Storage --> Core
+    SessionDomain --> Storage
+    AgentDomain --> Storage
+    WorkflowDomain --> Storage
     
-    Core --> Types
-    Core --> Traits
+    Config --> SessionMgr
+    Config --> AgentMgr
+    Config --> ModelService
+    
+    Types --> Traits
+    Types --> Events
+```
+
+### 1.3 领域模型与基础设施分离
+
+```mermaid
+graph LR
+    subgraph "领域模型（不含外部依赖）"
+        DM1[Session<br/>无storage字段]
+        DM2[Agent<br/>无model_client]
+        DM3[Workflow<br/>无executor]
+    end
+    
+    subgraph "基础设施（外部依赖）"
+        INF1[StorageBackend]
+        INF2[ModelClient]
+        INF3[ToolRegistry]
+    end
+    
+    subgraph "依赖注入"
+        DI[运行时注入]
+    end
+    
+    DM1 -.-> DI
+    DM2 -.-> DI
+    DM3 -.-> DI
+    DI --> INF1
+    DI --> INF2
+    DI --> INF3
+```
+
+### 1.4 数据流全景图
+
+```mermaid
+sequenceDiagram
+    participant User as 用户
+    participant UI as UI层
+    participant Session as Session管理
+    participant Agent as Agent引擎
+    participant Context as 上下文服务
+    participant Model as 模型服务
+    participant Tool as 工具执行
+    participant Storage as 存储层
+
+    User->>UI: 输入消息
+    UI->>Session: 创建/获取Session
+    Session->>Agent: 路由消息
+    Agent->>Context: 构建上下文
+    Context->>Session: 获取消息历史
+    Context->>Context: 检查上下文大小
+    alt 超过阈值
+        Context->>Context: 触发压缩
+    end
+    Context-->>Agent: 返回格式化上下文
+    Agent->>Model: 发送请求
+    alt 需要工具
+        Model-->>Agent: 工具调用请求
+        Agent->>Tool: 执行工具
+        Tool-->>Agent: 返回结果
+        Agent->>Model: 发送工具结果
+        Model-->>Agent: 最终响应
+    else 直接响应
+        Model-->>Agent: 响应内容
+    end
+    Agent->>Session: 存储消息
+    Agent->>Storage: 持久化
+    Agent-->>UI: 返回响应
+    UI-->>User: 显示结果
 ```
 
 ### 1.3 数据流全景图
@@ -119,115 +190,105 @@ sequenceDiagram
 
 ## 2. Crate划分
 
-基于功能内聚和依赖关系，项目划分为以下crate：
+基于领域驱动设计原则，项目划分为以下crate：
 
 | Crate | 职责 | 关键依赖 |
 |-------|------|----------|
-| `neco-core` | 核心类型和trait定义 | - |
-| `neco-config` | 配置管理 | neco-core, toml |
-| `neco-model` | 模型调用服务 | neco-core, async-openai (0.33.0) |
-| `neco-session` | Session管理 | neco-core, ulid |
-| `neco-mcp` | MCP客户端 | neco-core, rmcp (1.1.0) |
+| `neco-core` | 核心类型、强类型ID、事件系统、领域接口 | - |
+| `neco-config` | 配置管理、类型安全配置结构 | neco-core |
+| `neco-model` | 模型调用服务、故障转移 | neco-core |
+| `neco-session` | Session领域模型、Agent领域模型、仓库接口 | neco-core |
+| `neco-storage` | 存储后端实现（文件系统） | neco-core, neco-session |
+| `neco-mcp` | MCP客户端 | neco-core |
 | `neco-skill` | Skills管理 | neco-core |
 | `neco-context` | 上下文管理（压缩+观测） | neco-core |
-| `neco-agent` | Agent逻辑 | neco-core, neco-model, neco-tool |
-| `neco-workflow` | 工作流引擎 | neco-core, neco-agent |
-| `neco-tool` | 工具实现 | neco-core, neco-fs, neco-mcp |
-| `neco-fs` | 文件系统工具 | neco-core |
-| `neco-ui` | 用户接口 | neco-core, ratatui |
-| `neco-daemon` | 守护进程 | neco-core, axum |
+| `neco-agent` | Agent引擎、Agent生命周期 | neco-core, neco-session, neco-model |
+| `neco-workflow` | 工作流引擎 | neco-core, neco-session |
+| `neco-tool` | 工具执行器、工具注册表 | neco-core |
+| `neco-ui` | 用户接口 | neco-core |
 | `neco` | 主入口 | 所有上述crate |
 
-### 2.1 Crate依赖关系
+### 2.1 Crate依赖关系（领域驱动）
 
 ```mermaid
 graph TD
     neco[neco]
     
-    subgraph "Binary"
-        neco
-    end
-    
     subgraph "Interface"
         ui[neco-ui]
-        daemon[neco-daemon]
     end
     
-    subgraph "Orchestration"
+    subgraph "Application Orchestration"
         agent[neco-agent]
         workflow[neco-workflow]
         session[neco-session]
     end
     
-    subgraph "Services"
+    subgraph "Domain Model"
+        session_domain[Session领域]
+        agent_domain[Agent领域]
+        workflow_domain[Workflow领域]
+    end
+    
+    subgraph "Service Layer"
         model[neco-model]
         mcp[neco-mcp]
         skill[neco-skill]
         context[neco-context]
         tool[neco-tool]
-        fs[neco-fs]
+    end
+    
+    subgraph "Infrastructure"
+        storage[neco-storage]
+        config[neco-config]
     end
     
     subgraph "Foundation"
-        config[neco-config]
         core[neco-core]
     end
     
     neco --> ui
-    neco --> daemon
-    neco --> agent
-    neco --> workflow
-    neco --> session
-    neco --> config
     
     ui --> session
     ui --> agent
-    daemon --> session
-    daemon --> agent
     
-    session --> agent
-    session --> config
-    
-    workflow --> agent
-    workflow --> session
+    session --> session_domain
+    workflow --> workflow_domain
+    agent --> agent_domain
     
     agent --> model
     agent --> tool
-    agent --> core
+    agent --> session
     
-    tool --> fs
     tool --> mcp
     tool --> skill
+    tool --> context
     
-    model --> config
-    mcp --> config
-    skill --> config
-    context --> core
+    session_domain --> storage
+    session_domain --> core
+    agent_domain --> core
+    workflow_domain --> core
     
     config --> core
     model --> core
     mcp --> core
     skill --> core
     context --> core
-    agent --> core
-    workflow --> core
-    session --> core
     tool --> core
-    fs --> core
     ui --> core
-    daemon --> core
 ```
 
-### 2.2 依赖反转接口
+### 2.2 核心模块职责
 
-> 详细定义见 [TECH-SESSION.md#2.2-依赖反转接口](TECH-SESSION.md#22-依赖反转接口sessioncontainer)
+| 模块 | 领域边界 | 核心类型 |
+|------|---------|----------|
+| neco-core | 通用类型系统 | SessionId, AgentId, MessageId, Event |
+| neco-session | 会话与Agent管理 | Session, Agent, Hierarchy |
+| neco-workflow | 工作流编排 | WorkflowDef, NodeRuntime |
+| neco-tool | 工具执行 | ToolExecutor, ToolRegistry |
+| neco-model | LLM调用 | ModelClient, ChatRequest |
 
-**依赖反转说明：**
-- `neco-context` 依赖 `neco-core::SessionContainer` trait
-- `neco-session` 实现 `SessionContainer` trait
-- 运行时通过依赖注入传递具体实现
-
-## 3. 核心数据结构设计
+## 3. 核心数据类型系统（强类型标识符）
 
 > 详细数据结构定义见各功能模块文档：
 > - [TECH-SESSION.md](TECH-SESSION.md) - Session、Agent、Message、存储结构
@@ -238,14 +299,49 @@ graph TD
 > - [TECH-PROMPT.md](TECH-PROMPT.md) - 提示词组件
 > - [TECH-SKILL.md](TECH-SKILL.md) - Skills技能
 
-### 3.1 标识符系统
+### 3.1 统一标识符系统
 
-> 详细设计见 [TECH-SESSION.md](TECH-SESSION.md#21-标识符体系)
+**设计原则**：使用 newtype 模式替代类型别名，提供编译期校验
 
-**说明：**
-- **SessionId**: 顶级容器标识，创建工作流或对话时生成
-- **AgentUlid**: 每个Agent实例的唯一标识，第一个Agent的ULID与SessionId相同
-- **MessageId**: Session范围内的唯一消息ID，使用原子自增分配器
+| 类型 | 结构 | 校验规则 |
+|------|------|----------|
+| `SessionId` | `struct SessionId(Ulid)` | 26位Ulid字符串 |
+| `AgentId` | `struct AgentId { session: Ulid, agent: Ulid }` | 包含session和agent两个Ulid |
+| `MessageId` | `struct MessageId(u64)` | 原子自增，Session范围唯一 |
+| `NodeId` | `struct NodeId(String)` | kebab-case格式验证 |
+| `ToolId` | `struct ToolId(String)` | `namespace::name` 格式 |
+| `SkillId` | `struct SkillId(String)` | 小写字母、数字、连字符 |
+
+### 3.2 统一消息系统
+
+**设计原则**：消除 Session 层 `Message`（有id）与 Model 层 `ModelMessage`（无id）的重复
+
+```rust
+// 领域消息（Session层使用，有id）
+pub struct Message {
+    pub id: MessageId,
+    pub role: Role,
+    pub content: String,
+    pub tool_calls: Option<Vec<ToolCall>>,
+    pub tool_call_id: Option<String>,
+    pub timestamp: DateTime<Utc>,
+    pub metadata: Option<MessageMetadata>,
+}
+
+// 模型消息（Model层使用，无id）
+pub struct ModelMessage<'a> {
+    pub role: Role,
+    pub content: Cow<'a, str>,
+    pub tool_calls: Option<&'a [ToolCall]>,
+    pub tool_call_id: Option<&'a str>,
+}
+
+// 转换方法
+impl<'a> ModelMessage<'a> {
+    pub fn from_message(msg: &'a Message) -> Self;
+    pub fn into_owned(self) -> Message;
+}
+```
 
 
 ## 4. 数据流向
@@ -414,61 +510,94 @@ sequenceDiagram
     end
 ```
 
-## 5. 模块间接口设计
+## 5. 模块间接口设计（领域驱动）
 
-> **说明**: 核心Trait定义分布在各功能模块中，以下是模块间接口的引用说明。
-
-### 5.1 核心Trait定义
+### 5.1 核心Trait定义（按领域划分）
 
 > 核心Trait定义分布在各功能模块中，详细定义请参考各模块文档。
 
-| Trait | 定义模块 | 说明 |
+#### 领域仓储接口（Domain Repository）
+
+| Trait | 定义模块 | 职责 |
 |-------|---------|------|
-| `ToolProvider` | TECH-TOOL.md | 工具提供者接口 |
-| `ToolRegistry` | TECH-TOOL.md | 工具注册表 |
-| `ModelProvider` | TECH-MODEL.md | 模型提供者接口 |
-| `StorageBackend` | TECH-SESSION.md | 存储后端接口 |
-| `TokenCounter` | TECH-CONTEXT.md | Token计数器接口 |
-| `Channel` | TECH-CONFIG.md | 消息通道接口 |
-| `SessionContainer` | TECH-SESSION.md | Session容器接口 |
-| `SkillProvider` | TECH-SKILL.md | Skills技能提供者接口 |
+| `SessionRepository` | neco-session | Session领域接口 |
+| `AgentRepository` | neco-session | Agent领域接口 |
+| `MessageRepository` | neco-session | 消息领域接口 |
+
+#### 服务接口（Service）
+
+| Trait | 定义模块 | 职责 |
+|-------|---------|------|
+| `ModelClient` | neco-model | 模型调用 |
+| `ToolExecutor` | neco-tool | 工具执行 |
+| `ToolRegistry` | neco-tool | 工具注册 |
+| `SkillProvider` | neco-skill | Skill提供 |
+
+#### 基础设施接口（Infrastructure）
+
+| Trait | 定义模块 | 职责 |
+|-------|---------|------|
+| `StorageBackend` | neco-storage | 存储后端 |
+| `TokenCounter` | neco-context | Token计数 |
 
 ### 5.2 事件系统
 
 > 完整的事件驱动架构设计见 [TECH-AGENT.md#5-事件驱动架构](TECH-AGENT.md#5-事件驱动架构)
 
-**事件类型说明：**
+**统一事件类型：**
+
+```rust
+pub enum Event {
+    Session(SessionEvent),
+    Agent(AgentEvent),
+    Workflow(WorkflowEvent),
+    Tool(ToolEvent),
+    System(SystemEvent),
+}
+```
 
 | 事件类型 | 描述 |
 |----------|------|
-| `AgentEvent` | Agent相关事件（创建、状态变更、消息、工具调用） |
-| `WorkflowEvent` | 工作流相关事件（启动、节点执行、转场） |
-| `TriggerPattern` | 触发器匹配模式 |
-| `TriggerHandler` | 触发处理器定义 |
+| `SessionEvent` | Session创建、更新、删除 |
+| `AgentEvent` | Agent创建、状态变更、消息、工具调用 |
+| `WorkflowEvent` | 工作流启动、节点执行、转场、完成 |
+| `ToolEvent` | 工具注册、执行、错误 |
+| `SystemEvent` | 系统错误、关闭 |
 
-详细设计见 [TECH-AGENT.md#5-事件驱动架构](TECH-AGENT.md#5-事件驱动架构)。
+**事件发布/订阅接口：**
+
+```rust
+pub trait EventPublisher: Send + Sync {
+    fn publish(&self, event: Event);
+    fn subscribe(&self, filter: EventFilter) -> Arc<dyn EventSubscriber>;
+}
+
+pub trait EventSubscriber: Send + Sync {
+    async fn on_event(&self, event: Event);
+}
+```
 
 ### 5.3 统一错误类型设计
 
-> **设计原则**: 所有模块错误类型统一在 `neco-core` 的 `AppError` 中定义，便于错误传播和转换。各模块详细错误类型定义见各模块文档。
+> **设计原则**: 所有模块错误类型统一在 `neco-core` 的 `AppError` 中定义，采用领域错误分类。
 
 ```rust
 /// 统一错误类型 - 应用层错误
 #[derive(Debug, Error)]
 pub enum AppError {
-    #[error("Session错误: {0}")]
+    #[error("Session领域错误: {0}")]
     Session(#[from] SessionError),
     
-    #[error("Agent错误: {0}")]
+    #[error("Agent领域错误: {0}")]
     Agent(#[from] AgentError),
     
-    #[error("工作流错误: {0}")]
+    #[error("工作流领域错误: {0}")]
     Workflow(#[from] WorkflowError),
     
-    #[error("模型错误: {0}")]
+    #[error("模型服务错误: {0}")]
     Model(#[from] ModelError),
     
-    #[error("工具错误: {0}")]
+    #[error("工具服务错误: {0}")]
     Tool(#[from] ToolError),
     
     #[error("配置错误: {0}")]
@@ -485,6 +614,19 @@ pub enum AppError {
     
     #[error("Skill错误: {0}")]
     Skill(#[from] SkillError),
+    
+    #[error("标识符错误: {0}")]
+    Id(#[from] IdError),
+}
+
+/// 标识符错误（新增）
+#[derive(Debug, Error)]
+pub enum IdError {
+    #[error("ID格式错误: {0}")]
+    InvalidFormat(String),
+    
+    #[error("ID类型不匹配: 期望 {expected}, 实际 {actual}")]
+    TypeMismatch { expected: &'static str, actual: &'static str },
 }
 ```
 
@@ -492,17 +634,18 @@ pub enum AppError {
 
 | 模块 | 错误类型 | 定义位置 |
 |------|---------|---------|
-| Session | `SessionError` | [TECH-SESSION.md](TECH-SESSION.md#8-错误处理) |
-| Storage | `StorageError` | [TECH-SESSION.md](TECH-SESSION.md#8-错误处理) |
-| Agent | `AgentError` | [TECH-AGENT.md](TECH-AGENT.md#9-错误处理) |
-| Workflow | `WorkflowError`, `NodeError` | [TECH-WORKFLOW.md](TECH-WORKFLOW.md#9-错误处理) |
-| Model | `ModelError` | [TECH-MODEL.md](TECH-MODEL.md#8-错误处理) |
-| Tool | `ToolError`, `EditError` | [TECH-TOOL.md](TECH-TOOL.md#错误处理) |
-| Config | `ConfigError` | [TECH-CONFIG.md](TECH-CONFIG.md#8-错误类型) |
-| Context | `CompactError`, `TokenError` | [TECH-CONTEXT.md](TECH-CONTEXT.md#9-错误处理) |
-| MCP | `McpError` | [TECH-MCP.md](TECH-MCP.md#7-错误处理) |
-| Skill | `SkillError` | [TECH-SKILL.md](TECH-SKILL.md#9-错误处理) |
-| UI | `UiError`, `ApiError` | [TECH-UI.md](TECH-UI.md#7-错误处理) |
+| 标识符 | `IdError` | neco-core |
+| Session | `SessionError` | neco-session |
+| Storage | `StorageError` | neco-storage |
+| Agent | `AgentError` | neco-agent |
+| Workflow | `WorkflowError` | neco-workflow |
+| Model | `ModelError` | neco-model |
+| Tool | `ToolError` | neco-tool |
+| Config | `ConfigError` | neco-config |
+| Context | `ContextError` | neco-context |
+| MCP | `McpError` | neco-mcp |
+| Skill | `SkillError` | neco-skill |
+| UI | `UiError` | neco-ui |
 
 ## 6. 存储设计
 
