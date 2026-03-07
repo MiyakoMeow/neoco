@@ -347,7 +347,7 @@ sequenceDiagram
 ```rust
 pub trait ConfigSource: Send + Sync {
     fn load(&self) -> Result<Config, ConfigError>;
-    fn watch(&self) -> Result<Box<dyn Stream>, ConfigError>;
+    fn watch(&self) -> Result<Box<dyn Stream<Item = Result<Config, ConfigError>> + Send>, ConfigError>;
 }
 ```
 
@@ -363,7 +363,7 @@ impl ConfigLoader {
         let dirs = vec![
             PathBuf::from(".neco"),
             PathBuf::from(".agents"),
-            dirs::config_dir().join("neco"),
+            dirs::config_dir().unwrap_or_default().join("neco"),
             dirs::home_dir().unwrap_or_default().join(".agents"),
         ];
         Self { config_dirs: dirs }
@@ -468,12 +468,16 @@ base_url = "https://api.minimaxi.com/v1"
 api_key = { source = "env_list", names = ["MINIMAX_API_KEY", "MINIMAX_API_KEY_2"] }
 
 [mcp_servers.context7]
+env = { MY_ENV_VAR = "MY_ENV_VALUE" }
+
+[mcp_servers.context7.transport]
 type = "stdio"
 command = "npx"
 args = ["-y", "@upstash/context7-mcp"]
-env = { MY_ENV_VAR = "MY_ENV_VALUE" }
 
 [mcp_servers.figma]
+
+[mcp_servers.figma.transport]
 type = "http"
 url = "https://mcp.figma.com/mcp"
 headers = { "X-Figma-Region" = "us-east-1" }
