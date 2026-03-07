@@ -269,9 +269,12 @@ impl ModelGroupClient {
         mut request: ChatRequest,
     ) -> Result<ChatResponse, ModelError> {
         // TODO: 实现故障转移逻辑
-        // 1. 遍历模型列表
-        // 2. 尝试调用
-        // 3. 失败则重试+切换
+        // 1. 遍历模型列表，按优先级顺序尝试
+        // 2. 对每个模型：设置模型参数并调用
+        // 3. 调用失败时检查错误类型
+        // 4. 可重试错误进行指数退避重试
+        // 5. 不可重试错误或重试耗尽时切换下一个模型
+        // 6. 所有模型都失败时返回聚合错误
         unimplemented!()
     }
 }
@@ -294,11 +297,11 @@ pub struct OpenAiClientConfig {
 
 impl OpenAiClient {
     pub fn new(config: OpenAiClientConfig) -> Result<Self, ConfigError> {
-        // [TODO] 实现要点说明
+        // TODO: 实现构造逻辑
         // 1. 使用config创建OpenAIConfig
-        // 2. 设置API Key和Base URL
-        // 3. 创建http客户端
-        // 4. 返回OpenAiClient实例
+        // 2. 从环境变量或config获取API Key
+        // 3. 配置Base URL和超时
+        // 4. 创建并返回OpenAiClient实例
         unimplemented!()
     }
 }
@@ -309,10 +312,11 @@ impl ModelClient for OpenAiClient {
         &self,
         request: ChatRequest,
     ) -> Result<ChatResponse, ModelError> {
-        // TODO: 实现OpenAI聊天完成
-        // 1. 转换消息格式
-        // 2. 调用API
-        // 3. 转换响应格式
+        // TODO: 实现聊天完成请求
+        // 1. 将ChatRequest转换为OpenAI API格式
+        // 2. 调用OpenAI聊天完成API
+        // 3. 处理API错误并转换为我们自己的ModelError
+        // 4. 将响应转换回ChatResponse格式
         unimplemented!()
     }
     
@@ -321,6 +325,10 @@ impl ModelClient for OpenAiClient {
         request: ChatRequest,
     ) -> Result<BoxStream<Result<ChatChunk, ModelError>>, ModelError> {
         // TODO: 实现流式API
+        // 1. 将ChatRequest转换为OpenAI API格式
+        // 2. 调用OpenAI流式API (sse::Event)
+        // 3. 将SSE事件转换为ChatChunk
+        // 4. 处理连接错误和重连逻辑
         unimplemented!()
     }
     
@@ -349,6 +357,11 @@ impl StreamHandler {
         stream: BoxStream<Result<ChatChunk, ModelError>>,
     ) -> Result<String, ModelError> {
         // TODO: 收集完整响应
+        // 1. 遍历流中的所有chunk
+        // 2. 累加每个chunk的content字段
+        // 3. 处理stream结束信号
+        // 4. 检查finish_reason确定是否正常结束
+        // 5. 返回拼接后的完整文本
         unimplemented!()
     }
     
@@ -360,6 +373,10 @@ impl StreamHandler {
         F: FnMut(&str),
     {
         // TODO: 实时处理流
+        // 1. 对每个chunk调用callback进行实时处理
+        // 2. 同时收集增量内容用于构建最终响应
+        // 3. 检测并合并工具调用增量(delta)
+        // 4. 处理流结束，组装完整ChatResponse
         unimplemented!()
     }
 }
@@ -373,6 +390,10 @@ pub struct ToolCallHandler;
 impl ToolCallHandler {
     pub fn parse_tool_calls(response: &ChatResponse) -> Vec<ToolCall> {
         // TODO: 从响应中解析工具调用
+        // 1. 检查choices中第一个choice的消息
+        // 2. 从message.tool_calls字段提取工具调用列表
+        // 3. 解析每个工具调用的id、type、function
+        // 4. 处理流式响应中的增量工具调用
         unimplemented!()
     }
     
@@ -381,6 +402,10 @@ impl ToolCallHandler {
         result: &str,
     ) -> Message {
         // TODO: 构建工具响应消息
+        // 1. 创建role为tool的消息
+        // 2. 设置tool_call_id关联到原始调用
+        // 3. 设置content为工具执行结果
+        // 4. 返回构建好的Message
         unimplemented!()
     }
 }

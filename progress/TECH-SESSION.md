@@ -285,51 +285,60 @@ pub struct AgentHierarchy {
 
 impl AgentHierarchy {
     pub fn new(root: AgentId) -> Self {
-        // [TODO] 实现要点说明
-        // 1. 初始化根节点
-        // 2. 创建空的parent_map和children_map
-        // 3. 将根节点加入children_map
+        // TODO: 实现层级关系初始化
+        // 1. 接收根节点ID作为参数
+        // 2. 创建空的parent_map (HashMap<AgentId, AgentId>)
+        // 3. 创建空的children_map (HashMap<AgentId, Vec<AgentId>>)
+        // 4. 将根节点加入children_map，value为空Vec
         unimplemented!()
     }
     
     pub fn add_child(&mut self, parent: AgentId, child: AgentId) {
-        // [TODO] 实现要点说明
-        // 1. 在parent_map中记录child的parent
-        // 2. 在children_map中为parent添加child
-        // 3. 为child创建空的children列表
+        // TODO: 实现添加子节点
+        // 1. 在parent_map中插入 child -> parent 的映射
+        // 2. 在children_map中为parent添加child到Vec
+        // 3. 如果parent尚无children记录，创建新的Vec
         unimplemented!()
     }
     
     pub fn has_agent(&self, id: &AgentId) -> bool {
-        // [TODO] 实现要点说明
-        // 1. 检查id是否为根节点
-        // 2. 检查parent_map中是否包含该id
+        // TODO: 实现存在性检查
+        // 1. 检查id是否等于根节点
+        // 2. 检查parent_map中是否包含该id作为key
+        // 3. 满足任一条件返回true
         unimplemented!()
     }
     
     pub fn get_parent(&self, id: &AgentId) -> Option<&AgentId> {
-        // [TODO] 实现要点说明
-        // 从parent_map中查找id对应的parent
+        // TODO: 实现获取父节点
+        // 1. 排除根节点情况（根节点无父节点）
+        // 2. 从parent_map中查找id对应的parent
+        // 3. 返回Some(parent_id)或None
         unimplemented!()
     }
     
     pub fn get_children(&self, id: &AgentId) -> Option<&Vec<AgentId>> {
-        // [TODO] 实现要点说明
-        // 从children_map中查找id对应的children列表
+        // TODO: 实现获取子节点列表
+        // 1. 从children_map中查找id对应的Vec
+        // 2. 返回Some(children)或None
         unimplemented!()
     }
     
     pub fn get_ancestors(&self, id: &AgentId) -> Vec<AgentId> {
-        // [TODO] 实现要点说明
-        // 1. 从id开始向上遍历parent链
-        // 2. 收集所有祖先节点
+        // TODO: 实现获取所有祖先节点
+        // 1. 创建空的结果Vec
+        // 2. 从id开始循环向上查找parent
+        // 3. 每次获取parent后继续向上查找直到根节点
+        // 4. 返回收集到的所有祖先（从近到远）
         unimplemented!()
     }
     
     pub fn get_descendants(&self, id: &AgentId) -> Vec<AgentId> {
-        // [TODO] 实现要点说明
-        // 1. 使用BFS遍历id的所有子节点
-        // 2. 收集所有后代节点
+        // TODO: 实现获取所有后代节点
+        // 1. 使用BFS算法创建队列
+        // 2. 将id的所有直接子节点入队
+        // 3. 循环：从队列取出节点，加入结果，将该节点的子节点入队
+        // 4. 队列为空时返回结果
         unimplemented!()
     }
 }
@@ -795,10 +804,14 @@ impl ContextBuilder {
     }
     
     pub fn build(&self) -> Result<ChatRequest, ContextError> {
-        // [TODO] 实现要点说明
-        // 1. 合并系统消息和对话历史
-        // 2. 应用token限制
-        // 3. 返回ChatRequest
+        // TODO: 实现上下文构建逻辑
+        // 1. 组装系统消息：将system_messages join后包装为ChatMessage::System
+        // 2. 添加对话历史：将conversation转换为ChatMessage并加入messages
+        // 3. 如果设置了max_tokens：
+        //    a. 使用token_counter估算每条消息的token数
+        //    b. 从最新消息开始逆向遍历，保留在token限制内的消息
+        //    c. 超过限制时停止，截断旧消息
+        // 4. 创建ChatRequest并返回
         unimplemented!()
     }
 }

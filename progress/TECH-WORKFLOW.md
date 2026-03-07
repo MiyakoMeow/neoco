@@ -144,40 +144,45 @@ impl WorkflowRuntime {
         session_id: SessionId,
         definition: WorkflowDefinition,
     ) -> Self {
-        // [TODO] 实现工作流运行时初始化
-        // 1. 初始化所有HashMap和HashSet
-        // 2. 设置初始状态为Ready
-        // 3. 设置created_at和updated_at为当前时间
+        // TODO: 实现工作流运行时初始化
+        // 1. 接收session_id和definition作为参数
+        // 2. 初始化空的active_nodes HashSet<NodeId>
+        // 3. 初始化空的node_states HashMap<NodeId, NodeRuntimeState>
+        // 4. 初始化空的counters HashMap<String, u32>
+        // 5. 设置status为WorkflowRuntimeState::Ready
+        // 6. 设置created_at和updated_at为当前UTC时间
         unimplemented!()
     }
     
     pub fn start_node(&mut self, node_id: NodeId, agent_id: AgentId) {
-        // [TODO] 实现节点启动逻辑
-        // 1. 创建NodeRuntimeState::Running状态
-        // 2. 将节点加入active_nodes
-        // 3. 更新updated_at时间戳
+        // TODO: 实现节点启动逻辑
+        // 1. 检查节点是否已在active_nodes中
+        // 2. 创建NodeRuntimeState::Running { agent_id }
+        // 3. 将状态插入node_states
+        // 4. 将node_id加入active_nodes
+        // 5. 更新updated_at为当前时间
         unimplemented!()
     }
     
     pub fn complete_node(&mut self, node_id: &NodeId, output: String) {
-        // [TODO] 实现节点完成逻辑
-        // 1. 更新节点状态为NodeRuntimeState::Success
-        // 2. 从active_nodes中移除该节点
-        // 3. 更新updated_at时间戳
+        // TODO: 实现节点完成逻辑
+        // 1. 更新node_states中该节点的状态为Success { output }
+        // 2. 从active_nodes HashSet中移除该node_id
+        // 3. 更新updated_at为当前时间
         unimplemented!()
     }
     
     pub fn increment_counter(&mut self, option: &str) {
-        // [TODO] 实现计数器递增逻辑
-        // 1. 使用entry API获取或创建计数器
-        // 2. 将计数值加1
+        // TODO: 实现计数器递增逻辑
+        // 1. 使用counters.entry(option).or_insert(0)获取或创建计数器
+        // 2. 对获取的可变引用执行加1操作
         unimplemented!()
     }
     
     pub fn get_counter(&self, option: &str) -> u32 {
-        // [TODO] 实现获取计数器值逻辑
-        // 1. 从counters HashMap中获取对应option的值
-        // 2. 如果不存在则返回0
+        // TODO: 实现获取计数器值逻辑
+        // 1. 调用counters.get(option)查找计数器
+        // 2. 如果Some(v)返回*v，否则返回0
         unimplemented!()
     }
 }
@@ -297,11 +302,12 @@ impl WorkflowEngine {
         definition: WorkflowDefinition,
         initial_input: String,
     ) -> Result<WorkflowRuntime, WorkflowError> {
-        // [TODO] 实现工作流启动逻辑
-        // 1. 创建workflow runtime
-        // 2. 查找起始节点
-        // 3. 启动起始节点
-        // 4. 发布WorkflowStarted事件
+        // TODO: 实现工作流启动逻辑
+        // 1. 调用WorkflowRuntime::new创建运行时实例
+        // 2. 调用find_start_nodes查找所有起始节点
+        // 3. 对每个起始节点创建Agent并调用start_node
+        // 4. 发布WorkflowStarted事件到event_publisher
+        // 5. 返回创建的runtime
         unimplemented!()
     }
     
@@ -311,11 +317,12 @@ impl WorkflowEngine {
         node_id: NodeId,
         output: String,
     ) -> Result<(), WorkflowError> {
-        // [TODO] 实现节点完成处理
-        // 1. 更新节点状态
-        // 2. 评估边条件
-        // 3. 触发下一节点
-        // 4. 检查工作流完成
+        // TODO: 实现节点完成处理
+        // 1. 调用runtime.complete_node更新节点状态
+        // 2. 调用evaluate_edges查找满足条件的出边
+        // 3. 对每个目标节点调用agent_engine启动Agent
+        // 4. 发布NodeCompleted事件
+        // 5. 检查是否所有节点都已完成，若是则发布WorkflowCompleted
         unimplemented!()
     }
     
@@ -323,10 +330,10 @@ impl WorkflowEngine {
         &self,
         definition: &WorkflowDefinition,
     ) -> Vec<NodeId> {
-        // [TODO] 实现查找起始节点逻辑
-        // 1. 收集所有有入边的节点
-        // 2. 过滤出没有入边的节点作为起始节点
-        // 3. 返回NodeId列表
+        // TODO: 实现查找起始节点逻辑
+        // 1. 创建HashSet收集所有有入边的节点ID
+        // 2. 遍历所有edges，将target加入HashSet
+        // 3. 遍历所有nodes，返回不在HashSet中的节点（无入边的节点）
         unimplemented!()
     }
     
@@ -335,8 +342,13 @@ impl WorkflowEngine {
         runtime: &WorkflowRuntime,
         current_node: &NodeId,
     ) -> Vec<NodeId> {
-        // [TODO] 实现边条件评估逻辑
-        // 1. 查找从当前节点出发的所有边
+        // TODO: 实现边条件评估逻辑
+        // 1. 查找定义中从current_node出发的所有边
+        // 2. 对每条边调用evaluate_requirement评估条件
+        // 3. 收集所有条件满足的边的target节点
+        // 4. 返回目标节点ID列表
+        unimplemented!()
+    }
         // 2. 对每条边检查require条件是否满足
         // 3. 跳过指向END的边
         // 4. 返回满足条件的后续节点列表
@@ -420,12 +432,12 @@ impl WorkflowEngine {
         counters: &HashMap<String, u32>,
         params: &WorkflowParams,
     ) -> bool {
-        // [TODO] 实现需求条件评估逻辑
-        // 1. 检查param_ref是否引用参数（如@params.min_approvers）
-        // 2. 如果是参数引用，从params中获取值
-        // 3. 否则从counters中获取计数
-        // 4. 将获取的值与min_count比较
-        // 5. 返回是否满足条件
+        // TODO: 实现需求条件评估逻辑
+        // 1. 检查req.param_ref是否以"@params."开头
+        // 2. 如果是参数引用：从params中提取对应的参数值作为threshold
+        // 3. 如果不是：使用req.min_count作为threshold
+        // 4. 从counters中获取req.option对应的计数器值
+        // 5. 比较计数器值是否 >= threshold，返回比较结果
         unimplemented!()
     }
 }
@@ -472,10 +484,12 @@ impl ToolExecutor for WorkflowTransitionTool {
         context: &ToolContext,
         args: Value,
     ) -> Result<ToolResult, ToolError> {
-        // [TODO] 实现转场工具逻辑
-        // 1. 解析option和message
-        // 2. 更新计数器
-        // 3. 触发转场
+        // TODO: 实现转场工具逻辑
+        // 1. 从args中解析option（必选）和message（可选）
+        // 2. 获取runtime的write lock
+        // 3. 调用runtime.increment_counter(option)增加计数
+        // 4. 发布NodeTransition事件
+        // 5. 返回转场成功的ToolResult
         unimplemented!()
     }
 }

@@ -169,15 +169,25 @@ pub struct DefaultToolRegistry {
 
 impl DefaultToolRegistry {
     pub fn new() -> Self {
-        // TODO: 1. 初始化tools和timeouts HashMap
-        // TODO: 2. 注册内置工具 fs, multi-agent, context
-        // TODO: 3. 注册外部工具 mcp, skill
+        // TODO: 实现注册表初始化
+        // 1. 创建新的RwLock包装的HashMap用于tools
+        // 2. 创建新的RwLock包装的HashMap用于timeouts
+        // 3. 注册内置工具：fs::read, fs::write, fs::edit, fs::delete
+        // 4. 注册多智能体工具：multi-agent::spawn, send, report
+        // 5. 注册上下文工具：context::observe
+        // 6. 注册MCP和Skill外部工具
     }
 }
 
 #[async_trait]
 impl ToolRegistry for DefaultToolRegistry {
-    // TODO: 实现register/get/definitions/timeout/set_timeout/list_tools
+    // TODO: 实现以下方法
+    // - register: 接收ToolExecutor并注册到tools Map
+    // - get: 根据ToolId查找并返回ToolExecutor
+    // - definitions: 返回所有已注册工具的定义列表
+    // - timeout: 返回工具的超时时间（支持最长前缀匹配）
+    // - set_timeout: 设置特定工具的超时时间
+    // - list_tools: 返回所有已注册工具的ID列表
 }
 ```
 
@@ -234,11 +244,11 @@ pub mod fs {
             args: Value,
         ) -> Result<ToolResult, ToolError> {
             // TODO: 实现文件读取逻辑
-            // 1. 解析path参数
-            // 2. 验证路径安全性（不允许../）
-            // 3. 读取文件内容
-            // 4. 应用offset/limit
-            // 5. 返回结果
+            // 1. 从args中解析path为String
+            // 2. 基于context.working_dir验证路径安全性（禁止../逃离工作目录）
+            // 3. 调用std::fs::read_to_string读取文件内容
+            // 4. 按行分割后应用offset和limit进行截取
+            // 5. 返回包含文件内容的ToolResult
             unimplemented!()
         }
     }
@@ -276,10 +286,11 @@ impl ToolExecutor for FileWriteTool {
         args: Value,
     ) -> Result<ToolResult, ToolError> {
         // TODO: 实现文件写入逻辑
-        // 1. 解析参数
-        // 2. 确保父目录存在
-        // 3. 原子写入（临时文件+rename）
-        // 4. 返回结果
+        // 1. 从args解析path和content
+        // 2. 基于context.working_dir构建完整路径
+        // 3. 检查父目录是否存在，不存在则创建
+        // 4. 使用原子写入模式：写入临时文件后rename
+        // 5. 返回写入成功的结果
         unimplemented!()
     }
 }
@@ -324,11 +335,12 @@ impl ToolExecutor for FileEditTool {
         args: Value,
     ) -> Result<ToolResult, ToolError> {
         // TODO: 实现文件编辑逻辑
-        // 1. 解析参数
-        // 2. 读取文件内容
-        // 3. 验证指定行内容
-        // 4. 执行编辑
-        // 5. 原子写入
+        // 1. 解析参数：path, verify.line, verify.content, new_content
+        // 2. 读取文件全部内容，按行分割
+        // 3. 定位到verify.line指定的行，调用verify_line_content进行验证
+        // 4. 验证通过后，将new_content替换该行内容
+        // 5. 使用原子写入方式保存修改后的文件
+        // 6. 返回编辑成功的结果
         unimplemented!()
     }
 }
@@ -347,12 +359,12 @@ pub fn verify_line_content(
     actual: &str,
     expected: &str,
 ) -> VerifyResult {
-    // [TODO] 实现verify验证逻辑
-    // 1. 去除行尾换行符
-    // 2. 完全匹配 -> ExactMatch
-    // 3. 前缀匹配（内容≥20字符）-> PrefixMatch
-    // 4. 内容不足20字符且非完全匹配 -> TooShort
-    // 5. 不匹配 -> Mismatch
+    // TODO: 实现verify验证逻辑
+    // 1. 去除actual和expected的行尾换行符
+    // 2. 如果actual和expected完全相等，返回ExactMatch
+    // 3. 如果actual以expected开头且expected长度≥20，返回PrefixMatch
+    // 4. 如果actual长度不足20且非完全匹配，返回TooShort
+    // 5. 其他情况返回Mismatch
     unimplemented!()
 }
 ```
