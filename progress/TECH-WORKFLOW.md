@@ -106,18 +106,30 @@ pub struct Requirement {
 /// 节点ID（强类型）
 /// 
 /// 节点ID采用kebab-case格式，确保跨工作流的一致性命名。
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+/// 反序列化时会进行校验，无效ID会被拒绝。
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize)]
 pub struct NodeId(pub String);
 
 impl NodeId {
-    pub fn new(s: impl Into<String>) -> Self {
+    pub fn new(s: impl Into<String>) -> Result<Self, String> {
         let s = s.into();
         // 验证kebab-case格式
         if !s.is_empty() && s.chars().all(|c| c.is_ascii_lowercase() || c == '-' || c.is_ascii_digit()) {
-            Self(s)
+            Ok(Self(s))
         } else {
-            panic!("NodeId must be kebab-case: {}", s)
+            Err(format!("NodeId must be kebab-case: {}", s))
         }
+    }
+}
+
+// 自定义反序列化实现，确保反序列化时也进行校验
+impl<'de> Deserialize<'de> for NodeId {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        Self::new(s).map_err(|e| serde::de::Error::custom(e))
     }
 }
 ```
@@ -304,10 +316,11 @@ impl WorkflowEngine {
     ) -> Result<WorkflowRuntime, WorkflowError> {
         // TODO: 实现工作流启动逻辑
         // 1. 调用WorkflowRuntime::new创建运行时实例
-        // 2. 调用find_start_nodes查找所有起始节点
-        // 3. 对每个起始节点创建Agent并调用start_node
-        // 4. 发布WorkflowStarted事件到event_publisher
-        // 5. 返回创建的runtime
+        // 2. 将initial_input存入runtime.variables，键名为"initial_input"
+        // 3. 调用find_start_nodes查找所有起始节点
+        // 4. 对每个起始节点创建Agent，并将initial_input作为第一条消息发送
+        // 5. 发布WorkflowStarted事件到event_publisher
+        // 6. 返回创建的runtime
         unimplemented!()
     }
     

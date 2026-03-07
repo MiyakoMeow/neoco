@@ -167,7 +167,7 @@ impl Session {
         Self {
             id: id.clone(),
             session_type,
-            root_agent_id,
+            root_agent_id: root_agent_id.clone(),
             hierarchy: AgentHierarchy::new(root_agent_id),
             id_allocator: MessageIdAllocator::new(1),
             metadata,
@@ -773,15 +773,15 @@ sequenceDiagram
 
 ```rust
 /// 上下文构建器
-pub struct ContextBuilder {
+pub struct ContextBuilder<'a> {
     system_messages: Vec<String>,
-    conversation: Vec<ModelMessage<'static>>,
+    conversation: Vec<ModelMessage<'a>>,
     active_tools: Vec<ToolDefinition>,
     max_tokens: Option<usize>,
     token_counter: Option<Box<dyn TokenCounter>>,
 }
 
-impl ContextBuilder {
+impl<'a> ContextBuilder<'a> {
     pub fn new() -> Self {
         Self {
             system_messages: Vec::new(),
@@ -794,7 +794,7 @@ impl ContextBuilder {
     
     pub fn with_agent_messages(
         &mut self,
-        agent: &Agent,
+        agent: &'a Agent,
     ) -> &mut Self {
         // 转换Message为ModelMessage
         for msg in &agent.messages {
