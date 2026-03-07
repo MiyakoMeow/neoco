@@ -132,6 +132,7 @@ impl CliInterface {
         // 
         // 错误处理：
         // - message参数为空 → 返回错误（不进入TUI）
+        // - agent子命令与--message同时提供 → 返回错误（互斥）
         // - 配置文件未找到 → 返回错误并提示查找路径
         // - Session ID无效 → 返回错误并提示
         unimplemented!()
