@@ -105,9 +105,16 @@ pub struct ToolContext {
 /// 工具执行结果
 #[derive(Debug, Clone)]
 pub struct ToolResult {
-    pub output: String,
-    pub data: Option<Value>,
+    pub output: ToolOutput,
     pub is_error: bool,
+}
+
+#[derive(Debug, Clone)]
+pub enum ToolOutput {
+    Text(String),
+    Json(Value),
+    Binary(Vec<u8>),
+    Empty,
 }
 
 /// 工具执行器Trait
@@ -429,6 +436,7 @@ impl ToolExecutor for FileEditTool {
 
 /// Verify验证结果
 #[derive(Debug, Clone, PartialEq)]
+#[must_use = "VerifyResult must be handled"]
 pub enum VerifyResult {
     ExactMatch,
     PrefixMatch,
@@ -588,7 +596,7 @@ pub enum ToolError {
     InvalidArgs(String),
     
     #[error("执行失败: {0}")]
-    Execution(String),
+    Execution(#[source] std::io::Error),
     
     #[error("超时")]
     Timeout,
@@ -607,6 +615,12 @@ pub enum ToolError {
     
     #[error("序列化错误: {0}")]
     Serialization(#[from] serde_json::Error),
+}
+
+impl ToolError {
+    pub fn is_retryable(&self) -> bool {
+        matches!(self, Self::Timeout | Self::Execution(e) if e.kind() == std::io::ErrorKind::NotFound)
+    }
 }
 ```
 

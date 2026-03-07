@@ -80,7 +80,7 @@ pub struct WorkflowParams(pub HashMap<String, Value>);
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NodeDefinition {
     pub id: NodeId,
-    pub agent: Option<String>,
+    pub agent: Option<AgentId>,
     #[serde(default)]
     pub new_session: bool,
 }
@@ -141,14 +141,34 @@ impl<'de> Deserialize<'de> for NodeId {
 #[derive(Debug, Clone)]
 pub struct WorkflowRuntime {
     pub session_id: SessionId,
-    pub definition: Arc<WorkflowDefinition>,
-    pub node_states: HashMap<NodeId, NodeRuntimeState>,
-    pub counters: HashMap<String, u32>,
-    pub variables: HashMap<String, Value>,
-    pub active_nodes: HashSet<NodeId>,
-    pub status: WorkflowStatus,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
+    definition: Arc<WorkflowDefinition>,
+    node_states: DashMap<NodeId, NodeRuntimeState>,
+    counters: DashMap<CounterKey, u32>,
+    variables: DashMap<VariableKey, Value>,
+    active_nodes: DashSet<NodeId>,
+    status: WorkflowStatus,
+    created_at: DateTime<Utc>,
+    updated_at: DateTime<Utc>,
+}
+
+/// 计数器键（强类型）
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct CounterKey(String);
+
+impl CounterKey {
+    pub fn new(s: impl Into<String>) -> Self {
+        Self(s.into())
+    }
+}
+
+/// 变量键（强类型）
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct VariableKey(String);
+
+impl VariableKey {
+    pub fn new(s: impl Into<String>) -> Self {
+        Self(s.into())
+    }
 }
 
 impl WorkflowRuntime {
@@ -177,27 +197,26 @@ impl WorkflowRuntime {
     }
     
     pub fn complete_node(&mut self, node_id: &NodeId, output: String) {
+        // TODO: 实现节点完成逻辑
         // 1. 更新node_states中该节点的状态为Success { output }
-        self.node_states.insert(node_id.clone(), NodeRuntimeState::Success { output });
-        
         // 2. 从active_nodes HashSet中移除该node_id
-        self.active_nodes.remove(node_id);
-        
         // 3. 更新updated_at为当前时间
-        self.updated_at = Utc::now();
+        todo!()
     }
     
     pub fn increment_counter(&mut self, option: &str) {
         // TODO: 实现计数器递增逻辑
-        // 1. 使用counters.entry(option).or_insert(0)获取或创建计数器
-        // 2. 对获取的可变引用执行加1操作
+        // 1. 使用CounterKey包装option
+        // 2. 使用counters.entry(key).or_insert(0)获取或创建计数器
+        // 3. 对获取的可变引用执行加1操作
         unimplemented!()
     }
     
     pub fn get_counter(&self, option: &str) -> u32 {
         // TODO: 实现获取计数器值逻辑
-        // 1. 调用counters.get(option)查找计数器
-        // 2. 如果Some(v)返回*v，否则返回0
+        // 1. 使用CounterKey包装option
+        // 2. 调用counters.get(key)查找计数器
+        // 3. 如果Some(v)返回*v，否则返回0
         unimplemented!()
     }
 }
@@ -227,6 +246,7 @@ pub enum WorkflowStatus {
 
 ```rust
 use async_trait::async_trait;
+use dashmap::{DashMap, DashSet};
 
 /// 工作流仓储接口
 #[async_trait]
@@ -293,7 +313,7 @@ pub enum WorkflowEvent {
 }
 
 pub trait EventPublisher: Send + Sync {
-    async fn publish(&self, event: WorkflowEvent) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
+    async fn publish(&self, event: WorkflowEvent) -> Result<(), WorkflowError>;
 }
 ```
 
@@ -347,21 +367,11 @@ impl WorkflowEngine {
         &self,
         definition: &WorkflowDefinition,
     ) -> Vec<NodeId> {
+        // TODO: 查找起始节点
         // 1. 创建HashSet收集所有有入边的节点ID
-        let mut has_incoming: HashSet<NodeId> = HashSet::new();
-        
         // 2. 遍历所有edges，将target（to）加入HashSet
-        for edge in &definition.edges {
-            has_incoming.insert(edge.to.clone());
-        }
-        
         // 3. 遍历所有nodes，返回不在HashSet中的节点（无入边的节点）
-        definition
-            .nodes
-            .iter()
-            .filter(|node| !has_incoming.contains(&node.id))
-            .map(|node| node.id.clone())
-            .collect()
+        todo!()
     }
     
     pub fn evaluate_edges(
@@ -369,37 +379,12 @@ impl WorkflowEngine {
         runtime: &WorkflowRuntime,
         current_node: &NodeId,
     ) -> Vec<NodeId> {
+        // TODO: 评估边的条件以确定下一个节点
         // 1. 查找定义中从current_node出发的所有边
-        let edges_from_current: Vec<&EdgeDefinition> = runtime
-            .definition
-            .edges
-            .iter()
-            .filter(|edge| &edge.from == current_node)
-            .collect();
-        
-        let mut target_nodes = Vec::new();
-        
         // 2. 对每条边调用evaluate_requirement评估条件
-        for edge in edges_from_current {
-            // 如果边没有条件限制（require为None或空），直接通过
-            let condition_met = match &edge.require {
-                Some(requirements) if !requirements.is_empty() => {
-                    // 检查所有requirement是否都满足
-                    requirements.iter().all(|req| {
-                        Self::evaluate_requirement(req, &runtime.counters, &runtime.definition.params)
-                    })
-                }
-                _ => true, // 无条件限制
-            };
-            
-            // 3. 收集所有条件满足的边的target节点
-            if condition_met {
-                target_nodes.push(edge.to.clone());
-            }
-        }
-        
+        // 3. 收集所有条件满足的边的target节点
         // 4. 返回目标节点ID列表
-        target_nodes
+        todo!()
     }
 }
 ```
@@ -551,17 +536,10 @@ pub fn register_workflow_tools(
     runtime: Arc<RwLock<WorkflowRuntime>>,
     node_id: NodeId,
 ) {
-    // 注册 workflow 工具
-    registry.register(Arc::new(WorkflowTransitionTool {
-        runtime: runtime.clone(),
-        node_id: node_id.clone(),
-    }));
-    
-    // 注册 pass 工具
-    registry.register(Arc::new(PassTool {
-        runtime,
-        node_id,
-    }));
+    // TODO: 注册工作流相关工具
+    // 1. 注册 workflow 工具（WorkflowTransitionTool）
+    // 2. 注册 pass 工具（PassTool）
+    todo!()
 }
 ```
 
@@ -715,6 +693,15 @@ pub enum WorkflowError {
     
     #[error("存储错误: {0}")]
     Storage(#[from] StorageError),
+    
+    #[error("事件发布失败: {0}")]
+    EventPublishFailed(String),
+}
+
+impl WorkflowError {
+    pub fn is_retryable(&self) -> bool {
+        matches!(self, Self::Storage(e) if e.is_retryable())
+    }
 }
 ```
 

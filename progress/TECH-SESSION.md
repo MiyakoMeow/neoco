@@ -150,14 +150,14 @@ pub struct SessionMetadata {
 
 /// Session领域模型（不含storage字段）
 pub struct Session {
-    pub id: SessionId,
-    pub session_type: SessionType,
-    pub root_agent_id: AgentId,
-    pub hierarchy: AgentHierarchy,
-    pub id_allocator: MessageIdAllocator,
-    pub metadata: SessionMetadata,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
+    id: SessionId,
+    session_type: SessionType,
+    root_agent_id: AgentId,
+    hierarchy: AgentHierarchy,
+    id_allocator: MessageIdAllocator,
+    metadata: SessionMetadata,
+    created_at: DateTime<Utc>,
+    updated_at: DateTime<Utc>,
 }
 
 impl Session {
@@ -179,6 +179,17 @@ impl Session {
             updated_at: Utc::now(),
         }
     }
+    
+    pub fn id(&self) -> &SessionId { &self.id }
+    pub fn session_type(&self) -> &SessionType { &self.session_type }
+    pub fn root_agent_id(&self) -> &AgentId { &self.root_agent_id }
+    pub fn hierarchy(&self) -> &AgentHierarchy { &self.hierarchy }
+    pub fn id_allocator(&self) -> &MessageIdAllocator { &self.id_allocator }
+    pub fn metadata(&self) -> &SessionMetadata { &self.metadata }
+    pub fn created_at(&self) -> DateTime<Utc> { self.created_at }
+    pub fn updated_at(&self) -> DateTime<Utc> { self.updated_at }
+    
+    pub fn hierarchy_mut(&mut self) -> &mut AgentHierarchy { &mut self.hierarchy }
     
     pub fn spawn_agent(
         &mut self,
@@ -309,22 +320,28 @@ impl AgentHierarchy {
         // TODO: 实现存在性检查
         // 1. 检查id是否等于根节点
         // 2. 检查parent_map中是否包含该id作为key
-        // 3. 满足任一条件返回true
+        // 3. 满足任一条件返回true（注意Weak需要upgrade检查）
         unimplemented!()
     }
     
-    pub fn get_parent(&self, id: &AgentId) -> Option<&AgentId> {
+    pub fn get_parent(&self, id: &AgentId) -> Option<AgentId> {
         // TODO: 实现获取父节点
-        // 1. 排除根节点情况（根节点无父节点）
-        // 2. 从parent_map中查找id对应的parent
-        // 3. 返回Some(parent_id)或None
+        // 1. 从parent_map中查找id对应的父AgentId
+        // 2. 返回Some(AgentId)或None
         unimplemented!()
     }
     
-    pub fn get_children(&self, id: &AgentId) -> Option<&Vec<AgentId>> {
+    pub fn get_children(&self, id: &AgentId) -> Vec<AgentId> {
         // TODO: 实现获取子节点列表
-        // 1. 从children_map中查找id对应的Vec
-        // 2. 返回Some(children)或None
+        // 1. 从children_map中查找id对应的Vec<AgentId>
+        // 2. 返回子AgentId列表
+        unimplemented!()
+    }
+    
+    pub fn get_children(&self, id: &AgentId) -> Vec<AgentId> {
+        // TODO: 实现获取子节点列表
+        // 1. 从children_map中查找id对应的Vec<AgentId>
+        // 2. 返回子AgentId列表
         unimplemented!()
     }
     
@@ -345,6 +362,29 @@ impl AgentHierarchy {
         // 4. 队列为空时返回结果
         unimplemented!()
     }
+    
+    pub fn serialize(&self) -> HierarchyMeta {
+        // TODO: 序列化层级关系
+        // 1. 收集所有AgentId
+        // 2. 构建parent_map和children_map
+        // 3. 返回HierarchyMeta
+        todo!()
+    }
+    
+    pub fn deserialize(meta: HierarchyMeta) -> Self {
+        // TODO: 反序列化层级关系
+        // 1. 从meta重建parent_map和children_map
+        // 2. 返回AgentHierarchy实例
+        todo!()
+    }
+}
+
+/// 层级关系序列化表示
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HierarchyMeta {
+    pub root: AgentId,
+    pub parent_map: HashMap<AgentId, AgentId>,
+    pub children_map: HashMap<AgentId, Vec<AgentId>>,
 }
 
 /// Agent状态
@@ -783,15 +823,15 @@ sequenceDiagram
 
 ```rust
 /// 上下文构建器
-pub struct ContextBuilder<'a> {
+pub struct ContextBuilder<'a, T: TokenCounter> {
     system_messages: Vec<String>,
     conversation: Vec<ModelMessage<'a>>,
     active_tools: Vec<ToolDefinition>,
     max_tokens: Option<usize>,
-    token_counter: Option<Box<dyn TokenCounter>>,
+    token_counter: Option<&'a T>,
 }
 
-impl<'a> ContextBuilder<'a> {
+impl<'a, T: TokenCounter> ContextBuilder<'a, T> {
     pub fn new() -> Self {
         Self {
             system_messages: Vec::new(),
@@ -800,6 +840,11 @@ impl<'a> ContextBuilder<'a> {
             max_tokens: None,
             token_counter: None,
         }
+    }
+    
+    pub fn with_token_counter(&mut self, counter: &'a T) -> &mut Self {
+        self.token_counter = Some(counter);
+        self
     }
     
     pub fn with_agent_messages(
@@ -841,28 +886,55 @@ pub enum SessionError {
     AgentNotFound(AgentId),
     
     #[error("存储错误: {0}")]
-    Storage(#[from] StorageError),
+    Storage(#[source] StorageError),
     
     #[error("序列化错误: {0}")]
-    Serialization(String),
+    Serialization(#[source] serde_json::Error),
     
     #[error("消息ID分配失败")]
     MessageIdOverflow,
 }
 
+impl SessionError {
+    pub fn is_retryable(&self) -> bool {
+        matches!(self, Self::Storage(e) if e.is_retryable())
+    }
+}
+
 #[derive(Debug, Error)]
 pub enum StorageError {
     #[error("IO错误: {0}")]
-    Io(#[from] std::io::Error),
+    Io(#[source] std::io::Error),
     
     #[error("文件不存在: {0}")]
     NotFound(PathBuf),
     
     #[error("序列化错误: {0}")]
-    Serialization(String),
+    Serialization(#[source] serde_json::Error),
     
     #[error("文件损坏: {0}")]
     Corruption(String),
+}
+
+impl StorageError {
+    pub fn is_retryable(&self) -> bool {
+        matches!(self, Self::Io(e) if e.kind() == std::io::ErrorKind::NotFound)
+    }
+}
+
+#[derive(Debug, Error)]
+pub enum AgentDefinitionError {
+    #[error("文件未找到: {0}")]
+    FileNotFound(PathBuf),
+    
+    #[error("解析错误: {0}")]
+    ParseError(#[source] serde_yaml::Error),
+    
+    #[error("验证失败: {0}")]
+    ValidationError(String),
+    
+    #[error("缺少必需字段: {0}")]
+    MissingField(String),
 }
 ```
 

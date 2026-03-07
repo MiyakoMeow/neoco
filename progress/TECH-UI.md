@@ -159,28 +159,22 @@ pub struct TuiInterface {
     terminal: Terminal<CrosstermBackend<std::io::Stdout>>,
     session_manager: Arc<SessionManager>,
     input_buffer: String,
-    output_history: Vec<AgentOutput>,
+    output_history: VecDeque<AgentOutput>,
+    max_history_size: usize,
     mode: TuiMode,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum TuiMode {
-    Normal,
-    Command,
-    MultiLine,
-}
-
 impl TuiInterface {
-    pub fn new(session_manager: Arc<SessionManager>) -> Result<Self, UiError> {
+    pub fn new(session_manager: Arc<SessionManager>, max_history_size: usize) -> Result<Self, UiError> {
         // [TODO] 初始化终端
         // 1. 使用crossterm创建终端实例
         // 2. 设置终端原始模式和非阻塞输入
-        // 3. 初始化输入缓冲区和输出历史
+        // 3. 初始化输入缓冲区和输出历史（使用VecDeque限制大小）
         // 4. 设置初始TuiMode为Normal
         // 5. 配置终端尺寸监听（用于响应式布局）
         unimplemented!()
     }
-    
+
     pub async fn run(&mut self) -> Result<(), UiError> {
         // [TODO] TUI主循环
         // 1. 进入事件循环，持续读取用户输入直到Exit命令
@@ -193,7 +187,13 @@ impl TuiInterface {
         unimplemented!()
     }
 }
-```
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum TuiMode {
+    Normal,
+    Command,
+    MultiLine,
+}
 
 ### 4.2 TUI界面布局
 
@@ -285,9 +285,9 @@ pub struct DaemonConfig {
 }
 
 pub struct TlsConfig {
-    pub cert_path: String,
-    pub key_path: String,
-    pub client_ca_path: Option<String>, // 客户端证书验证（mTLS）
+    pub cert_path: PathBuf,
+    pub key_path: PathBuf,
+    pub client_ca_path: Option<PathBuf>,
 }
 
 pub struct AuthConfig {
@@ -433,24 +433,32 @@ DELETE /api/v1/sessions/{session_id}
 ## 6. 错误处理
 
 ```rust
+use crate::session::SessionError;
+use crate::config::ConfigError;
+
 #[derive(Debug, Error)]
 pub enum UiError {
     #[error("IO错误: {0}")]
-    Io(#[from] std::io::Error),
+    Io(#[source] std::io::Error),
     
     #[error("终端错误: {0}")]
-    Terminal(String),
+    Terminal(#[source] std::io::Error),
     
-    #[error("Session错误: {0}")]
-    Session(#[from] SessionError),
+    #[error("配置错误: {0}")]
+    Config(#[source] ConfigError),
+    
+    #[error("会话错误: {0}")]
+    Session(#[source] SessionError),
     
     #[error("API错误: {0}")]
-    Api(#[from] ApiError),
+    Api(#[source] ApiError),
+
+    #[error("请求错误: {0}")]
+    BadRequest(String),
 }
 
 #[derive(Debug, Error)]
 pub enum ApiError {
-    // 4xx 客户端错误
     #[error("Session未找到")]
     SessionNotFound,
     
@@ -469,7 +477,6 @@ pub enum ApiError {
     #[error("请求超时")]
     RequestTimeout,
     
-    // 5xx 服务器错误
     #[error("内部错误: {0}")]
     Internal(String),
     
@@ -492,6 +499,20 @@ impl ApiError {
             ApiError::Internal(_) => 500,
             ApiError::ServiceUnavailable(_) => 503,
             ApiError::BadGateway(_) => 502,
+        }
+    }
+    
+    pub fn error_code(&self) -> &'static str {
+        match self {
+            ApiError::SessionNotFound => "SESSION_NOT_FOUND",
+            ApiError::Unauthorized(_) => "UNAUTHORIZED",
+            ApiError::BadRequest(_) => "BAD_REQUEST",
+            ApiError::Conflict(_) => "CONFLICT",
+            ApiError::NotFound(_) => "NOT_FOUND",
+            ApiError::RequestTimeout => "REQUEST_TIMEOUT",
+            ApiError::Internal(_) => "INTERNAL_ERROR",
+            ApiError::ServiceUnavailable(_) => "SERVICE_UNAVAILABLE",
+            ApiError::BadGateway(_) => "BAD_GATEWAY",
         }
     }
 }

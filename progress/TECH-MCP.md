@@ -46,7 +46,7 @@ graph TB
 
 ```rust
 pub struct McpManager {
-    connections: Arc<RwLock<HashMap<String, McpConnection>>>,
+    connections: DashMap<String, Arc<RwLock<McpConnection>>>,
     config: HashMap<String, McpServerConfig>,
 }
 
@@ -191,6 +191,21 @@ pub enum McpError {
     
     #[error("服务器错误: {0}")]
     ServerError(String),
+    
+    #[error("超时")]
+    Timeout,
+    
+    #[error("协议错误: {0}")]
+    ProtocolError(String),
+    
+    #[error("认证失败")]
+    AuthenticationFailed,
+}
+
+impl McpError {
+    pub fn is_retryable(&self) -> bool {
+        matches!(self, Self::Timeout | Self::ConnectionFailed(_))
+    }
 }
 ```
 

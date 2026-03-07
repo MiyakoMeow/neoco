@@ -62,10 +62,71 @@ pub struct ChatRequest<'a> {
     pub temperature: Option<f64>,
     pub max_tokens: Option<u32>,
     pub tools: Option<Vec<ToolDefinition>>,
-    pub tool_choice: Option<String>,
-    pub response_format: Option<String>,
+    pub tool_choice: Option<ToolChoice>,
+    pub response_format: Option<ResponseFormat>,
     pub stop: Option<Vec<String>>,
-    pub extra_params: HashMap<String, Value>,
+    pub extra_params: ExtraParams,
+}
+
+/// 工具选择（强类型）
+#[derive(Debug, Clone)]
+pub enum ToolChoice {
+    Auto,
+    None,
+    Function { name: String },
+}
+
+impl ToolChoice {
+    pub fn to_value(&self) -> Value {
+        match self {
+            Self::Auto => Value::String("auto".to_string()),
+            Self::None => Value::String("none".to_string()),
+            Self::Function { name } => json!({ "type": "function", "function": { "name": name } }),
+        }
+    }
+}
+
+/// 响应格式（强类型）
+#[derive(Debug, Clone)]
+pub enum ResponseFormat {
+    Text,
+    JsonObject,
+    JsonSchema { schema: Value },
+}
+
+impl ResponseFormat {
+    pub fn to_value(&self) -> Value {
+        match self {
+            Self::Text => Value::String("text".to_string()),
+            Self::JsonObject => Value::String("json_object".to_string()),
+            Self::JsonSchema { schema } => json!({ "json_schema": schema }),
+        }
+    }
+}
+
+/// 额外参数（强类型map）
+#[derive(Debug, Clone)]
+pub struct ExtraParams(HashMap<String, Value>);
+
+impl ExtraParams {
+    pub fn new() -> Self {
+        Self(HashMap::new())
+    }
+    
+    pub fn insert(&mut self, key: impl Into<String>, value: Value) {
+        self.0.insert(key.into(), value);
+    }
+    
+    pub fn get(&self, key: &str) -> Option<&Value> {
+        self.0.get(key)
+    }
+}
+
+impl std::ops::Deref for ExtraParams {
+    type Target = HashMap<String, Value>;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }
 
 /// 聊天完成响应
@@ -186,6 +247,9 @@ pub struct ModelRef {
 
 ```rust
 /// 重试配置
+/// 
+/// 注意：此类型应与 TECH-CONFIG.md 中的 RetryConfig 保持一致
+/// 实际实现应从 config 模块导入，避免重复定义
 #[derive(Debug, Clone)]
 pub struct RetryConfig {
     pub max_retries: u32,
@@ -198,8 +262,8 @@ impl Default for RetryConfig {
     fn default() -> Self {
         Self {
             max_retries: 3,
-            initial_delay_ms: 1000,
-            max_delay_ms: 30000,
+            initial_delay_ms: 100,
+            max_delay_ms: 5000,
             backoff_multiplier: 2.0,
         }
     }
@@ -260,7 +324,7 @@ flowchart TD
 pub struct ModelGroupClient {
     name: String,
     models: Vec<ModelRef>,
-    clients: HashMap<String, Arc<dyn ModelClient>>,
+    clients: DashMap<String, Arc<dyn ModelClient>>,
     retry_config: RetryConfig,
 }
 
@@ -335,54 +399,9 @@ impl ModelClient for OpenAiClient {
     }
     
     fn capabilities(&self) -> ModelCapabilities {
-        // 根据模型名称返回不同的能力
-        match self.config.model.as_str() {
-            // GPT-4 Vision 系列
-            "gpt-4-vision-preview" | "gpt-4o" | "gpt-4o-mini" => ModelCapabilities {
-                streaming: true,
-                tools: true,
-                functions: true,
-                json_mode: true,
-                vision: true,
-                context_window: 128_000,
-            },
-            // GPT-4 Turbo
-            "gpt-4-turbo" | "gpt-4-turbo-preview" => ModelCapabilities {
-                streaming: true,
-                tools: true,
-                functions: true,
-                json_mode: true,
-                vision: false,
-                context_window: 128_000,
-            },
-            // GPT-4 标准版
-            "gpt-4" | "gpt-4-32k" => ModelCapabilities {
-                streaming: true,
-                tools: true,
-                functions: true,
-                json_mode: true,
-                vision: false,
-                context_window: 8192,
-            },
-            // GPT-3.5 系列
-            "gpt-3.5-turbo" | "gpt-3.5-turbo-16k" => ModelCapabilities {
-                streaming: true,
-                tools: true,
-                functions: true,
-                json_mode: true,
-                vision: false,
-                context_window: 16_385,
-            },
-            // 默认能力（用于未知模型）
-            _ => ModelCapabilities {
-                streaming: true,
-                tools: false,
-                functions: false,
-                json_mode: false,
-                vision: false,
-                context_window: 4096,
-            },
-        }
+        // TODO: 使用能力注册表模式替代硬编码 (见 7.2 节)
+        // 建议：从 MODEL_CAPABILITIES 静态注册表或配置文件获取能力
+        self.get_capabilities_for_model(&self.config.model)
     }
 }
 ```
@@ -394,7 +413,7 @@ impl ModelClient for OpenAiClient {
 ```rust
 use std::collections::HashMap;
 use std::sync::Arc;
-use once_cell::sync::Lazy;
+use std::sync::LazyLock;
 
 /// 模型能力标识符
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
@@ -405,7 +424,7 @@ pub struct ModelCapabilityKey {
 
 /// 全局模型能力注册表
 /// 使用(provider, model)组合键，支持不同提供商的同名模型
-static MODEL_CAPABILITIES: Lazy<HashMap<ModelCapabilityKey, ModelCapabilities>> = Lazy::new(|| {
+static MODEL_CAPABILITIES: LazyLock<HashMap<ModelCapabilityKey, ModelCapabilities>> = LazyLock::new(|| {
     let mut m = HashMap::new();
     
     // OpenAI - GPT-4 Vision 系列
@@ -614,6 +633,12 @@ pub enum ModelError {
 
     #[error("超时")]
     Timeout,
+}
+
+impl ModelError {
+    pub fn is_retryable(&self) -> bool {
+        matches!(self, Self::RateLimit(_) | Self::Timeout | Self::ServerError { .. })
+    }
 }
 ```
 

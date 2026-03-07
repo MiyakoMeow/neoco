@@ -142,15 +142,40 @@ pub enum AgentState {
 
 /// Agent领域模型
 pub struct Agent {
-    pub id: AgentId,
-    pub parent_id: Option<AgentId>,
-    pub definition_id: String,
-    pub state: AgentState,
-    pub model_group: Option<String>,
-    pub system_prompt: Option<String>,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
-    // ... 其他字段
+    id: AgentId,
+    parent_id: Option<AgentId>,
+    definition_id: String,
+    state: AgentState,
+    model_group: Option<String>,
+    system_prompt: Option<String>,
+    created_at: DateTime<Utc>,
+    updated_at: DateTime<Utc>,
+}
+
+impl Agent {
+    pub fn id(&self) -> &AgentId { &self.id }
+    pub fn parent_id(&self) -> Option<&AgentId> { self.parent_id.as_ref() }
+    pub fn definition_id(&self) -> &str { &self.definition_id }
+    pub fn state(&self) -> &AgentState { &self.state }
+    pub fn model_group(&self) -> Option<&str> { self.model_group.as_deref() }
+    pub fn system_prompt(&self) -> Option<&str> { self.system_prompt.as_deref() }
+    pub fn created_at(&self) -> DateTime<Utc> { self.created_at }
+    pub fn updated_at(&self) -> DateTime<Utc> { self.updated_at }
+    
+    pub fn set_state(&mut self, new_state: AgentState, timestamp: DateTime<Utc>) {
+        self.state = new_state;
+        self.updated_at = timestamp;
+    }
+    
+    pub fn set_model_group(&mut self, model_group: Option<String>, timestamp: DateTime<Utc>) {
+        self.model_group = model_group;
+        self.updated_at = timestamp;
+    }
+    
+    pub fn set_system_prompt(&mut self, prompt: Option<String>, timestamp: DateTime<Utc>) {
+        self.system_prompt = prompt;
+        self.updated_at = timestamp;
+    }
 }
 ```
 
@@ -182,6 +207,10 @@ pub struct AgentEngine {
 }
 
 impl AgentEngine {
+    pub fn builder() -> AgentEngineBuilder {
+        AgentEngineBuilder::new()
+    }
+    
     pub async fn run_agent(
         &self,
         agent_id: AgentId,
@@ -195,6 +224,62 @@ impl AgentEngine {
         // 5. 返回结果
         unimplemented!()
     }
+}
+
+pub struct AgentEngineBuilder {
+    session_manager: Option<Arc<SessionManager>>,
+    model_client: Option<Arc<dyn ModelClient>>,
+    tool_registry: Option<Arc<dyn ToolRegistry>>,
+    config: Option<Config>,
+    event_publisher: Option<Arc<dyn EventPublisher>>,
+}
+
+impl AgentEngineBuilder {
+    pub fn new() -> Self {
+        Self {
+            session_manager: None,
+            model_client: None,
+            tool_registry: None,
+            config: None,
+            event_publisher: None,
+        }
+    }
+    
+    pub fn session_manager(mut self, manager: Arc<SessionManager>) -> Self {
+        self.session_manager = Some(manager);
+        self
+    }
+    
+    pub fn model_client(mut self, client: Arc<dyn ModelClient>) -> Self {
+        self.model_client = Some(client);
+        self
+    }
+    
+    pub fn tool_registry(mut self, registry: Arc<dyn ToolRegistry>) -> Self {
+        self.tool_registry = Some(registry);
+        self
+    }
+    
+    pub fn config(mut self, config: Config) -> Self {
+        self.config = Some(config);
+        self
+    }
+    
+    pub fn event_publisher(mut self, publisher: Arc<dyn EventPublisher>) -> Self {
+        self.event_publisher = Some(publisher);
+        self
+    }
+    
+    pub fn build(self) -> Result<AgentEngine, AgentError> {
+        Ok(AgentEngine {
+            session_manager: self.session_manager.ok_or(AgentError::Config("session_manager is required".into()))?,
+            model_client: self.model_client.ok_or(AgentError::Config("model_client is required".into()))?,
+            tool_registry: self.tool_registry.ok_or(AgentError::Config("tool_registry is required".into()))?,
+            config: self.config.ok_or(AgentError::Config("config is required".into()))?,
+            event_publisher: self.event_publisher.ok_or(AgentError::Config("event_publisher is required".into()))?,
+        })
+    }
+}
 ```
 
 **run_agent 执行流程：**
@@ -689,11 +774,28 @@ pub enum AgentError {
     #[error("工具错误: {0}")]
     Tool(#[from] ToolError),
     
+    #[error("配置错误: {0}")]
+    Config(String),
+    
     #[error("超时")]
     Timeout,
     
     #[error("通道已关闭")]
     ChannelClosed,
+}
+
+impl AgentError {
+    pub fn is_recoverable(&self) -> bool {
+        match self {
+            Self::Timeout | Self::ChannelClosed => true,
+            Self::Model(e) => e.is_retryable(),
+            Self::Tool(e) => e.is_retryable(),
+            Self::NotFound(_) | Self::ParentNotFound | Self::DefinitionNotFound(_)
+            | Self::PromptNotFound(_) | Self::CannotSpawnChildren
+            | Self::MaxChildrenReached | Self::PermissionDenied
+            | Self::NoParentAgent | Self::Config(_) => false,
+        }
+    }
 }
 ```
 

@@ -89,6 +89,36 @@ tags:
 
 ## 4. Skill服务
 
+### 4.1 SkillId 强类型
+
+```rust
+/// Skill ID 强类型
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct SkillId(String);
+
+impl SkillId {
+    pub fn new(s: impl Into<String>) -> Result<Self, SkillError> {
+        let s = s.into();
+        if !s.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-') {
+            return Err(SkillError::ValidationError(
+                "SkillId must contain only lowercase letters, digits, and hyphens".to_string()
+            ));
+        }
+        Ok(Self(s))
+    }
+    
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl std::fmt::Display for SkillId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+```
+
 ### 4.1 SkillService Trait
 
 ```rust
@@ -155,7 +185,6 @@ pub enum ScriptLanguage {
 
 ```rust
 pub struct SkillService {
-    skills: Arc<RwLock<HashMap<SkillId, Skill>>>,
     index: Arc<RwLock<SkillIndex>>,
 }
 
@@ -177,6 +206,12 @@ pub struct SkillInfo {
     pub name: String,
     pub description: String,
     pub tags: Vec<String>,
+}
+
+impl SkillIndex {
+    pub fn get(&self, id: &SkillId) -> Option<&SkillInfo> {
+        self.skills.iter().find(|s| &s.id == id)
+    }
 }
 ```
 
@@ -256,6 +291,15 @@ impl SkillService {
 pub enum SkillError {
     #[error("Skill未找到: {0}")]
     NotFound(SkillId),
+    
+    #[error("解析失败: {0}")]
+    ParseError(#[source] serde_yaml::Error),
+    
+    #[error("IO错误: {0}")]
+    IoError(#[source] std::io::Error),
+    
+    #[error("验证失败: {0}")]
+    ValidationError(String),
     
     #[error("加载失败: {0}")]
     LoadFailed(String),

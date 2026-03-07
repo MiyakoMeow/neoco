@@ -267,7 +267,7 @@ graph TD
 | 类型 | 结构 | 校验规则 |
 |------|------|----------|
 | `SessionId` | `struct SessionId(Ulid)` | 26位Ulid字符串 |
-| `AgentId` | `struct AgentId { session: Ulid, agent: Ulid }` | 包含session和agent两个Ulid。session字段标识所属Session，agent字段标识Agent在Session中的唯一性。格式：`{session_ulid}/{agent_ulid}`，使用"/"作为分隔符。生成规则：session字段继承自SessionId，agent字段在Agent创建时生成新的Ulid。唯一性保证：session+agent组合在全局范围内唯一，agent字段在Session范围内唯一 |
+| `AgentId` | `struct AgentId(Ulid)` | 全局唯一Ulid。Session关联通过SessionManager的索引实现，而非嵌套结构。AgentHierarchy中的parent_map/children_map建立层级关系，查询Agent所属Session需通过SessionManager |
 | `MessageId` | `struct MessageId(u64)` | 原子自增，Session范围唯一 |
 | `NodeId` | `struct NodeId(String)` | kebab-case格式验证 |
 | `ToolId` | `struct ToolId(String)` | `namespace::name` 格式 |
@@ -285,29 +285,37 @@ graph TD
 // 领域消息（Session层使用，有id）
 // TODO: 详细字段定义见 TECH-SESSION.md
 pub struct Message {
-    // pub id: MessageId,
-    // pub role: Role,
-    // pub content: String,
-    // pub tool_calls: Option<Vec<ToolCall>>,
-    // pub tool_call_id: Option<String>,
-    // pub timestamp: DateTime<Utc>,
-    // pub metadata: Option<MessageMetadata>,
-    // ... 更多字段
+    pub id: MessageId,
+    pub role: Role,
+    pub content: String,
+    pub tool_calls: Option<Vec<ToolCall>>,
+    pub tool_call_id: Option<String>,
+    pub timestamp: DateTime<Utc>,
+    pub metadata: Option<MessageMetadata>,
+}
+
+// 角色枚举
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Role {
+    System,
+    User,
+    Assistant,
+    Tool,
 }
 
 // 模型消息（Model层使用，无id）
 // TODO: 详细字段定义见 TECH-SESSION.md
 pub struct ModelMessage<'a> {
-    // pub role: Role,
-    // pub content: Cow<'a, str>,
-    // pub tool_calls: Option<&'a [ToolCall]>,
-    // pub tool_call_id: Option<&'a str>,
+    pub role: Role,
+    pub content: Cow<'a, str>,
+    pub tool_calls: Option<&'a [ToolCall]>,
+    pub tool_call_id: Option<&'a str>,
 }
 
 // 转换方法
 impl<'a> ModelMessage<'a> {
     pub fn from_message(msg: &'a Message) -> Self;
-    pub fn into_owned(self) -> Message;
+    pub fn into_owned(self, id: MessageId) -> Message;
 }
 ```
 
@@ -515,13 +523,61 @@ sequenceDiagram
 **统一事件类型：**
 
 ```rust
-// TODO: 详细事件类型定义见 TECH-AGENT.md
+// 统一事件类型
 pub enum Event {
-    // Session(SessionEvent),
-    // Agent(AgentEvent),
-    // Workflow(WorkflowEvent),
-    // Tool(ToolEvent),
-    // System(SystemEvent),
+    Session(SessionEvent),
+    Agent(AgentEvent),
+    Workflow(WorkflowEvent),
+    Tool(ToolEvent),
+    System(SystemEvent),
+}
+
+/// Session领域事件
+#[derive(Debug, Clone)]
+pub enum SessionEvent {
+    Created { id: SessionId, session_type: SessionType },
+    Updated { id: SessionId },
+    Deleted { id: SessionId },
+}
+
+/// Agent领域事件
+#[derive(Debug, Clone)]
+pub enum AgentEvent {
+    Created { id: AgentId, parent_id: Option<AgentId> },
+    StateChanged { id: AgentId, old: AgentState, new: AgentState },
+    MessageAdded { id: AgentId, message_id: MessageId },
+    ToolCalled { id: AgentId, tool_id: ToolId },
+    ToolResult { id: AgentId, tool_id: ToolId, success: bool },
+    Completed { id: AgentId, output: String },
+    Error { id: AgentId, error: String },
+}
+
+/// Workflow领域事件
+#[derive(Debug, Clone)]
+pub enum WorkflowEvent {
+    Started { session_id: SessionId, definition_id: String },
+    NodeStarted { session_id: SessionId, node_id: NodeId },
+    NodeCompleted { session_id: SessionId, node_id: NodeId, result: String },
+    Transition { session_id: SessionId, from: NodeId, to: NodeId },
+    Completed { session_id: SessionId },
+    Failed { session_id: SessionId, error: String },
+}
+
+/// Tool领域事件
+#[derive(Debug, Clone)]
+pub enum ToolEvent {
+    Registered { tool_id: ToolId },
+    Executing { tool_id: ToolId, agent_id: AgentId },
+    Executed { tool_id: ToolId, agent_id: AgentId, success: bool },
+    Error { tool_id: ToolId, error: String },
+}
+
+/// 系统事件
+#[derive(Debug, Clone)]
+pub enum SystemEvent {
+    Startup,
+    Shutdown,
+    Error { source: String, message: String },
 }
 ```
 
@@ -602,6 +658,31 @@ pub enum AppError {
     /// ID相关错误
     #[error("ID错误: {0}")]
     Id(#[from] IdError),
+}
+
+impl AppError {
+    /// 检查错误是否可重试
+    pub fn is_retryable(&self) -> bool {
+        match self {
+            Self::Session(e) => e.is_retryable(),
+            Self::Agent(e) => e.is_recoverable(),
+            Self::Workflow(e) => e.is_retryable(),
+            Self::Model(e) => e.is_retryable(),
+            Self::Tool(e) => e.is_retryable(),
+            Self::Config(_) | Self::Storage(_) | Self::Mcp(e) => e.is_retryable(),
+            Self::Context(_) | Self::Skill(_) | Self::Id(_) => false,
+        }
+    }
+    
+    /// 检查错误是否面向用户
+    /// - 用户相关错误：Session、Agent、Workflow、Config、Id
+    /// - 系统内部错误：Model、Tool、Storage、MCP、Context、Skill
+    pub fn is_user_facing(&self) -> bool {
+        matches!(
+            self,
+            Self::Session(_) | Self::Agent(_) | Self::Workflow(_) | Self::Config(_) | Self::Id(_)
+        )
+    }
 }
 
 /// 标识符错误
@@ -971,19 +1052,7 @@ graph LR
     D --> E[运行时使用]
 ```
 
-### 10.5 Feature Flag 配置
-
-| Feature | 描述 | 默认 |
-|---------|------|------|
-| `model-openai` | OpenAI 提供商支持 | 启用 |
-| `model-anthropic` | Anthropic 提供商支持 | 禁用 |
-| `mcp-stdio` | MCP stdio 传输 | 启用 |
-| `mcp-http` | MCP HTTP 传输 | 启用 |
-| `workflow` | 工作流引擎 | 启用 |
-| `cli` | CLI 界面（含 -m 参数） | 启用 |
-| `agent` | 守护进程模式（agent 子命令） | 启用 |
-
-### 10.6 内核抽象层
+### 10.5 内核抽象层
 
 > 参考 OpenFang 的 Kernel Handle Trait 设计
 
@@ -1011,13 +1080,21 @@ graph TB
 
 **NecoKernel Trait 定义：**
 
-| 方法 | 描述 |
-|------|------|
-| `agent_engine(&self) -> &dyn AgentEngine` | 获取Agent引擎 |
-| `workflow_engine(&self) -> &dyn WorkflowEngine` | 获取工作流引擎 |
-| `tool_registry(&self) -> &dyn ToolRegistry` | 获取工具注册表 |
-| `context_manager(&self) -> &dyn ContextManager` | 获取上下文管理器 |
-| `security_policy(&self) -> &dyn SecurityPolicy` | 获取安全策略 |
+> **设计说明**：`shutdown()` 使用 `async fn` 而非 `fn shutdown() -> impl Future`。这是因为 NecoKernel 主要用于库内部直接调用，而非作为 `dyn NecoKernel` trait object 使用。多个运行时连接到同一个 handle 的场景在当前架构中不存在，此设计简化了异步处理。如需 trait object 支持，可改用 `async_trait` 或 `Box<dyn Future>`。
+
+```rust
+pub trait NecoKernel: Send + Sync {
+    fn agent_engine(&self) -> Arc<dyn AgentEngine>;
+    fn workflow_engine(&self) -> Arc<dyn WorkflowEngine>;
+    fn tool_registry(&self) -> Arc<dyn ToolRegistry>;
+    fn context_manager(&self) -> Arc<dyn ContextManager>;
+    fn config(&self) -> Arc<Config>;
+    
+    fn session_manager(&self) -> Arc<SessionManager>;
+    
+    async fn shutdown(&self);
+}
+```
 
 ## 11. 提示词组件与Skills
 
