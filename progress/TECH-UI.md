@@ -74,15 +74,16 @@ pub struct CliArgs {
     #[arg(short = 's', long, global = true)]
     session: Option<SessionId>,
     
-    /// 指定配置文件路径（覆盖默认查找路径）
+    /// 指定配置文件路径（覆盖默认合并行为）
     /// 
-    /// 默认按以下优先级查找配置文件：
+    /// 默认按以下优先级查找并合并所有配置文件：
     /// 1. .neco/neco.toml（当前项目，最高优先级）
     /// 2. .agents/neco.toml（当前项目）
     /// 3. ~/.config/neco/neco.toml（用户主配置）
     /// 4. ~/.agents/neco.toml（通用配置，最低优先级）
     /// 
-    /// 提供此参数将跳过默认查找，直接使用指定文件。
+    /// 合并规则：高优先级配置覆盖低优先级的相同键，嵌套对象采用深度合并。
+    /// 提供此参数将跳过默认合并，直接使用指定文件。
     #[arg(short = 'c', long, global = true)]
     config: Option<PathBuf>,
     
@@ -100,9 +101,9 @@ enum Commands {
     /// 守护进程将启动HTTP服务器，通过REST API提供会话管理和消息交互功能。
     /// 默认监听地址由配置文件指定。
     Agent {
-        /// 指定配置文件路径（覆盖默认查找路径）
-        #[arg(short = 'c', long)]
-        config: Option<PathBuf>,
+    /// 指定配置文件路径（覆盖默认合并行为）
+    #[arg(short = 'c', long)]
+    config: Option<PathBuf>,
     },
 }
 
@@ -112,7 +113,9 @@ impl CliInterface {
         // 1. 解析CliArgs参数
         // 2. 加载配置文件：
         //    - 如果提供--config参数，使用指定文件
-        //    - 否则按优先级查找：.neco/ → .agents/ → ~/.config/neco/ → ~/.agents/
+        //    - 否则按优先级查找并合并所有配置文件：
+        //      1. .neco/neco.toml → 2. .agents/neco.toml → 3. ~/.config/neco/neco.toml → 4. ~/.agents/neco.toml
+        //      高优先级覆盖低优先级配置，嵌套对象深度合并
         // 3. 根据参数决定运行模式：
         //    - command=Some(Commands::Agent) → 启动守护进程模式
         //    - message=Some(msg) → CLI直接模式（执行后立即退出）
@@ -539,24 +542,32 @@ $ curl -X POST http://127.0.0.1:8080/api/v1/sessions/{session_id}/messages \
   -d '{"content": "你好，请分析这段代码"}'
 ```
 
-### 7.4 配置文件查找示例
+### 7.4 配置文件合并示例
 
 ```bash
-# 不指定--config时，自动查找配置文件
+# 不指定--config时，自动按优先级合并所有配置文件
 $ neco
-[INFO] Loading config from: .neco/neco.toml  # 优先级1
+[INFO] Merging config files:
+[INFO]   - .neco/neco.toml (priority 1)
+[INFO]   - .agents/neco.toml (priority 2)
+[INFO]   - ~/.config/neco/neco.toml (priority 3)
+[INFO]   - ~/.agents/neco.toml (priority 4)
+[INFO] Config merged successfully (4 files)
 
-# 如果.neco/不存在，尝试下一个
-$ neco
-[INFO] Loading config from: .agents/neco.toml  # 优先级2
-
-# 如果当前目录没有配置，使用用户配置
-$ neco
-[INFO] Loading config from: ~/.config/neco/neco.toml  # 优先级3
-
-# 使用--config覆盖默认查找
+# 使用--config覆盖默认合并行为
 $ neco --config /custom/path/config.toml
 [INFO] Loading config from: /custom/path/config.toml
+[INFO] Config loaded successfully (single file)
+
+# 合并行为示例：
+# .neco/neco.toml:         { model = "gpt-4", temperature = 0.7 }
+# .agents/neco.toml:       { model = "gpt-3.5", max_tokens = 2000 }
+# ~/.config/neco/neco.toml: { api_key = "sk-xxx" }
+# 
+# 最终合并结果：           { model = "gpt-4", temperature = 0.7, max_tokens = 2000, api_key = "sk-xxx" }
+#                         ^^^^^^^^^^^   来自.neco/（最高优先级覆盖）
+#                                                         ^^^^^^^^^^^^^^   来自.agents/
+#                                                                            ^^^^^^^^^^^^^^   来自~/.config/
 ```
 
 ---
