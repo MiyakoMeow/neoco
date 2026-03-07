@@ -215,7 +215,7 @@ impl ToolRegistry for DefaultToolRegistry {
         let timeouts = self.timeouts.read().unwrap();
         
         // 前缀匹配
-        let id_str = id.0.as_str();
+        let id_str = id.as_str();
         let mut best_match: Option<(&str, Duration)> = None;
         
         for (prefix, timeout) in timeouts.iter() {

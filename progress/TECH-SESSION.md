@@ -718,9 +718,13 @@ impl ContextBuilder {
         &mut self,
         agent: &Agent,
     ) -> &mut Self {
-        // 转换Message为ModelMessage
         for msg in &agent.messages {
-            self.conversation.push(ModelMessage::from_message(msg));
+            self.conversation.push(ModelMessage {
+                role: msg.role,
+                content: Cow::Owned(msg.content.clone()),
+                tool_calls: msg.tool_calls.as_deref().map(|t| Cow::Owned(t.to_vec())),
+                tool_call_id: msg.tool_call_id.as_deref().map(|s| Cow::Owned(s.to_string())),
+            });
         }
         self
     }

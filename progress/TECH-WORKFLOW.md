@@ -294,7 +294,9 @@ impl WorkflowEngine {
         // 找没有入边的节点
         let mut has_incoming: HashSet<&NodeId> = HashSet::new();
         for edge in &definition.edges {
-            has_incoming.insert(&edge.to);
+            if let NodeTarget::Node(node_id) = &edge.to {
+                has_incoming.insert(node_id);
+            }
         }
         
         definition.nodes.iter()
