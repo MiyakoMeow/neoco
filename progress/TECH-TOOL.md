@@ -436,6 +436,7 @@ impl ToolExecutor for FileEditTool {
 
 /// Verify验证结果
 #[derive(Debug, Clone, PartialEq)]
+#[must_use = "VerifyResult must be handled"]
 pub enum VerifyResult {
     ExactMatch,
     PrefixMatch,

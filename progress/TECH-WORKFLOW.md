@@ -316,7 +316,7 @@ pub enum WorkflowEvent {
 }
 
 pub trait EventPublisher: Send + Sync {
-    async fn publish(&self, event: WorkflowEvent) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
+    async fn publish(&self, event: WorkflowEvent) -> Result<(), WorkflowError>;
 }
 ```
 

@@ -62,10 +62,71 @@ pub struct ChatRequest {
     pub temperature: Option<f64>,
     pub max_tokens: Option<u32>,
     pub tools: Option<Vec<ToolDefinition>>,
-    pub tool_choice: Option<String>,
-    pub response_format: Option<String>,
+    pub tool_choice: Option<ToolChoice>,
+    pub response_format: Option<ResponseFormat>,
     pub stop: Option<Vec<String>>,
-    pub extra_params: HashMap<String, Value>,
+    pub extra_params: ExtraParams,
+}
+
+/// 工具选择（强类型）
+#[derive(Debug, Clone)]
+pub enum ToolChoice {
+    Auto,
+    None,
+    Function { name: String },
+}
+
+impl ToolChoice {
+    pub fn to_string(&self) -> String {
+        match self {
+            ToolChoice::Auto => "auto".to_string(),
+            ToolChoice::None => "none".to_string(),
+            ToolChoice::Function { name } => serde_json::json!({ "type": "function", "function": { "name": name } }).to_string(),
+        }
+    }
+}
+
+/// 响应格式（强类型）
+#[derive(Debug, Clone)]
+pub enum ResponseFormat {
+    Text,
+    JsonObject,
+    JsonSchema { schema: Value },
+}
+
+impl ResponseFormat {
+    pub fn to_string(&self) -> String {
+        match self {
+            ResponseFormat::Text => "text".to_string(),
+            ResponseFormat::JsonObject => serde_json::json!({ "type": "json_object" }).to_string(),
+            ResponseFormat::JsonSchema { schema } => serde_json::json!({ "type": "json_object", "schema": schema }).to_string(),
+        }
+    }
+}
+
+/// 额外参数（强类型map）
+#[derive(Debug, Clone, Default)]
+pub struct ExtraParams(HashMap<String, Value>);
+
+impl ExtraParams {
+    pub fn new() -> Self {
+        Self(HashMap::new())
+    }
+    
+    pub fn insert(&mut self, key: impl Into<String>, value: Value) {
+        self.0.insert(key.into(), value);
+    }
+    
+    pub fn get(&self, key: &str) -> Option<&Value> {
+        self.0.get(key)
+    }
+}
+
+impl std::ops::Deref for ExtraParams {
+    type Target = HashMap<String, Value>;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }
 
 /// 聊天完成响应

@@ -150,7 +150,7 @@ pub trait PromptBuilder {
 会话仓储负责会话的持久化和检索。
 
 ```rust
-pub trait SessionRepository {
+pub trait SessionRepository: Send + Sync {
     async fn get_or_create(&self, session_id: &str) -> Result<Session, SessionError>;
     async fn save(&self, session: &Session) -> Result<(), SessionError>;
     async fn find_by_id(&self, session_id: &str) -> Result<Option<Session>, SessionError>;

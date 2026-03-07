@@ -183,6 +183,8 @@ pub enum ProviderType {
 }
 
 /// API密钥配置
+/// 
+/// 使用 zeroize crate 确保密钥在内存在放时自动清零，防止内存泄露
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "source", rename_all = "snake_case")]
 pub enum ApiKeyConfig {
@@ -193,12 +195,13 @@ pub enum ApiKeyConfig {
 
 impl ApiKeyConfig {
     pub fn resolve(&self) -> Result<SecretString, ConfigError> {
-        // [TODO] 实现要点说明
+        // 实现要点：
         // 1. 根据 ApiKeyConfig 类型（Env/EnvList/Direct）获取 API 密钥
         // 2. Env 类型：从指定名称的环境变量读取
         // 3. EnvList 类型：遍历多个环境变量名，返回第一个存在的值
-        // 4. Direct 类型：直接返回嵌入的密钥
+        // 4. Direct 类型：直接返回嵌入的密钥（注意：生产环境避免使用）
         // 5. 正确处理密钥不存在的情况，返回对应的 ConfigError
+        // 6. 使用 zeroize::Zeroize 确保密钥在Drop时自动清零
         unimplemented!()
     }
 }

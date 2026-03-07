@@ -157,10 +157,23 @@ impl Agent {
     pub fn parent_id(&self) -> Option<&AgentId> { self.parent_id.as_ref() }
     pub fn definition_id(&self) -> &str { &self.definition_id }
     pub fn state(&self) -> &AgentState { &self.state }
+    pub fn model_group(&self) -> Option<&str> { self.model_group.as_deref() }
     pub fn system_prompt(&self) -> Option<&str> { self.system_prompt.as_deref() }
+    pub fn created_at(&self) -> DateTime<Utc> { self.created_at }
+    pub fn updated_at(&self) -> DateTime<Utc> { self.updated_at }
     
     pub fn set_state(&mut self, new_state: AgentState) {
         self.state = new_state;
+        self.updated_at = Utc::now();
+    }
+    
+    pub fn set_model_group(&mut self, model_group: Option<String>) {
+        self.model_group = model_group;
+        self.updated_at = Utc::now();
+    }
+    
+    pub fn set_system_prompt(&mut self, prompt: Option<String>) {
+        self.system_prompt = prompt;
         self.updated_at = Utc::now();
     }
 }

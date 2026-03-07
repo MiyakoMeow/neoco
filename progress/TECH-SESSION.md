@@ -283,24 +283,24 @@ impl Agent {
 #[derive(Debug, Clone)]
 pub struct AgentHierarchy {
     root: AgentId,
-    parent_map: HashMap<AgentId, AgentId>,
-    children_map: HashMap<AgentId, Vec<AgentId>>,
+    parent_map: HashMap<AgentId, Weak<AgentId>>,
+    children_map: HashMap<AgentId, Vec<Weak<AgentId>>>,
 }
 
 impl AgentHierarchy {
     pub fn new(root: AgentId) -> Self {
         // TODO: 实现层级关系初始化
         // 1. 接收根节点ID作为参数
-        // 2. 创建空的parent_map (HashMap<AgentId, AgentId>)
-        // 3. 创建空的children_map (HashMap<AgentId, Vec<AgentId>>)
+        // 2. 创建空的parent_map (HashMap<AgentId, Weak<AgentId>>)
+        // 3. 创建空的children_map (HashMap<AgentId, Vec<Weak<AgentId>>>)
         // 4. 将根节点加入children_map，value为空Vec
         unimplemented!()
     }
     
     pub fn add_child(&mut self, parent: AgentId, child: AgentId) {
         // TODO: 实现添加子节点
-        // 1. 在parent_map中插入 child -> parent 的映射
-        // 2. 在children_map中为parent添加child到Vec
+        // 1. 在parent_map中插入 child -> Weak::new(parent) 的映射
+        // 2. 在children_map中为parent添加Weak::new(child)到Vec
         // 3. 如果parent尚无children记录，创建新的Vec
         unimplemented!()
     }
@@ -309,22 +309,23 @@ impl AgentHierarchy {
         // TODO: 实现存在性检查
         // 1. 检查id是否等于根节点
         // 2. 检查parent_map中是否包含该id作为key
-        // 3. 满足任一条件返回true
+        // 3. 满足任一条件返回true（注意Weak需要upgrade检查）
         unimplemented!()
     }
     
-    pub fn get_parent(&self, id: &AgentId) -> Option<&AgentId> {
+    pub fn get_parent(&self, id: &AgentId) -> Option<AgentId> {
         // TODO: 实现获取父节点
         // 1. 排除根节点情况（根节点无父节点）
-        // 2. 从parent_map中查找id对应的parent
-        // 3. 返回Some(parent_id)或None
+        // 2. 从parent_map中查找id对应的Weak
+        // 3. 调用upgrade()获取AgentId
         unimplemented!()
     }
     
-    pub fn get_children(&self, id: &AgentId) -> Option<&Vec<AgentId>> {
+    pub fn get_children(&self, id: &AgentId) -> Vec<AgentId> {
         // TODO: 实现获取子节点列表
-        // 1. 从children_map中查找id对应的Vec
-        // 2. 返回Some(children)或None
+        // 1. 从children_map中查找id对应的Vec<Weak<AgentId>>
+        // 2. 遍历并调用upgrade()过滤已释放的引用
+        // 3. 返回有效的AgentId列表
         unimplemented!()
     }
     
@@ -350,8 +351,17 @@ impl AgentHierarchy {
         // TODO: 实现序列化
         HierarchyMeta {
             root: self.root.clone(),
-            parent_map: self.parent_map.clone(),
-            children_map: self.children_map.clone(),
+            parent_map: self.parent_map.iter()
+                .filter_map(|(k, v)| v.upgrade().map(|p| (k.clone(), p)))
+                .collect(),
+            children_map: self.children_map.iter()
+                .map(|(k, v)| {
+                    let children: Vec<AgentId> = v.iter()
+                        .filter_map(|w| w.upgrade().cloned())
+                        .collect();
+                    (k.clone(), children)
+                })
+                .collect(),
         }
     }
     
@@ -359,8 +369,12 @@ impl AgentHierarchy {
         // TODO: 实现反序列化
         Self {
             root: meta.root,
-            parent_map: meta.parent_map,
-            children_map: meta.children_map,
+            parent_map: meta.parent_map.into_iter()
+                .map(|(k, v)| (k, Weak::new(v)))
+                .collect(),
+            children_map: meta.children_map.into_iter()
+                .map(|(k, v)| (k, v.into_iter().map(Weak::new).collect()))
+                .collect(),
         }
     }
 }
