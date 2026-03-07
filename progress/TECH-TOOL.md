@@ -257,6 +257,13 @@ impl ToolRegistry for DefaultToolRegistry {
 
 ### 4.2 fs::read 实现
 
+> 注意：代码使用 `Lazy<ToolDefinition>` 模式进行静态初始化，需要导入：
+> ```rust
+> use once_cell::sync::Lazy;
+> // 或 Rust 1.80+:
+> use std::sync::LazyLock;
+> ```
+
 ```rust
 pub mod fs {
     pub struct FileReadTool;
