@@ -572,11 +572,14 @@ impl ToolExecutor for ContextObserveTool {
         context: &ToolContext,
         args: Value,
     ) -> Result<ToolResult, ToolError> {
-        // 返回上下文仪表盘：
-        // • Usage: 78.2% (100k/128k)
-        // • Steps since tag: 35
-        // • Pruning status: Stage 1 approaching
-        // • Est. turns left: ~12
+        // TODO: 实现上下文观测
+        // 1. 从 args 解析 filter 参数
+        // 2. 调用 ContextObserver 获取上下文状态
+        // 3. 构建 Dashboard 返回：
+        //    • Usage: xx% (used/total)
+        //    • Steps since tag: xx
+        //    • Pruning status: Stage X
+        //    • Est. turns left: ~xx
         unimplemented!()
     }
 }
@@ -616,11 +619,12 @@ impl ToolExecutor for ContextCompactTool {
         context: &ToolContext,
         args: Value,
     ) -> Result<ToolResult, ToolError> {
-        // Layer A: Agent 主动压缩
-        // 1. 从 tag 位置到当前位置的消息
-        // 2. 调用模型生成摘要
-        // 3. 替换为一段 summary
-        // 4. 保留原始历史（backup tag）
+        // TODO: 实现上下文压缩 (Layer A: Agent 主动压缩)
+        // 1. 从 args 解析 tag 参数
+        // 2. 定位 tag 位置到当前位置的消息区间
+        // 3. 调用 CompressionService 生成摘要
+        // 4. 替换消息区间为 summary
+        // 5. 保留原始历史（添加 backup tag）
         unimplemented!()
     }
 }

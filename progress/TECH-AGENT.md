@@ -769,8 +769,9 @@ impl AgentEngine {
         skill_name: &str,
         error_count: usize,
     ) -> bool {
+        // TODO: 实现重载判断逻辑
         // 连续 2 次同类工具出错 → 自动重新注入完整指南
-        error_count >= 2
+        unimplemented!()
     }
 }
 
