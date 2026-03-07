@@ -69,7 +69,7 @@ pub struct CliArgs {
 }
 
 impl CliInterface {
-    pub async fn run(&self) -> Result<(), UiError> {
+    pub async fn run(&self) -> Result<i32, UiError> {
         // [TODO] 实现CLI运行逻辑
         // 1. 解析CliArgs参数（message, session, agent, workflow, working_dir）
         // 2. 如果有message参数，直接执行单次交互并返回

@@ -30,7 +30,7 @@ sequenceDiagram
 
 提示词组件存储在配置目录的 `prompts/` 子目录下。
 
-```
+```text
 # prompts/ 子目录结构
 .neco/prompts/
 ├── base.md              # 基础提示词

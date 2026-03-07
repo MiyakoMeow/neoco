@@ -149,9 +149,9 @@ pub struct Agent {
 | `definition_id` | String | Agent定义标识 |
 | `state` | AgentState | Agent当前状态 |
 | `model_group` | Option\<String\> | 使用的模型组 |
-| `system_prompt` | Option\<String\> | 系统提示词 |
-| `created_at` | DateTime\<Utc\> | 创建时间 |
-| `updated_at` | DateTime\<Utc\> | 更新时间 |
+| `system_prompt` | Option\<String\> | Agent运行时使用的系统提示词，可覆盖或扩展定义中的默认提示词 |
+| `created_at` | DateTime\<Utc\> | Agent实例创建的时间戳 |
+| `updated_at` | DateTime\<Utc\> | Agent实例最后更新的时间戳（状态变更、属性修改等） |
 
 ### 3.3 Agent引擎核心
 
@@ -277,7 +277,7 @@ pub struct AgentResult {
 }
 ```
 
-### 3.2 Agent间通信
+### 3.4 Agent间通信
 
 ```rust
 /// Agent间消息

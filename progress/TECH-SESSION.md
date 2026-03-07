@@ -566,7 +566,7 @@ pub trait StorageBackend: Send + Sync {
 
 ### 4.2 文件系统存储实现
 
-```
+```text
 ~/.local/neco/
 └── {session_id}/
     ├── session.toml          # Session元数据
