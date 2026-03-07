@@ -121,20 +121,30 @@ impl CliInterface {
         //      其中 {working_dir} 默认为当前目录（"."）
         //      相对路径配置以 working_dir 为基准，绝对路径配置不受 working_dir 影响
         //      高优先级覆盖低优先级配置，嵌套对象深度合并
-        // 3. 根据参数决定运行模式：
+        // 3. 参数校验：
+        //    - agent子命令与--message同时提供 → 返回错误（互斥）
+        //    - message参数为空 → 返回错误
+        // 4. 根据参数决定运行模式：
         //    - command=Some(Commands::Agent) → 启动守护进程模式
-        //      （与 --message 互斥，若同时提供则返回错误）
         //    - message=Some(msg) → CLI直接模式（执行后立即退出）
         //    - 无参数 → TUI交互模式（默认）
-        //    - command=Some + message=Some → 返回错误（互斥）
-        // 4. 如果提供--session参数，恢复已有会话
-        // 5. 处理错误并返回适当的退出码
-        // 
-        // 错误处理：
-        // - message参数为空 → 返回错误（不进入TUI）
-        // - agent子命令与--message同时提供 → 返回错误（互斥）
-        // - 配置文件未找到 → 返回错误并提示查找路径
-        // - Session ID无效 → 返回错误并提示
+        // 5. 如果提供--session参数，恢复已有会话
+        // 6. 处理错误并返回适当的退出码
+        
+        // 参数互斥校验
+        if self.args.command.is_some() && self.args.message.is_some() {
+            return Err(UiError::BadRequest(
+                "agent 子命令与 --message 参数互斥，不能同时使用".to_string()
+            ));
+        }
+        
+        // 空消息校验
+        if let Some(msg) = &self.args.message {
+            if msg.trim().is_empty() {
+                return Err(UiError::BadRequest("消息内容不能为空".to_string()));
+            }
+        }
+        
         unimplemented!()
     }
 }

@@ -133,6 +133,7 @@ pub trait MessageRepository: Send + Sync {
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum SessionType {
     Direct { initial_message: Option<String> },
+    #[serde(alias = "repl")]
     Tui,
     Workflow { workflow_id: String },
 }
