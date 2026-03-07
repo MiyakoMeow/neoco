@@ -49,6 +49,11 @@ graph TB
     TR --> TE
 ```
 
+> **注意**：静态工具定义使用 `Lazy<ToolDefinition>` 模式，需要添加以下导入：
+> ```rust
+> use once_cell::sync::Lazy; // 或 std::sync::LazyLock (Rust 1.80+)
+> ```
+
 ### 2.2 工具命名规范
 
 | 工具 | 命名格式 | 示例 |
@@ -394,6 +399,9 @@ pub enum VerifyResult {
     TooShort,
 }
 
+/// 前缀匹配的最小长度阈值
+pub const VERIFY_PREFIX_MATCH_MIN_LEN: usize = 20;
+
 /// Verify验证
 pub fn verify_line_content(
     actual: &str,
@@ -402,8 +410,8 @@ pub fn verify_line_content(
     // TODO: 实现verify验证逻辑
     // 1. 去除行尾换行符
     // 2. 完全匹配 -> ExactMatch
-    // 3. 前缀匹配（内容≥20字符）-> PrefixMatch
-    // 4. 内容不足20字符且非完全匹配 -> TooShort
+    // 3. 前缀匹配（内容≥VERIFY_PREFIX_MATCH_MIN_LEN字符）-> PrefixMatch
+    // 4. 内容不足VERIFY_PREFIX_MATCH_MIN_LEN字符且非完全匹配 -> TooShort
     // 5. 不匹配 -> Mismatch
     unimplemented!()
 }

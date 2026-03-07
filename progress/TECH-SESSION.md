@@ -117,6 +117,19 @@ pub trait MessageRepository: Send + Sync {
     
     /// 截断消息（保留<=指定id的消息）
     async fn truncate(&self, agent_id: &AgentId, up_to_id: MessageId) -> Result<(), StorageError>;
+    
+    /// 批量追加消息（可选实现，默认逐条追加）
+    async fn append_batch(
+        &self, 
+        agent_id: &AgentId, 
+        messages: &[Message]
+    ) -> Result<(), StorageError> {
+        // 默认实现：逐条追加
+        for msg in messages {
+            self.append(agent_id, msg).await?;
+        }
+        Ok(())
+    }
 }
 ```
 
@@ -548,7 +561,7 @@ pub trait StorageBackend: Send + Sync {
 
 ### 4.2 文件系统存储实现
 
-```
+```text
 ~/.local/neco/
 └── {session_id}/
     ├── session.toml          # Session元数据

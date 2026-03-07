@@ -22,7 +22,7 @@ Neco 支持多级配置目录，按优先级从高到低：
 3. **主配置目录**：`~/.config/neco/`
 4. **通用配置目录**：`~/.agents/`
 
-```
+```text
 # 优先级从高到低
 
 .neco/                          # 当前项目 .neco（最高）
@@ -86,6 +86,21 @@ pub struct ModelRef {
 }
 
 impl ModelRef {
+    /// 解析 ModelRef 字符串
+    ///
+    /// 格式：`provider/model?param=value&param2=value2`
+    ///
+    /// 解析规则：
+    /// - `provider`：提供商名称，不能包含 `/` 或 `?`
+    /// - `model`：模型名称，不能包含 `?`（支持 `/`，如子目录）
+    /// - 参数使用 URL 查询字符串格式，使用 `serde_urlencoded` 解析
+    /// - 参数值支持字符串、数字、布尔值
+    /// - 多个参数使用 `&` 分隔
+    ///
+    /// 示例：
+    /// - `openai/gpt-4` -> provider="openai", model="gpt-4"
+    /// - `openai/gpt-4?temperature=0.7` -> provider="openai", model="gpt-4", params={"temperature": 0.7}
+    /// - `anthropic/claude-3?max_tokens=4096&temperature=1.0` -> 多参数示例
     pub fn parse(s: &str) -> Result<Self, ConfigError> {
         // 格式：provider/model?param=value
         // TODO: 实现解析逻辑
@@ -162,8 +177,8 @@ pub struct RetryConfig {
     pub max_backoff: Duration,
 }
 
-fn default_max_retries() -> u32 { 3 }
-fn default_backoff_multiplier() -> f64 { 2.0 }
+const fn default_max_retries() -> u32 { 3 }
+const fn default_backoff_multiplier() -> f64 { 2.0 }
 
 impl Default for RetryConfig {
     fn default() -> Self {
@@ -224,7 +239,7 @@ pub struct StorageConfig {
     pub compression: bool,
 }
 
-fn default_compression() -> bool { true }
+const fn default_compression() -> bool { true }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ContextConfig {
@@ -234,8 +249,8 @@ pub struct ContextConfig {
     pub auto_compact_enabled: bool,
 }
 
-fn default_compact_threshold() -> f64 { 0.9 }
-fn default_true() -> bool { true }
+const fn default_compact_threshold() -> f64 { 0.9 }
+const fn default_true() -> bool { true }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolsConfig {
@@ -245,7 +260,7 @@ pub struct ToolsConfig {
     pub default_timeout: Duration,
 }
 
-fn default_tool_timeout() -> Duration { Duration::from_secs(30) }
+const fn default_tool_timeout() -> Duration { Duration::from_secs(30) }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UiConfig {

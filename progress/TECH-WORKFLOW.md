@@ -85,11 +85,31 @@ pub struct NodeDefinition {
     pub new_session: bool,
 }
 
+/// 边目标（支持类型安全的 END 表示）
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum NodeTarget {
+    Node(NodeId),
+    End,
+}
+
+impl NodeTarget {
+    pub fn is_end(&self) -> bool {
+        matches!(self, NodeTarget::End)
+    }
+}
+
+impl From<NodeId> for NodeTarget {
+    fn from(node: NodeId) -> Self {
+        NodeTarget::Node(node)
+    }
+}
+
 /// 边定义
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EdgeDefinition {
     pub from: NodeId,
-    pub to: NodeId,
+    pub to: NodeTarget,
     #[serde(default)]
     pub select: Option<Vec<String>>,
     #[serde(default)]
@@ -287,10 +307,12 @@ impl WorkflowEngine {
             }
             
             // 无条件边或select边直接触发
-            if edge.to.to_string() == "END" {
+            if edge.to.is_end() {
                 continue;
             }
-            next_nodes.push(edge.to.clone());
+            if let NodeTarget::Node(next_node) = &edge.to {
+                next_nodes.push(next_node.clone());
+            }
         }
         
         next_nodes

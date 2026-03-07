@@ -149,45 +149,6 @@ sequenceDiagram
     UI-->>User: 显示结果
 ```
 
-### 1.3 数据流全景图
-
-```mermaid
-sequenceDiagram
-    participant User as 用户
-    participant UI as UI层
-    participant Session as Session管理
-    participant Agent as Agent引擎
-    participant Context as 上下文服务
-    participant Model as 模型服务
-    participant Tool as 工具执行
-    participant Storage as 存储层
-
-    User->>UI: 输入消息
-    UI->>Session: 创建/获取Session
-    Session->>Agent: 路由消息
-    Agent->>Context: 构建上下文
-    Context->>Session: 获取消息历史
-    Context->>Context: 检查上下文大小
-    alt 超过阈值
-        Context->>Context: 触发压缩
-    end
-    Context-->>Agent: 返回格式化上下文
-    Agent->>Model: 发送请求
-    alt 需要工具
-        Model-->>Agent: 工具调用请求
-        Agent->>Tool: 执行工具
-        Tool-->>Agent: 返回结果
-        Agent->>Model: 发送工具结果
-        Model-->>Agent: 最终响应
-    else 直接响应
-        Model-->>Agent: 响应内容
-    end
-    Agent->>Session: 存储消息
-    Agent->>Storage: 持久化
-    Agent-->>UI: 返回响应
-    UI-->>User: 显示结果
-```
-
 ## 2. Crate划分
 
 基于领域驱动设计原则，项目划分为以下crate：
