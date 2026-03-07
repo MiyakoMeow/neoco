@@ -5,9 +5,9 @@
 ## 1. 模块概述
 
 用户接口模块提供多种交互方式：
-- CLI直接模式
-- REPL交互模式
-- 后台守护进程模式
+- **TUI交互模式**（默认）：不提供任何参数时启动，提供交互式终端界面
+- **CLI直接模式**（`-m/--message`）：单次执行模式，发送消息后直接返回结果
+- **后台守护进程模式**（`agent`子命令）：启动HTTP API服务器
 
 ## 2. 用户接口抽象
 
@@ -51,72 +51,140 @@ pub struct CliInterface {
 }
 
 #[derive(Debug, Parser)]
+#[command(name = "neco")]
+#[command(about = "Neco - 多智能体协作AI应用", long_about = None)]
+#[command(version)]
 pub struct CliArgs {
-    #[arg(short, long)]
+    /// 子命令（用于启动守护进程模式）
+    #[command(subcommand)]
+    command: Option<Commands>,
+    
+    /// 直接发送消息（CLI模式），与TUI模式互斥
+    /// 
+    /// 提供此参数将进入CLI直接模式，执行后立即退出。
+    /// 消息内容不能为空，否则将返回错误。
+    #[arg(short = 'm', long, global = true)]
     message: Option<String>,
     
-    #[arg(short, long)]
-    session: Option<String>,
+    /// 指定Session ID（用于恢复已有会话）
+    /// 
+    /// 可在TUI模式或CLI模式下使用。
+    /// 在TUI模式下，恢复指定会话的交互。
+    /// 在CLI模式下，在指定会话中发送消息。
+    #[arg(short = 's', long, global = true)]
+    session: Option<SessionId>,
     
-    #[arg(short, long)]
-    agent: Option<String>,
+    /// 指定配置文件路径（覆盖默认合并行为）
+    /// 
+    /// 默认按以下优先级查找并合并所有配置文件（相对于 working_dir）：
+    /// 1. {working_dir}/.neco/neco.toml（当前项目，最高优先级）
+    /// 2. {working_dir}/.agents/neco.toml（当前项目）
+    /// 3. ~/.config/neco/neco.toml（用户主配置，不受 working_dir 影响）
+    /// 4. ~/.agents/neco.toml（通用配置，不受 working_dir 影响）
+    /// 
+    /// 合并规则：高优先级配置覆盖低优先级的相同键，嵌套对象采用深度合并。
+    /// 提供此参数将跳过默认合并，直接使用指定文件。
+    #[arg(short = 'c', long, global = true)]
+    config: Option<PathBuf>,
     
-    #[arg(short, long)]
-    workflow: Option<String>,
-    
-    #[arg(short, long)]
-    working_dir: Option<PathBuf>,
+    /// 工作目录（默认为当前目录 "."）
+    /// 
+    /// 指定项目根目录，用于：
+    /// 1. 查找配置文件：相对路径（.neco/, .agents/）以此目录为基准
+    /// 2. 存储数据：Session数据默认存储于此目录下的数据目录中
+    /// 
+    /// 注意：绝对路径配置（~/.config/neco/, ~/.agents/）不受此参数影响。
+    #[arg(short = 'w', long, global = true, default_value = ".")]
+    working_dir: PathBuf,
+}
+
+#[derive(Debug, Subcommand)]
+enum Commands {
+    /// 启动后台守护进程模式，提供HTTP API服务
+    /// 
+    /// 守护进程将启动HTTP服务器，通过REST API提供会话管理和消息交互功能。
+    /// 默认监听地址由配置文件指定。
+    /// 
+    /// 注意：此子命令与 --message 参数互斥，不能同时使用。
+    Agent {
+    },
 }
 
 impl CliInterface {
     pub async fn run(&self) -> Result<i32, UiError> {
         // [TODO] 实现CLI运行逻辑
-        // 1. 解析CliArgs参数（message, session, agent, workflow, working_dir）
-        // 2. 如果有message参数，直接执行单次交互并返回
-        // 3. 如果有session参数，恢复或创建Session
-        // 4. 如果有workflow参数，启动工作流引擎
-        // 5. 协调Agent执行任务并输出结果
+        // 1. 解析CliArgs参数
+        // 2. 加载配置文件：
+        //    - 如果提供--config参数，使用指定文件
+        //    - 否则按优先级查找并合并所有配置文件：
+        //      1. {working_dir}/.neco/neco.toml → 2. {working_dir}/.agents/neco.toml → 3. ~/.config/neco/neco.toml → 4. ~/.agents/neco.toml
+        //      其中 {working_dir} 默认为当前目录（"."）
+        //      相对路径配置以 working_dir 为基准，绝对路径配置不受 working_dir 影响
+        //      高优先级覆盖低优先级配置，嵌套对象深度合并
+        // 3. 参数校验：
+        //    - agent子命令与--message同时提供 → 返回错误（互斥）
+        //    - message参数为空 → 返回错误
+        // 4. 根据参数决定运行模式：
+        //    - command=Some(Commands::Agent) → 启动守护进程模式
+        //    - message=Some(msg) → CLI直接模式（执行后立即退出）
+        //    - 无参数 → TUI交互模式（默认）
+        // 5. 如果提供--session参数，恢复已有会话
         // 6. 处理错误并返回适当的退出码
+        
+        // 参数互斥校验
+        if self.args.command.is_some() && self.args.message.is_some() {
+            return Err(UiError::BadRequest(
+                "agent 子命令与 --message 参数互斥，不能同时使用".to_string()
+            ));
+        }
+        
+        // 空消息校验
+        if let Some(msg) = &self.args.message {
+            if msg.trim().is_empty() {
+                return Err(UiError::BadRequest("消息内容不能为空".to_string()));
+            }
+        }
+        
         unimplemented!()
     }
 }
 ```
 
-## 4. REPL模式
+## 4. TUI交互模式（默认）
 
-### 4.1 REPL界面结构
+### 4.1 TUI界面结构
 
 ```rust
-pub struct ReplInterface {
+pub struct TuiInterface {
     terminal: Terminal<CrosstermBackend<std::io::Stdout>>,
     session_manager: Arc<SessionManager>,
     input_buffer: String,
     output_history: Vec<AgentOutput>,
-    mode: ReplMode,
+    mode: TuiMode,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum ReplMode {
+pub enum TuiMode {
     Normal,
     Command,
     MultiLine,
 }
 
-impl ReplInterface {
+impl TuiInterface {
     pub fn new(session_manager: Arc<SessionManager>) -> Result<Self, UiError> {
         // [TODO] 初始化终端
         // 1. 使用crossterm创建终端实例
         // 2. 设置终端原始模式和非阻塞输入
         // 3. 初始化输入缓冲区和输出历史
-        // 4. 设置初始ReplMode为Normal
+        // 4. 设置初始TuiMode为Normal
         // 5. 配置终端尺寸监听（用于响应式布局）
         unimplemented!()
     }
     
     pub async fn run(&mut self) -> Result<(), UiError> {
-        // [TODO] REPL主循环
+        // [TODO] TUI主循环
         // 1. 进入事件循环，持续读取用户输入直到Exit命令
-        // 2. 处理输入：根据ReplMode解析输入（Normal模式发送消息，Command模式执行命令）
+        // 2. 处理输入：根据TuiMode解析输入（Normal模式发送消息，Command模式执行命令）
         // 3. 执行用户输入：调用Agent处理消息或执行特殊命令
         // 4. 渲染输出：将AgentOutput渲染到终端（消息历史区域）
         // 5. 更新状态栏：显示当前模式、会话信息等
@@ -127,11 +195,29 @@ impl ReplInterface {
 }
 ```
 
-### 4.2 TUI布局
+### 4.2 TUI界面布局
+
+#### 启动方式
+
+```bash
+# 新建会话（默认）
+neco
+
+# 恢复已有会话
+neco --session <session_id>
+
+# 指定配置文件
+neco --config /path/to/config.toml
+
+# 指定工作目录
+neco --working-dir /path/to/project
+```
+
+#### 界面布局
 
 ```mermaid
 graph TB
-    subgraph "REPL布局"
+    subgraph "TUI布局"
         M[消息历史]
         S1[状态栏（上方）]
         I[输入框]
@@ -153,9 +239,22 @@ graph TB
 | `/workflow status` | 工作流状态 |
 | `/agents tree` | Agent树结构 |
 
-## 5. 后台模式
+## 5. 后台守护进程模式（agent子命令）
 
-### 5.1 API端点
+### 5.1 启动方式
+
+```bash
+# 使用默认配置启动
+neco agent
+
+# 指定配置文件
+neco agent --config /path/to/config.toml
+
+# 指定工作目录
+neco agent --working-dir /path/to/project
+```
+
+### 5.2 配置结构
 
 ```rust
 pub struct DaemonInterface {
@@ -232,9 +331,9 @@ impl DaemonInterface {
 }
 ```
 
-### 5.2 REST API
+### 5.3 REST API
 
-#### 5.2.1 创建会话
+#### 5.3.1 创建会话
 
 **请求：**
 ```json
@@ -259,7 +358,7 @@ Content-Type: application/json
 }
 ```
 
-#### 5.2.2 发送消息
+#### 5.3.2 发送消息
 
 **请求：**
 ```json
@@ -285,7 +384,7 @@ Content-Type: application/json
 }
 ```
 
-#### 5.2.3 获取会话状态
+#### 5.3.3 获取会话状态
 
 **请求：**
 ```json
@@ -302,7 +401,7 @@ GET /api/v1/sessions/{session_id}/status
 }
 ```
 
-#### 5.2.4 终止会话
+#### 5.3.4 终止会话
 
 **请求：**
 ```json
@@ -318,7 +417,7 @@ DELETE /api/v1/sessions/{session_id}
 }
 ```
 
-#### 5.2.5 错误响应格式
+#### 5.3.5 错误响应格式
 
 ```json
 {
@@ -396,6 +495,108 @@ impl ApiError {
         }
     }
 }
+```
+
+## 7. 使用示例
+
+### 7.1 TUI交互模式
+
+```bash
+# 启动交互式会话
+$ neco
+> 你好，请帮我分析这段代码
+[AI响应...]
+
+# 恢复上次会话
+$ neco --session 01ARZ3NDEKTSV4RRFFQ69G5FAV
+> 继续我们之前的话题
+[AI响应...]
+```
+
+### 7.2 CLI直接模式
+
+```bash
+# 单次查询
+$ neco -m "什么是Rust的所有权系统？"
+[直接返回结果，退出]
+
+# 在已有会话中查询
+$ neco -m "继续解释" --session 01ARZ3NDEKTSV4RRFFQ69G5FAV
+[直接返回结果，退出]
+
+# 指定配置文件
+$ neco -m "帮我分析" --config ~/.config/neco/custom.toml
+```
+
+**错误处理示例**：
+```bash
+# 消息为空（应用层校验失败）
+$ neco -m ""
+error: 消息内容不能为空
+
+# 缺少消息值（参数解析失败）
+$ neco -m
+error: a value is required for '--message <MESSAGE>' but none was supplied
+
+# 未找到配置文件
+$ neco --config /nonexistent/config.toml
+error: 配置文件未找到: /nonexistent/config.toml
+```
+
+### 7.3 后台守护进程模式
+
+```bash
+# 启动守护进程
+$ neco agent
+[INFO] Starting Neco daemon on http://127.0.0.1:8080
+[INFO] Config loaded from ~/.config/neco/neco.toml
+[INFO] Ready to accept connections
+
+# 使用API（通过curl）
+$ curl -X POST http://127.0.0.1:8080/api/v1/sessions \
+  -H "Content-Type: application/json" \
+  -d '{"config": {"model": "gpt-4"}}'
+
+$ curl -X POST http://127.0.0.1:8080/api/v1/sessions/{session_id}/messages \
+  -H "Content-Type: application/json" \
+  -d '{"content": "你好，请分析这段代码"}'
+```
+
+### 7.4 配置文件合并示例
+
+```bash
+# 不指定--config时，自动按优先级合并所有配置文件（相对于当前目录）
+$ neco
+[INFO] Merging config files:
+[INFO]   - .neco/neco.toml (priority 1)
+[INFO]   - .agents/neco.toml (priority 2)
+[INFO]   - ~/.config/neco/neco.toml (priority 3)
+[INFO]   - ~/.agents/neco.toml (priority 4)
+[INFO] Config merged successfully (4 files)
+
+# 指定working-dir时，相对路径配置以此目录为基准
+$ neco --working-dir /path/to/project
+[INFO] Merging config files:
+[INFO]   - /path/to/project/.neco/neco.toml (priority 1)
+[INFO]   - /path/to/project/.agents/neco.toml (priority 2)
+[INFO]   - ~/.config/neco/neco.toml (priority 3, absolute path)
+[INFO]   - ~/.agents/neco.toml (priority 4, absolute path)
+[INFO] Config merged successfully (4 files)
+
+# 使用--config覆盖默认合并行为
+$ neco --config /custom/path/config.toml
+[INFO] Loading config from: /custom/path/config.toml
+[INFO] Config loaded successfully (single file)
+
+# 合并行为示例：
+# .neco/neco.toml:         { model = "gpt-4", temperature = 0.7 }
+# .agents/neco.toml:       { model = "gpt-3.5", max_tokens = 2000 }
+# ~/.config/neco/neco.toml: { api_key = "sk-xxx" }
+# 
+# 最终合并结果：           { model = "gpt-4", temperature = 0.7, max_tokens = 2000, api_key = "sk-xxx" }
+#                         ^^^^^^^^^^^   来自.neco/（最高优先级覆盖）
+#                                                         ^^^^^^^^^^^^^^   来自.agents/
+#                                                                            ^^^^^^^^^^^^^^   来自~/.config/
 ```
 
 ---

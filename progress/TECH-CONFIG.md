@@ -270,10 +270,13 @@ pub struct UiConfig {
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum RunMode {
+    /// TUI交互模式（默认）：不提供参数时启动
     #[default]
-    Direct,
-    Repl,
-    Daemon,
+    Tui,
+    /// CLI直接模式：使用 -m/--message 参数启动
+    Cli,
+    /// 后台守护进程模式：使用 agent 子命令启动
+    Agent,
 }
 ```
 
@@ -499,7 +502,7 @@ default_timeout = { secs = 30, nanos = 0 }
 timeouts = { "fs" = { secs = 10, nanos = 0 }, "mcp" = { secs = 60, nanos = 0 } }
 
 [system.ui]
-default_mode = "repl"
+default_mode = "tui"
 ```
 
 ## 6. 错误类型

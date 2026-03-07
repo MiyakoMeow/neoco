@@ -17,9 +17,9 @@
 ```mermaid
 graph TB
     subgraph "用户接口层 UI Layer"
-        CLI[CLI模式]
-        REPL[REPL模式]
-        Daemon[守护进程模式]
+        TUI[TUI交互模式（默认）]
+        CLI[CLI直接模式（-m参数）]
+        Agent[守护进程模式（agent子命令）]
     end
     
     subgraph "应用编排层 Application Orchestration"
@@ -53,9 +53,9 @@ graph TB
         Events[事件系统]
     end
     
-    CLI --> SessionMgr
-    REPL --> SessionMgr
-    Daemon --> SessionMgr
+    TUI --> SessionMgr
+    CLI --> SessionMgr  
+    Agent --> SessionMgr
     
     SessionMgr --> AgentMgr
     SessionMgr --> Workflow
@@ -980,8 +980,8 @@ graph LR
 | `mcp-stdio` | MCP stdio 传输 | 启用 |
 | `mcp-http` | MCP HTTP 传输 | 启用 |
 | `workflow` | 工作流引擎 | 启用 |
-| `cli` | CLI 界面 | 启用 |
-| `daemon` | 守护进程模式 | 启用 |
+| `cli` | CLI 界面（含 -m 参数） | 启用 |
+| `agent` | 守护进程模式（agent 子命令） | 启用 |
 
 ### 10.6 内核抽象层
 
@@ -991,8 +991,8 @@ graph LR
 graph TB
     subgraph "运行时"
         R1[CLI运行时]
-        R2[REPL运行时]
-        R3[Daemon运行时]
+        R2[TUI运行时]
+        R3[Agent运行时]
     end
     
     subgraph "NecoKernel Trait"
