@@ -5,9 +5,9 @@
 ## 1. 模块概述
 
 用户接口模块提供多种交互方式：
-- CLI直接模式
-- REPL交互模式
-- 后台守护进程模式
+- **TUI交互模式**（默认）：不提供任何参数时启动，提供交互式终端界面
+- **CLI直接模式**（`-m/--message`）：单次执行模式，发送消息后直接返回结果
+- **后台守护进程模式**（`agent`子命令）：启动HTTP API服务器
 
 ## 2. 用户接口抽象
 
@@ -51,72 +51,119 @@ pub struct CliInterface {
 }
 
 #[derive(Debug, Parser)]
+#[command(name = "neco")]
+#[command(about = "Neco - 多智能体协作AI应用", long_about = None)]
+#[command(version)]
 pub struct CliArgs {
-    #[arg(short, long)]
+    /// 子命令（用于启动守护进程模式）
+    #[command(subcommand)]
+    command: Option<Commands>,
+    
+    /// 直接发送消息（CLI模式），与TUI模式互斥
+    /// 
+    /// 提供此参数将进入CLI直接模式，执行后立即退出。
+    /// 消息内容不能为空，否则将返回错误。
+    #[arg(short = 'm', long, global = true)]
     message: Option<String>,
     
-    #[arg(short, long)]
-    session: Option<String>,
+    /// 指定Session ID（用于恢复已有会话）
+    /// 
+    /// 可在TUI模式或CLI模式下使用。
+    /// 在TUI模式下，恢复指定会话的交互。
+    /// 在CLI模式下，在指定会话中发送消息。
+    #[arg(short = 's', long, global = true)]
+    session: Option<SessionId>,
     
-    #[arg(short, long)]
-    agent: Option<String>,
+    /// 指定配置文件路径（覆盖默认查找路径）
+    /// 
+    /// 默认按以下优先级查找配置文件：
+    /// 1. .neco/neco.toml（当前项目，最高优先级）
+    /// 2. .agents/neco.toml（当前项目）
+    /// 3. ~/.config/neco/neco.toml（用户主配置）
+    /// 4. ~/.agents/neco.toml（通用配置，最低优先级）
+    /// 
+    /// 提供此参数将跳过默认查找，直接使用指定文件。
+    #[arg(short = 'c', long, global = true)]
+    config: Option<PathBuf>,
     
-    #[arg(short, long)]
-    workflow: Option<String>,
-    
-    #[arg(short, long)]
-    working_dir: Option<PathBuf>,
+    /// 工作目录（默认为当前目录）
+    /// 
+    /// 指定项目根目录，用于查找配置文件和存储数据。
+    #[arg(short = 'w', long, global = true, default_value = ".")]
+    working_dir: PathBuf,
+}
+
+#[derive(Debug, Subcommand)]
+enum Commands {
+    /// 启动后台守护进程模式，提供HTTP API服务
+    /// 
+    /// 守护进程将启动HTTP服务器，通过REST API提供会话管理和消息交互功能。
+    /// 默认监听地址由配置文件指定。
+    Agent {
+        /// 指定配置文件路径（覆盖默认查找路径）
+        #[arg(short = 'c', long)]
+        config: Option<PathBuf>,
+    },
 }
 
 impl CliInterface {
     pub async fn run(&self) -> Result<i32, UiError> {
         // [TODO] 实现CLI运行逻辑
-        // 1. 解析CliArgs参数（message, session, agent, workflow, working_dir）
-        // 2. 如果有message参数，直接执行单次交互并返回
-        // 3. 如果有session参数，恢复或创建Session
-        // 4. 如果有workflow参数，启动工作流引擎
-        // 5. 协调Agent执行任务并输出结果
-        // 6. 处理错误并返回适当的退出码
+        // 1. 解析CliArgs参数
+        // 2. 加载配置文件：
+        //    - 如果提供--config参数，使用指定文件
+        //    - 否则按优先级查找：.neco/ → .agents/ → ~/.config/neco/ → ~/.agents/
+        // 3. 根据参数决定运行模式：
+        //    - command=Some(Commands::Agent) → 启动守护进程模式
+        //    - message=Some(msg) → CLI直接模式（执行后立即退出）
+        //    - 无参数 → TUI交互模式（默认）
+        // 4. 如果提供--session参数，恢复已有会话
+        // 5. 处理错误并返回适当的退出码
+        // 
+        // 错误处理：
+        // - message参数为空 → 返回错误（不进入TUI）
+        // - 配置文件未找到 → 返回错误并提示查找路径
+        // - Session ID无效 → 返回错误并提示
         unimplemented!()
     }
 }
 ```
 
-## 4. REPL模式
+## 4. TUI交互模式（默认）
 
 ### 4.1 REPL界面结构
 
 ```rust
-pub struct ReplInterface {
+pub struct TuiInterface {
     terminal: Terminal<CrosstermBackend<std::io::Stdout>>,
     session_manager: Arc<SessionManager>,
     input_buffer: String,
     output_history: Vec<AgentOutput>,
-    mode: ReplMode,
+    mode: TuiMode,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum ReplMode {
+pub enum TuiMode {
     Normal,
     Command,
     MultiLine,
 }
 
-impl ReplInterface {
+impl TuiInterface {
     pub fn new(session_manager: Arc<SessionManager>) -> Result<Self, UiError> {
         // [TODO] 初始化终端
         // 1. 使用crossterm创建终端实例
         // 2. 设置终端原始模式和非阻塞输入
         // 3. 初始化输入缓冲区和输出历史
-        // 4. 设置初始ReplMode为Normal
+        // 4. 设置初始TuiMode为Normal
         // 5. 配置终端尺寸监听（用于响应式布局）
         unimplemented!()
     }
     
     pub async fn run(&mut self) -> Result<(), UiError> {
-        // [TODO] REPL主循环
+        // [TODO] TUI主循环
         // 1. 进入事件循环，持续读取用户输入直到Exit命令
-        // 2. 处理输入：根据ReplMode解析输入（Normal模式发送消息，Command模式执行命令）
+        // 2. 处理输入：根据TuiMode解析输入（Normal模式发送消息，Command模式执行命令）
         // 3. 执行用户输入：调用Agent处理消息或执行特殊命令
         // 4. 渲染输出：将AgentOutput渲染到终端（消息历史区域）
         // 5. 更新状态栏：显示当前模式、会话信息等
@@ -127,7 +174,25 @@ impl ReplInterface {
 }
 ```
 
-### 4.2 TUI布局
+### 4.2 TUI界面布局
+
+#### 启动方式
+
+```bash
+# 新建会话（默认）
+neco
+
+# 恢复已有会话
+neco --session <session_id>
+
+# 指定配置文件
+neco --config /path/to/config.toml
+
+# 指定工作目录
+neco --working-dir /path/to/project
+```
+
+#### 界面布局
 
 ```mermaid
 graph TB
@@ -153,7 +218,22 @@ graph TB
 | `/workflow status` | 工作流状态 |
 | `/agents tree` | Agent树结构 |
 
-## 5. 后台模式
+## 5. 后台守护进程模式（agent子命令）
+
+### 5.1 启动方式
+
+```bash
+# 使用默认配置启动
+neco agent
+
+# 指定配置文件
+neco agent --config /path/to/config.toml
+
+# 指定工作目录
+neco agent --working-dir /path/to/project
+```
+
+### 5.2 配置结构
 
 ### 5.1 API端点
 
@@ -396,6 +476,87 @@ impl ApiError {
         }
     }
 }
+```
+
+## 7. 使用示例
+
+### 7.1 TUI交互模式
+
+```bash
+# 启动交互式会话
+$ neco
+> 你好，请帮我分析这段代码
+[AI响应...]
+
+# 恢复上次会话
+$ neco --session 01ARZ3NDEKTSV4RRFFQ69G5FAV
+> 继续我们之前的话题
+[AI响应...]
+```
+
+### 7.2 CLI直接模式
+
+```bash
+# 单次查询
+$ neco -m "什么是Rust的所有权系统？"
+[直接返回结果，退出]
+
+# 在已有会话中查询
+$ neco -m "继续解释" --session 01ARZ3NDEKTSV4RRFFQ69G5FAV
+[直接返回结果，退出]
+
+# 指定配置文件
+$ neco -m "帮我分析" --config ~/.config/neco/custom.toml
+```
+
+**错误处理示例**：
+```bash
+# 消息为空（报错）
+$ neco -m ""
+error: The value '--message <MESSAGE>' requires a value, but none was supplied
+
+# 未找到配置文件
+$ neco --config /nonexistent/config.toml
+error: 配置文件未找到: /nonexistent/config.toml
+```
+
+### 7.3 后台守护进程模式
+
+```bash
+# 启动守护进程
+$ neco agent
+[INFO] Starting Neco daemon on http://127.0.0.1:8080
+[INFO] Config loaded from ~/.config/neco/neco.toml
+[INFO] Ready to accept connections
+
+# 使用API（通过curl）
+$ curl -X POST http://127.0.0.1:8080/api/v1/sessions \
+  -H "Content-Type: application/json" \
+  -d '{"config": {"model": "gpt-4"}}'
+
+$ curl -X POST http://127.0.0.1:8080/api/v1/sessions/{session_id}/messages \
+  -H "Content-Type: application/json" \
+  -d '{"content": "你好，请分析这段代码"}'
+```
+
+### 7.4 配置文件查找示例
+
+```bash
+# 不指定--config时，自动查找配置文件
+$ neco
+[INFO] Loading config from: .neco/neco.toml  # 优先级1
+
+# 如果.neco/不存在，尝试下一个
+$ neco
+[INFO] Loading config from: .agents/neco.toml  # 优先级2
+
+# 如果当前目录没有配置，使用用户配置
+$ neco
+[INFO] Loading config from: ~/.config/neco/neco.toml  # 优先级3
+
+# 使用--config覆盖默认查找
+$ neco --config /custom/path/config.toml
+[INFO] Loading config from: /custom/path/config.toml
 ```
 
 ---

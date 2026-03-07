@@ -17,9 +17,9 @@
 ```mermaid
 graph TB
     subgraph "用户接口层 UI Layer"
-        CLI[CLI模式]
-        REPL[REPL模式]
-        Daemon[守护进程模式]
+        TUI[TUI交互模式（默认）]
+        CLI[CLI直接模式（-m参数）]
+        Daemon[守护进程模式（agent子命令）]
     end
     
     subgraph "应用编排层 Application Orchestration"
@@ -53,8 +53,8 @@ graph TB
         Events[事件系统]
     end
     
-    CLI --> SessionMgr
-    REPL --> SessionMgr
+    TUI --> SessionMgr
+    CLI --> SessionMgr  
     Daemon --> SessionMgr
     
     SessionMgr --> AgentMgr
