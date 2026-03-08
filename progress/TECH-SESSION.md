@@ -393,9 +393,26 @@ pub struct HierarchyMeta {
 pub enum AgentState {
     Idle,
     Running,
-    Waiting,
+    Waiting(WaitingReason),      // 等待原因：工具调用或用户输入
     Completed,
-    Failed,
+    Failed(FailureReason),       // 失败原因及错误信息
+}
+
+/// 等待原因
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum WaitingReason {
+    ToolCall,     // 等待工具执行结果
+    UserInput,    // 等待用户输入
+}
+
+/// 失败原因
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum FailureReason {
+    Error(String),        // 错误信息
+    Recoverable(String),  // 可恢复的错误
+    Unrecoverable(String) // 不可恢复的错误
 }
 ```
 

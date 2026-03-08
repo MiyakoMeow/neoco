@@ -57,7 +57,7 @@ graph TB
 | MCP | `mcp::server_name` | `mcp::context7` |
 | 多智能体 | `multi-agent::action` | `multi-agent::spawn` |
 | 上下文 | `context::action` | `context::observe` |
-| 工作流 | `workflow::option` | `workflow::pass`, `workflow::approve` |
+| 工作流 | `workflow::option` | `workflow::pass`, `workflow::option` |
 | 激活 | `activate::type` | `activate::skill` |
 
 ## 3. 工具接口设计
@@ -214,6 +214,10 @@ impl DefaultToolRegistry {
         // 2. 上下文工具：context::observe
         // 注册时需要提供 observer 实例（实际使用时应从依赖注入获取）
         registry.register(ContextObserveTool::new(/* TODO: observer */));
+        
+        // 2.1 上下文工具：context::compact
+        // 注册时需要提供 compression_service 实例（实际使用时应从依赖注入获取）
+        registry.register(ContextCompactTool::new(/* TODO: compression_service */));
         
         // 3. 多智能体工具：multi-agent::spawn, multi-agent::send, multi-agent::report
         registry.register(MultiAgentSpawnTool);

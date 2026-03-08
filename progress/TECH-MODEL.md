@@ -61,7 +61,7 @@ pub struct ChatRequest<'a> {
     pub stream: bool,
     pub temperature: Option<f64>,
     pub max_tokens: Option<u32>,
-    pub tools: Option<Vec<ToolDefinition>>,
+    pub tools: Option<Vec<serde_json::Value>>, // 工具定义由工具注册表动态提供
     pub tool_choice: Option<ToolChoice>,
     pub response_format: Option<ResponseFormat>,
     pub stop: Option<Vec<String>>,
