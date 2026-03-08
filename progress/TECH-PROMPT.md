@@ -29,14 +29,11 @@ sequenceDiagram
 ### 2.1 提示词组件定义
 
 提示词组件存储在配置目录的 `prompts/` 子目录下。
-
-```text
-# prompts/ 子目录结构
-.neoco/prompts/
-├── base.md              # 基础提示词
-├── multi-agent.md       # 多智能体提示词
-└── custom.md           # 自定义提示词
-```
+按以下优先级查找（高优先级先找到则使用）：
+1. .neoco/prompts/（项目根目录）
+2. .agents/prompts/（项目根目录）
+3. ~/.config/neoco/prompts/
+4. ~/.agents/prompts/
 
 ### 2.2 组件类型
 
@@ -88,11 +85,11 @@ sequenceDiagram
 
 ## 4. Agent配置
 
-```yaml
+```toml
 # Agent头部信息
-prompts:
-  - base
-  - multi-agent
+[prompts]
+base = true
+multi-agent = true
 ```
 
 ## 5. 接口规范

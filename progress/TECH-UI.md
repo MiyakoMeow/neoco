@@ -76,11 +76,11 @@ pub struct CliArgs {
     
     /// 指定配置文件路径（覆盖默认合并行为）
     /// 
-    /// 默认按以下优先级查找并合并所有配置文件（相对于 working_dir）：
-    /// 1. {working_dir}/.neoco/neoco.toml（当前项目，最高优先级）
-    /// 2. {working_dir}/.agents/neoco.toml（当前项目）
-    /// 3. ~/.config/neoco/neoco.toml（用户主配置，不受 working_dir 影响）
-    /// 4. ~/.agents/neoco.toml（通用配置，不受 working_dir 影响）
+    /// 默认按以下优先级查找并合并所有配置文件：
+    /// 1. .neoco/neoco.toml（项目根目录，最高优先级）
+    /// 2. .agents/neoco.toml（项目根目录）
+    /// 3. ~/.config/neoco/neoco.toml（用户主配置）
+    /// 4. ~/.agents/neoco.toml（通用配置）
     /// 
     /// 合并规则：高优先级配置覆盖低优先级的相同键，嵌套对象采用深度合并。
     /// 提供此参数将跳过默认合并，直接使用指定文件。
@@ -271,15 +271,6 @@ pub struct DaemonConfig {
     // TLS配置
     pub tls: Option<TlsConfig>,
     
-    // 认证配置
-    pub auth: AuthConfig,
-    
-    // 速率限制
-    pub rate_limit: RateLimitConfig,
-    
-    // CORS配置
-    pub cors: CorsConfig,
-    
     // 服务器配置
     pub server: ServerConfig,
 }
@@ -288,26 +279,6 @@ pub struct TlsConfig {
     pub cert_path: PathBuf,
     pub key_path: PathBuf,
     pub client_ca_path: Option<PathBuf>,
-}
-
-pub struct AuthConfig {
-    pub api_keys: Vec<String>,
-    pub jwt_secret: Option<String>,
-    pub jwt_expiration_sec: Option<u64>,
-}
-
-pub struct RateLimitConfig {
-    pub enabled: bool,
-    pub requests_per_minute: u32,
-    pub burst_size: u32,
-}
-
-pub struct CorsConfig {
-    pub allowed_origins: Vec<String>,
-    pub allowed_methods: Vec<String>,
-    pub allowed_headers: Vec<String>,
-    pub allow_credentials: bool,
-    pub max_age_sec: u64,
 }
 
 pub struct ServerConfig {
@@ -627,11 +598,7 @@ $ neoco --config /custom/path/config.toml
 ### Cargo.toml 配置
 
 ```toml
-crossterm = { version = "0.29", features = [
-    "events",          # 事件支持（键盘输入等）
-    "bracketed-paste", # 括号粘贴模式支持
-    "windows"         # Windows 平台支持
-] }
+ratatui = "0.29"
 axum = "0.8"           # HTTP 服务框架（daemon 模式可选）
 ```
 
