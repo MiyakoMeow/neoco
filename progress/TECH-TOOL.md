@@ -561,6 +561,12 @@ pub struct ContextObserveTool {
     observer: Arc<dyn ContextObserver>,
 }
 
+impl ContextObserveTool {
+    pub fn with_observer(observer: Arc<dyn ContextObserver>) -> Self {
+        Self { observer }
+    }
+}
+
 #[async_trait]
 impl ToolExecutor for ContextObserveTool {
     fn definition(&self) -> &ToolDefinition {
@@ -611,6 +617,12 @@ impl ContextCompactTool {
 
 pub struct ContextCompactTool {
     compression_service: Arc<CompressionService>,
+}
+
+impl ContextCompactTool {
+    pub fn with_service(compression_service: Arc<CompressionService>) -> Self {
+        Self { compression_service }
+    }
 }
 
 #[async_trait]
