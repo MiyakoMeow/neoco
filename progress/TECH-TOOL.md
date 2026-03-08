@@ -212,12 +212,12 @@ impl DefaultToolRegistry {
         registry.register(FileDeleteTool);
         
         // 2. 上下文工具：context::observe
-        // 注册时需要提供 observer 实例（实际使用时应从依赖注入获取）
-        registry.register(ContextObserveTool::new(/* TODO: observer */));
+        // 依赖注入：observer 实例由外部容器在运行时提供
+        registry.register(ContextObserveTool::new(/* observer: Arc<dyn ContextObserver> */));
         
         // 2.1 上下文工具：context::compact
-        // 注册时需要提供 compression_service 实例（实际使用时应从依赖注入获取）
-        registry.register(ContextCompactTool::new(/* TODO: compression_service */));
+        // 依赖注入：compression_service 实例由外部容器在运行时提供
+        registry.register(ContextCompactTool::new(/* compression_service: Arc<CompressionService> */));
         
         // 3. 多智能体工具：multi-agent::spawn, multi-agent::send, multi-agent::report
         registry.register(MultiAgentSpawnTool);
