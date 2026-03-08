@@ -23,11 +23,10 @@ classDiagram
     }
     
     class AgentUlid {
-        +session: Ulid
-        +agent: Ulid
-        +new_root(session_ulid) AgentUlid
-        +new_child(parent) AgentUlid
-        +session_ulid() SessionUlid
+        +Ulid ulid
+        +new_root() AgentUlid
+        +new_child(parent: &AgentUlid) AgentUlid
+        +parent_ulid() Option<Ulid>
     }
     
     class MessageId {
@@ -67,7 +66,7 @@ classDiagram
 | 标识符 | 生成时机 | 结构 | 校验 |
 |--------|---------|------|------|
 | `SessionUlid` | 创建Session时 | `SessionUlid(Ulid)` | 26位Ulid |
-| `AgentUlid` | Agent实例化时 | `{ session: Ulid, agent: Ulid }` | 双Ulid |
+| `AgentUlid` | Agent实例化时 | 根Agent使用Session ULID，子Agent为新Ulid | 26位Ulid |
 | `MessageId` | 消息添加时 | `MessageId(u64)` | 原子自增（保持u64） |
 | `NodeUlid` | 工作流节点创建时 | `NodeUlid(Ulid)` | 26位Ulid |
 | `ToolId` | 工具注册时 | `ToolId(Vec<String>)` | namespace::name 格式（如 `["fs", "read"]`） |
@@ -776,7 +775,7 @@ pub trait StorageBackend: Send + Sync {
 ~/.local/neoco/
 └── {session_id}/
     ├── session.toml          # Session元数据
-    ├── hierarchy.json        # Agent层级关系
+    ├── hierarchy.toml        # Agent层级关系（使用TOML格式，与需求文档一致）
     └── agents/
         └── {agent_id}.toml  # Agent消息文件
 ```
@@ -804,13 +803,11 @@ workflow_id = "prd"
 
 ```toml
 [id]
-session = "01HF8X5JQC8ZXJ3YKZ0J9K2D9Z"
-agent = "01HF8X5JQC8ZXJ3YKZ0J9K2D9A"
+ulid = "01HF8X5JQC8ZXJ3YKZ0J9K2D9Z"  # 根Agent使用Session ULID
 
 [agent]
 definition_id = "coder"
-parent_session = null  # 根Agent无parent
-parent_agent = null    # 根Agent无parent
+# parent_ulid 字段省略 - 根Agent无parent，反序列化时为 None
 state = "running"
 
 [[messages]]

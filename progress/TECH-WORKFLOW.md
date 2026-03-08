@@ -147,6 +147,7 @@ pub struct WorkflowRuntime {
     counters: DashMap<CounterKey, u32>,
     variables: DashMap<VariableKey, Value>,
     active_nodes: DashSet<NodeUlid>,
+    transition_messages: DashMap<NodeUlid, String>,
     status: WorkflowStatus,
     created_at: DateTime<Utc>,
     updated_at: DateTime<Utc>,
@@ -182,8 +183,9 @@ impl WorkflowRuntime {
         // 2. 初始化空的active_nodes HashSet<NodeUlid>
         // 3. 初始化空的node_states HashMap<NodeUlid, NodeRuntimeState>
         // 4. 初始化空的counters HashMap<String, u32>
-        // 5. 设置status为WorkflowRuntimeState::Ready
-        // 6. 设置created_at和updated_at为当前UTC时间
+        // 5. 初始化空的transition_messages DashMap<NodeUlid, String>
+        // 6. 设置status为WorkflowStatus::Ready
+        // 7. 设置created_at和updated_at为当前UTC时间
         unimplemented!()
     }
     
@@ -297,6 +299,11 @@ pub enum WorkflowEvent {
         session_ulid: SessionUlid,
         node_ulid: NodeUlid,
         error: String,
+    },
+    NodeTransitionIntent {
+        session_ulid: SessionUlid,
+        node_ulid: NodeUlid,
+        message: Option<String>,
     },
     EdgeTriggered {
         session_ulid: SessionUlid,
@@ -512,6 +519,7 @@ impl ToolExecutor for WorkflowTransitionTool {
             }),
             capabilities: ToolCapabilities::default(),
             timeout: Duration::from_secs(30),
+            category: ToolCategory::Common,
         });
         &DEF
     }
@@ -531,15 +539,63 @@ impl ToolExecutor for WorkflowTransitionTool {
     }
 }
 
+/// 无条件转场工具 - 对应需求文档的 workflow::pass
+pub struct PassTool {
+    runtime: Arc<RwLock<WorkflowRuntime>>,
+    node_ulid: NodeUlid,
+}
+
+#[async_trait]
+impl ToolExecutor for PassTool {
+    fn definition(&self) -> &ToolDefinition {
+        static DEF: Lazy<ToolDefinition> = Lazy::new(|| ToolDefinition {
+            id: ToolId::new("workflow", "pass"),
+            description: "记录无条件转场意图，不直接触发后续节点（由引擎统一评估）".into(),
+            schema: json!({
+                "type": "object",
+                "properties": {
+                    "message": {
+                        "type": "string",
+                        "description": "传递给下一节点的消息（可选）"
+                    }
+                },
+                "required": []
+            }),
+            capabilities: ToolCapabilities::default(),
+            timeout: Duration::from_secs(30),
+            category: ToolCategory::Common,
+        });
+        &DEF
+    }
+    
+    async fn execute(
+        &self,
+        context: &ToolContext,
+        args: Value,
+    ) -> Result<ToolResult, ToolError> {
+        // 记录转场意图，不直接触发后续节点
+        // 1. 从args中解析message（可选）
+        // 2. 获取runtime的write lock
+        // 3. 将message存入runtime的转场消息存储（不触发后续节点）
+        // 4. 发布NodeTransitionIntent事件（而非NodeTransition）
+        // 5. 返回转场意图已记录的结果
+        //
+        // 注意：后续节点的触发统一由引擎在handle_node_complete()中处理，
+        // 这样可以避免同一条出边的双重调度风险。
+        unimplemented!()
+    }
+}
+
 /// 注册工作流工具
-pub fn register_workflow_tools(
-    registry: &mut dyn ToolRegistry,
+pub async fn register_workflow_tools(
+    registry: &dyn ToolRegistry,
     runtime: Arc<RwLock<WorkflowRuntime>>,
     node_ulid: NodeUlid,
 ) {
     // TODO: 注册工作流相关工具
     // 1. 注册 workflow 工具（WorkflowTransitionTool）
     // 2. 注册 pass 工具（PassTool）
+    // 注意：使用异步接口与 ToolRegistry 保持一致
     todo!()
 }
 ```

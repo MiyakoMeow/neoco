@@ -7,7 +7,7 @@
 用户接口模块提供多种交互方式：
 - **TUI交互模式**（默认）：不提供任何参数时启动，提供交互式终端界面
 - **CLI直接模式**（`-m/--message`）：单次执行模式，发送消息后直接返回结果
-- **后台守护进程模式**（`agent`子命令）：启动HTTP API服务器
+- **后台守护进程模式**（`daemon`子命令）：启动HTTP API服务器
 
 ## 2. 用户接口抽象
 
@@ -106,7 +106,7 @@ enum Commands {
     /// 默认监听地址由配置文件指定。
     /// 
     /// 注意：此子命令与 --message 参数互斥，不能同时使用。
-    Agent {
+    Daemon {
     },
 }
 
@@ -134,7 +134,7 @@ impl CliInterface {
         // 参数互斥校验
         if self.args.command.is_some() && self.args.message.is_some() {
             return Err(UiError::BadRequest(
-                "agent 子命令与 --message 参数互斥，不能同时使用".to_string()
+                "daemon 子命令与 --message 参数互斥，不能同时使用".to_string()
             ));
         }
         
@@ -239,19 +239,19 @@ graph TB
 | `/workflow status` | 工作流状态 |
 | `/agents tree` | Agent树结构 |
 
-## 5. 后台守护进程模式（agent子命令）
+## 5. 后台守护进程模式（daemon子命令）
 
 ### 5.1 启动方式
 
 ```bash
 # 使用默认配置启动
-neoco agent
+neoco daemon
 
 # 指定配置文件
-neoco agent --config /path/to/config.toml
+neoco daemon --config /path/to/config.toml
 
 # 指定工作目录
-neoco agent --working-dir /path/to/project
+neoco daemon --working-dir /path/to/project
 ```
 
 ### 5.2 配置结构
@@ -568,7 +568,7 @@ error: 配置文件未找到: /nonexistent/config.toml
 
 ```bash
 # 启动守护进程
-$ neoco agent
+$ neoco daemon
 [INFO] Starting NeoCo daemon on http://127.0.0.1:8080
 [INFO] Config loaded from ~/.config/neoco/neoco.toml
 [INFO] Ready to accept connections

@@ -605,12 +605,12 @@ to = "review-prd"
 [[edges]]
 from = "review-prd"
 to = "write-prd"
-select = ["approve_prd", "reject"]  # 触发时计数器+1
+select = [{ option = "approve_prd" }, { option = "reject" }]  # 触发时计数器+1
 
 [[edges]]
 from = "write-prd"
 to = "write-tech-doc"
-require = ["approve_prd"]  # 计数器>0才能执行
+require = [{ option = "approve_prd", min_count = 1 }]  # 计数器>0才能执行
 
 [[edges]]
 from = "write-tech-doc"
@@ -619,12 +619,12 @@ to = "review-tech-doc"
 [[edges]]
 from = "review-tech-doc"
 to = "write-tech-doc"
-select = ["approve_tech", "reject"]
+select = [{ option = "approve_tech" }, { option = "reject" }]
 
 [[edges]]
 from = "write-tech-doc"
 to = "write-impl"
-require = ["approve_tech"]
+require = [{ option = "approve_tech", min_count = 1 }]
 
 [[edges]]
 from = "write-impl"
@@ -633,20 +633,22 @@ to = "review-impl"
 [[edges]]
 from = "review-impl"
 to = "write-impl"
-select = ["approve", "reject"]
+select = [{ option = "approve" }, { option = "reject" }]
 
 [[edges]]
 from = "review-impl"
 to = "END"
-require = ["approve"]
+require = [{ option = "approve", min_count = 1 }]
 ```
 
 #### 边条件说明
 
 - **无条件传递**：不指定`select`或`require`，直接触发下游节点
-- **select**：指定选项名称数组，触发时对应计数器+1，允许多次累加
+- **select**：指定选项数组，触发时对应计数器+1，允许多次累加
+  - 格式：`select = [{ option = "option_name" }]`
 - **require**：要求指定选项的计数器>0才能执行，实现"或"逻辑
-  - 示例：`require = ["approve_prd"]`表示需要至少一次approve_prd选择
+  - 格式：`require = [{ option = "option_name", min_count = 1 }]`
+  - 示例：`require = [{ option = "approve_prd", min_count = 1 }]`表示需要至少一次approve_prd选择
   - 示例：`require = ["option1", "option2"]`表示option1或option2任一计数>0即可
   - 注：可通过`@params.<param_name>`引用workflow_params中定义的参数（如`@params.min_approvers`）
   - 注：计数器在工作流Session全局作用域内共享，不同边的相同选项名共享同一计数器

@@ -325,8 +325,8 @@ impl Default for RetryConfig {
     fn default() -> Self {
         Self {
             max_retries: 3,
-            initial_delay_ms: 100,
-            max_delay_ms: 5000,
+            initial_delay_ms: 1000,  // 1秒，对应需求文档的 1s, 2s, 4s 退避序列
+            max_delay_ms: 4000,       // 最大4秒，与退避序列最后一个值一致
             backoff_multiplier: 2.0,
         }
     }

@@ -117,7 +117,7 @@ impl ToolExecutor for McpToolWrapper {
 
 | 工具 | 功能 | 超时 |
 |------|------|------|
-| `mcp::server_name` | 调用MCP服务器工具 | 30秒 |
+| `mcp::server_name` | 调用MCP服务器工具 | 60秒 |
 
 ### 3.4 工具注册
 

@@ -336,8 +336,8 @@ pub enum RunMode {
     Tui,
     /// CLI直接模式：使用 -m/--message 参数启动
     Cli,
-    /// 后台守护进程模式：使用 agent 子命令启动
-    Agent,
+    /// 后台守护进程模式：使用 daemon 子命令启动
+    Daemon,
 }
 ```
 
@@ -374,7 +374,16 @@ flowchart LR
 **合并规则：**
 - 高优先级配置覆盖低优先级相同键
 - 数组类型采用替换而非合并
+  - 字符串数组：如需追加而非替换，使用特殊语法 `+<item>`（例如 `models = [+new-model]`）
+  - 对象数组：使用 TOML 内联表语法追加对象（例如 `models = [+{ provider = "openai", name = "gpt-4" }]`）
+  - 转义：以 `+` 开头的字符串值需使用 `++` 前缀表示字面值（例如 `models = [++my-value]` 表示值为 `+my-value`）
 - 嵌套对象采用深度合并
+
+**格式优先级：**
+- TOML格式（`.toml`）始终优先于YAML格式（`.yaml`）
+- 整体加载顺序（从先到后）：`neoco.yaml` → `neoco.<tag>.yaml` → `neoco.toml` → `neoco.<tag>.toml`
+  - 先加载的配置被后加载的覆盖，因此优先级为：`neoco.toml` > `neoco.<tag>.toml` > `neoco.yaml` > `neoco.<tag>.yaml`
+  - 带标签的配置按`<tag>`数字/字母顺序依次加载
 
 ## 5. 配置加载器
 

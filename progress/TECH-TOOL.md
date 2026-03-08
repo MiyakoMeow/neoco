@@ -74,12 +74,26 @@ pub struct ToolCapabilities {
     pub concurrent: bool,
 }
 
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ResourceLevel {
     #[default]
     Low,
     Medium,
     High,
+}
+
+/// 工具分类
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ToolCategory {
+    /// 通用工具，所有模式可用
+    #[default]
+    Common,
+    /// TUI 专用工具，仅在 TUI 模式下生效
+    Tui,
+    /// CLI 专用工具，仅在 CLI 模式下生效
+    Cli,
+    /// Daemon 专用工具，仅在 Daemon 模式下生效
+    Daemon,
 }
 
 /// 工具定义
@@ -93,6 +107,8 @@ pub struct ToolDefinition {
     pub schema: Value,
     pub capabilities: ToolCapabilities,
     pub timeout: Duration,
+    /// 工具分类，影响工具的可用性
+    pub category: ToolCategory,
 }
 
 /// 工具执行上下文
@@ -201,43 +217,48 @@ pub struct DefaultToolRegistry {
 }
 
 impl DefaultToolRegistry {
-    pub fn new() -> Self {
+    pub async fn new() -> Self {
         let mut registry = Self {
             tools: RwLock::new(HashMap::new()),
             timeouts: RwLock::new(HashMap::new()),
         };
 
         // 注册内置工具（按优先级排序）
-        // 1. 核心工具（文件系统）：fs::read, fs::write, fs::edit, fs::delete
-        registry.register(FileReadTool);
-        registry.register(FileWriteTool);
-        registry.register(FileEditTool);
-        registry.register(FileDeleteTool);
+        // 1. 核心工具（文件系统）：fs::read, fs::write, fs::edit, fs::delete, fs::list, fs::ls
+        registry.register(Arc::new(FileReadTool));
+        registry.register(Arc::new(FileWriteTool));
+        registry.register(Arc::new(FileEditTool));
+        registry.register(Arc::new(FileDeleteTool));
+        registry.register(Arc::new(FileListTool));
+        registry.register(Arc::new(FileLsTool::new()));  // fs::ls 别名
         
         // 2. 上下文工具：context::observe
         // 依赖注入方式：通过工厂函数或服务容器获取实例
         // 示例: let observer = ctx.container().resolve::<dyn ContextObserver>();
         let context_observer = create_context_observer().await;
-        registry.register(ContextObserveTool::new(context_observer));
+        registry.register(Arc::new(ContextObserveTool::new(context_observer)));
         
         // 2.1 上下文工具：context::compact
         // 依赖注入方式：通过工厂函数或服务容器获取实例
         // 示例: let compression = ctx.container().resolve::<CompressionService>();
         let compression_service = create_compression_service().await;
-        registry.register(ContextCompactTool::new(compression_service));
+        registry.register(Arc::new(ContextCompactTool::new(compression_service)));
         
         // 3. 多智能体工具：multi-agent::spawn, multi-agent::send, multi-agent::report
-        registry.register(MultiAgentSpawnTool);
-        registry.register(MultiAgentSendTool);
-        registry.register(MultiAgentReportTool);
+        registry.register(Arc::new(MultiAgentSpawnTool));
+        registry.register(Arc::new(MultiAgentSendTool));
+        registry.register(Arc::new(MultiAgentReportTool));
         
         // 4. 激活工具：activate::skill, activate::mcp
-        registry.register(ActivateSkillTool);
-        registry.register(ActivateMcpTool);
+        registry.register(Arc::new(ActivateSkillTool));
+        registry.register(Arc::new(ActivateMcpTool));
         
         // 5. 工作流工具：workflow::pass, workflow::option
-        registry.register(WorkflowOptionTool);
-        registry.register(WorkflowPassTool);
+        registry.register(Arc::new(WorkflowOptionTool));
+        registry.register(Arc::new(WorkflowPassTool));
+        
+        // 6. TUI工具：tui::question
+        registry.register(Arc::new(QuestionAskTool));
 
         // 注意：MCP和Skill外部工具在运行时动态注册
 
@@ -292,6 +313,7 @@ impl ToolRegistry for DefaultToolRegistry {
 | `fs::write` | 写入文件（完全覆盖） | 10秒 |
 | `fs::edit` | 编辑文件（基于verify） | 10秒 |
 | `fs::delete` | 删除文件 | 5秒 |
+| `fs::list` / `fs::ls` | 读取目录内容 | 5秒 |
 
 ### 4.2 fs::read 实现
 
@@ -325,6 +347,7 @@ pub mod fs {
                 }),
                 capabilities: ToolCapabilities::default(),
                 timeout: Duration::from_secs(5),
+                category: ToolCategory::Common,
             });
             &DEF
         }
@@ -370,6 +393,7 @@ impl ToolExecutor for FileWriteTool {
             }),
             capabilities: ToolCapabilities::default(),
             timeout: Duration::from_secs(10),
+            category: ToolCategory::Common,
         });
         &DEF
     }
@@ -422,6 +446,7 @@ impl ToolExecutor for FileEditTool {
             }),
             capabilities: ToolCapabilities::default(),
             timeout: Duration::from_secs(10),
+            category: ToolCategory::Common,
         });
         &DEF
     }
@@ -494,7 +519,105 @@ pub fn verify_line_content_with_config(
 }
 ```
 
-### 4.5 fs::delete 实现
+### 4.5 fs::list / fs::ls 实现
+
+> **别名实现方案**：采用双注册方案。`fs::list` 和 `fs::ls` 分别注册为独立工具，但共享同一执行逻辑。
+
+```rust
+/// 文件列表工具（主工具 fs::list）
+pub struct FileListTool;
+
+#[async_trait]
+impl ToolExecutor for FileListTool {
+    fn definition(&self) -> &ToolDefinition {
+            static DEF: Lazy<ToolDefinition> = Lazy::new(|| ToolDefinition {
+                id: ToolId::new("fs", "list"),
+                description: "列出目录内容".into(),
+            schema: json!({
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "目录路径（默认为当前工作目录）"
+                    },
+                    "include_hidden": {
+                        "type": "boolean",
+                        "description": "是否包含隐藏文件（默认false）",
+                        "default": false
+                    }
+                },
+                "required": []
+            }),
+            capabilities: ToolCapabilities::default(),
+            timeout: Duration::from_secs(5),
+        });
+        &DEF
+    }
+    
+    async fn execute(
+        &self,
+        context: &ToolContext,
+        args: Value,
+    ) -> Result<ToolResult, ToolError> {
+        // TODO: 实现目录列表逻辑
+        // 1. 从args解析path（可选，默认为context.working_dir）
+        // 2. 验证路径安全性（同fs::read）
+        // 3. 调用std::fs::read_dir读取目录
+        // 4. 构建目录条目列表：名称、类型、大小、修改时间
+        // 5. 根据include_hidden过滤隐藏文件
+        // 6. 返回目录内容
+        unimplemented!()
+    }
+}
+
+/// fs::ls 别名工具 - 复用 FileListTool 的执行逻辑
+pub struct FileLsTool(FileListTool);
+
+impl FileLsTool {
+    pub fn new() -> Self {
+        Self(FileListTool)
+    }
+}
+
+#[async_trait]
+impl ToolExecutor for FileLsTool {
+    fn definition(&self) -> &ToolDefinition {
+            static DEF: Lazy<ToolDefinition> = Lazy::new(|| ToolDefinition {
+                id: ToolId::new("fs", "ls"),
+                description: "列出目录内容（fs::list 的别名）".into(),
+            schema: json!({
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "目录路径（默认为当前工作目录）"
+                    },
+                    "include_hidden": {
+                        "type": "boolean",
+                        "description": "是否包含隐藏文件（默认false）",
+                        "default": false
+                    }
+                },
+                "required": []
+            }),
+            capabilities: ToolCapabilities::default(),
+            timeout: Duration::from_secs(5),
+        });
+        &DEF
+    }
+    
+    async fn execute(
+        &self,
+        context: &ToolContext,
+        args: Value,
+    ) -> Result<ToolResult, ToolError> {
+        // 委托给 FileListTool 执行
+        self.0.execute(context, args).await
+    }
+}
+```
+
+### 4.6 fs::delete 实现
 
 ```rust
 pub struct FileDeleteTool;
@@ -513,10 +636,11 @@ impl ToolExecutor for FileDeleteTool {
                         "description": "要删除的文件路径"
                     }
                 },
-                "required": ["path"]
+                "required": []
             }),
             capabilities: ToolCapabilities::default(),
             timeout: Duration::from_secs(5),
+            category: ToolCategory::Common,
         });
         &DEF
     }
@@ -550,6 +674,7 @@ impl ToolExecutor for FileDeleteTool {
 |------|------|------|
 | `context::observe` | 观测上下文状态，获取 Dashboard | 5秒 |
 | `context::compact` | 主动压缩上下文（Layer A） | 30秒 |
+| `tui::question` | 向用户提问（仅限TUI非no-ask模式） | 30秒 |
 
 ### 5.1.2 context::observe
 
@@ -587,6 +712,7 @@ impl ToolExecutor for ContextObserveTool {
             }),
             capabilities: ToolCapabilities::default(),
             timeout: Duration::from_secs(5),
+            category: ToolCategory::Common,
         });
         &DEF
     }
@@ -609,7 +735,61 @@ impl ToolExecutor for ContextObserveTool {
 }
 ```
 
-### 5.1.3 context::compact
+### 5.1.3 tui::question
+
+```rust
+pub struct QuestionAskTool;
+
+#[async_trait]
+impl ToolExecutor for QuestionAskTool {
+    fn definition(&self) -> &ToolDefinition {
+            static DEF: Lazy<ToolDefinition> = Lazy::new(|| ToolDefinition {
+                id: ToolId::new("tui", "question"),
+                description: "向用户提问（仅限TUI非no-ask模式）".into(),
+            schema: json!({
+                "type": "object",
+                "properties": {
+                    "question": {
+                        "type": "string",
+                        "description": "要询问用户的问题"
+                    },
+                    "timeout": {
+                        "type": "integer",
+                        "description": "等待用户响应的超时时间（秒），默认30秒",
+                        "default": 30
+                    }
+                },
+                "required": ["question"]
+            }),
+            capabilities: ToolCapabilities::default(),
+            timeout: Duration::from_secs(30),
+            category: ToolCategory::Tui,
+        });
+        &DEF
+    }
+    
+    async fn execute(
+        &self,
+        context: &ToolContext,
+        args: Value,
+    ) -> Result<ToolResult, ToolError> {
+        // TODO: 实现向用户提问逻辑
+        // 1. 从args解析question和timeout
+        // 2. 检查当前运行模式是否为TUI且非no-ask模式
+        // 3. 向用户显示问题并等待响应
+        // 4. 返回用户的响应内容
+        // 5. 超时时返回超时错误
+        unimplemented!()
+    }
+}
+```
+
+**执行约束：**
+- 仅在TUI交互模式下可用，且未启用 `--no-ask` 参数
+- 在CLI或Agent模式下调用时返回 `ToolError::PermissionDenied` 错误
+- 超时时间可通过timeout参数配置，默认30秒
+
+### 5.1.4 context::compact
 
 ```rust
 impl ContextCompactTool {
@@ -642,10 +822,11 @@ impl ToolExecutor for ContextCompactTool {
                         "description": "压缩起点标记，从该标记到当前位置的消息将被压缩"
                     }
                 },
-                "required": ["tag"]
+                "required": []
             }),
             capabilities: ToolCapabilities::default(),
-            timeout: Duration::from_secs(30),
+            timeout: Duration::from_secs(5),
+            category: ToolCategory::Common,
         });
         &DEF
     }

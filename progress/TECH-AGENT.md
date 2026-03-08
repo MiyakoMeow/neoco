@@ -141,11 +141,19 @@ pub enum AgentState {
     Failed,
 }
 
+/// Agent模式 - 对应需求文档的mode字段
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AgentMode {
+    Primary,   // 主Agent，直接与用户对话
+    Subagent,  // 子Agent，由上级Agent创建
+}
+
 /// Agent领域模型
 pub struct Agent {
     id: AgentUlid,
     parent_ulid: Option<AgentUlid>,
     definition_id: String,
+    mode: AgentMode,  // primary 或 subagent
     state: AgentState,
     model_group: Option<String>,
     system_prompt: Option<String>,
@@ -196,6 +204,12 @@ impl Agent {
 ### 3.3 Agent引擎核心
 
 > **注意**：Agent引擎不直接持有领域模型，通过仓储接口访问
+>
+> **mode字段创建约束（不变量）**：
+> - 根Agent（直接与用户对话的Session Root Agent）：固定为 `Primary` 模式
+> - 子Agent（由 `spawn_child` 创建）：固定为 `Subagent` 模式
+>
+> 此约束确保基于模式做权限或行为分流时不会出现语义漂移。
 
 ```rust
 /// Agent引擎（应用层）
@@ -469,6 +483,7 @@ impl ToolExecutor for SpawnAgentTool {
             }),
             capabilities: ToolCapabilities::default(),
             timeout: Duration::from_secs(30),
+            category: ToolCategory::Common,
         });
         &DEF
     }
@@ -522,6 +537,7 @@ impl ToolExecutor for SendMessageTool {
             }),
             capabilities: ToolCapabilities::default(),
             timeout: Duration::from_secs(30),
+            category: ToolCategory::Common,
         });
         &DEF
     }
@@ -571,6 +587,7 @@ impl ToolExecutor for ReportTool {
             }),
             capabilities: ToolCapabilities::default(),
             timeout: Duration::from_secs(30),
+            category: ToolCategory::Common,
         });
         &DEF
     }
