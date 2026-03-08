@@ -227,6 +227,7 @@ pub struct SessionMeta {
 ```rust
 /// Agent定义（统一结构，支持多种格式自动解析）
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct AgentDefinition {
     /// Agent标识，默认为文件名
     pub id: Option<String>,
@@ -242,12 +243,13 @@ pub struct AgentDefinition {
     pub model_group: Option<String>,
     /// 提示词列表
     pub prompts: Vec<String>,
-    /// 工具列表（保留但解析时忽略）
-    pub tools: Vec<String>,
     /// MCP服务器列表
     pub mcp_servers: Vec<String>,
     /// 技能列表
     pub skills: Vec<String>,
+    /// 额外字段（未定义的字段会自动收集到这里）
+    #[serde(flatten)]
+    pub extras: std::collections::HashMap<String, serde_json::Value>,
 }
 
 /// 模型值（支持多种格式）
