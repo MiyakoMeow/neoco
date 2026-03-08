@@ -546,8 +546,8 @@ pub enum AgentEvent {
     Created { id: AgentUlid, parent_ulid: Option<AgentUlid> },
     StateChanged { id: AgentUlid, old: AgentState, new: AgentState },
     MessageAdded { id: AgentUlid, message_id: MessageId },
-    ToolCalled { id: AgentUlid, tool_ulid: ToolUlid },
-    ToolResult { id: AgentUlid, tool_ulid: ToolUlid, success: bool },
+    ToolCalled { id: AgentUlid, tool_id: ToolId },
+    ToolResult { id: AgentUlid, tool_id: ToolId, success: bool },
     Completed { id: AgentUlid, output: String },
     Error { id: AgentUlid, error: String },
 }
@@ -566,10 +566,10 @@ pub enum WorkflowEvent {
 /// Tool领域事件
 #[derive(Debug, Clone)]
 pub enum ToolEvent {
-    Registered { tool_ulid: ToolUlid },
-    Executing { tool_ulid: ToolUlid, agent_ulid: AgentUlid },
-    Executed { tool_ulid: ToolUlid, agent_ulid: AgentUlid, success: bool },
-    Error { tool_ulid: ToolUlid, error: String },
+    Registered { tool_id: ToolId },
+    Executing { tool_id: ToolId, agent_ulid: AgentUlid },
+    Executed { tool_id: ToolId, agent_ulid: AgentUlid, success: bool },
+    Error { tool_id: ToolId, error: String },
 }
 
 /// 系统事件

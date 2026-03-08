@@ -136,13 +136,13 @@ pub trait ToolExecutor: Send + Sync {
 /// 工具注册表Trait
 #[async_trait]
 pub trait ToolRegistry: Send + Sync {
-    fn register(&self, tool: Arc<dyn ToolExecutor>);
+    async fn register(&self, tool: Arc<dyn ToolExecutor>);
     
     fn get(&self, id: &ToolUlid) -> Option<Arc<dyn ToolExecutor>>;
     
     fn definitions(&self) -> Vec<ToolDefinition>;
     
-    fn timeout(&self, id: &ToolUlid) -> Duration;
+    fn timeout(&self, id: &ToolUlid) -> Option<Duration>;
     
     fn set_timeout(&self, prefix: &str, duration: Duration);
     
@@ -246,37 +246,37 @@ impl DefaultToolRegistry {
 
 #[async_trait]
 impl ToolRegistry for DefaultToolRegistry {
-    async fn register<T: ToolExecutor + Send + Sync + 'static>(&mut self, tool: T) {
+    async fn register(&self, tool: Arc<dyn ToolExecutor>) {
         let def = tool.definition();
-        let executor = Arc::new(tool);
-        self.tools.write().await.insert(def.id.clone(), executor);
+        let mut tools = self.tools.write().await;
+        tools.insert(def.id.clone(), tool);
     }
     
-    async fn get(&self, id: &ToolUlid) -> Option<Arc<dyn ToolExecutor>> {
-        self.tools.read().await.get(id).cloned()
+    fn get(&self, id: &ToolUlid) -> Option<Arc<dyn ToolExecutor>> {
+        self.tools.blocking_read().get(id).cloned()
     }
     
-    async fn definitions(&self) -> Vec<ToolDefinition> {
-        self.tools.read().await.values()
+    fn definitions(&self) -> Vec<ToolDefinition> {
+        self.tools.blocking_read().values()
             .map(|tool| tool.definition().clone())
             .collect()
     }
     
-    async fn timeout(&self, id: &ToolUlid) -> Option<Duration> {
-        let tools = self.tools.read().await;
+    fn timeout(&self, id: &ToolUlid) -> Option<Duration> {
+        let tools = self.tools.blocking_read();
         if let Some(tool) = tools.get(id) {
             Some(tool.definition().timeout)
         } else {
-            self.timeouts.read().await.get(id.0.as_str()).copied()
+            self.timeouts.blocking_read().get(id.0.as_str()).copied()
         }
     }
     
-    async fn set_timeout(&self, id: ToolUlid, timeout: Duration) {
-        self.timeouts.write().await.insert(id.0, timeout);
+    fn set_timeout(&self, prefix: &str, timeout: Duration) {
+        self.timeouts.blocking_write().insert(prefix.to_string(), timeout);
     }
     
-    async fn list_tools(&self) -> Vec<ToolUlid> {
-        self.tools.read().await.keys().cloned().collect()
+    fn list_tools(&self) -> Vec<ToolUlid> {
+        self.tools.blocking_read().keys().cloned().collect()
     }
 }
 ```

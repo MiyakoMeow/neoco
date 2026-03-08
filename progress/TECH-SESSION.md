@@ -220,9 +220,10 @@ impl Session {
         
         let agent_ulid = AgentUlid::new_child(&parent_ulid);
         self.hierarchy.add_child(parent_ulid, agent_ulid.clone());
+        self.updated_at = Utc::now();
         Ok(agent_ulid)
     }
-    
+        
     pub fn allocate_message_id(&self) -> Option<MessageId> {
         self.id_allocator.next_id()
     }
