@@ -373,7 +373,7 @@ pub struct ToolsConfig {
     pub default_timeout: Duration,
 }
 
-fn default_tool_timeout() -> Duration { Duration::from_secs(30) }
+fn default_tool_timeout() -> Duration { Duration::from_secs(10) }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UiConfig {
@@ -641,7 +641,7 @@ compact_model_group = "fast"
 keep_recent_messages = 10
 
 [system.tools]
-default_timeout = { secs = 30, nanos = 0 }
+default_timeout = { secs = 10, nanos = 0 }
 timeouts = { "fs" = { secs = 10, nanos = 0 }, "mcp" = { secs = 60, nanos = 0 } }
 
 [system.ui]

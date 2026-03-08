@@ -117,7 +117,7 @@ impl CliInterface {
         //      相对路径配置以 working_dir 为基准，绝对路径配置不受 working_dir 影响
         //      高优先级覆盖低优先级配置，嵌套对象深度合并
         // 3. 参数校验：
-        //    - agent子命令与--message同时提供 → 返回错误（互斥）
+        //    - daemon子命令与--message同时提供 → 返回错误（互斥）
         //    - message参数为空 → 返回错误
         // 4. 根据参数决定运行模式：
         //    - command=Some(Commands::Agent) → 启动守护进程模式

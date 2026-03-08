@@ -96,6 +96,11 @@ tags:
 ///
 /// 注意：Skill使用字符串名称（如"rust-coding"）作为标识符，而非ULID
 /// Agent配置中的skills字段使用字符串列表格式
+///
+/// [TODO] 与TECH-SESSION.md中SkillUlid的关系：
+/// - SkillName（字符串）：用户可见的Skill名称，对应SKILL.md中的name字段
+/// - SkillUlid（ULID）：内部运行时标识，用于Session中追踪激活的Skill实例
+/// - 用户配置使用SkillName（字符串），运行时内部映射到SkillUlid
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct SkillName(String);
 

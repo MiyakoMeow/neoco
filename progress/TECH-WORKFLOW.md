@@ -77,6 +77,14 @@ pub struct WorkflowDefinition {
 pub struct WorkflowParams(pub HashMap<String, Value>);
 
 /// 节点定义
+/// 
+/// **节点ID设计说明：**
+/// - 工作流定义中使用 **字符串（kebab-case）** 作为节点标识，如 "write-prd"
+/// - 此设计与 REQUIREMENT.md 保持一致，便于人类理解和配置文件编写
+/// - TODO: 与 TECH.md 中的 NodeUlid 进行区分：
+///   - NodeUlid（TECH.md）用于运行时内部标识节点实例
+///   - 字符串ID（本文档）用于工作流定义和配置文件
+///   - 具体实现细节待确认：可能需要在运行时建立两者之间的映射
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NodeDefinition {
     pub id: String,  // 使用kebab-case字符串ID，如"write-prd"
@@ -102,9 +110,12 @@ pub struct Requirement {
 }
 
 /// 边定义
+/// 
+/// **节点ID说明**：from/to 字段使用字符串（kebab-case）作为节点引用，
+/// 与 NodeDefinition.id 保持一致。"END" 是特殊关键字，表示工作流结束。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EdgeDefinition {
-    pub from: String,  // 节点字符串ID
+    pub from: String,  // 节点字符串ID（对应NodeDefinition.id）
     pub to: String,    // 节点字符串ID，"END"表示工作流结束
     #[serde(default)]
     pub select: Option<Vec<SelectOption>>,  // select触发时计数器+1
@@ -114,21 +125,26 @@ pub struct EdgeDefinition {
 
 // 节点ID使用字符串（kebab-case），如"write-prd"
 // 不再使用ULID，保持与需求文档一致
+// TODO: 运行时可能需要将字符串ID映射为NodeUlid（见TECH.md定义）
 ```
 
 ### 3.2 工作流运行时（动态状态）
 
 ```rust
 /// 工作流运行时状态
+/// 
+/// **节点ID说明**：node_states 和 active_nodes 使用字符串（kebab-case）作为键，
+/// 与工作流定义中的 NodeDefinition.id 保持一致。
+/// TODO: 运行时内部可选择使用 NodeUlid（见TECH.md）作为实例标识，但HashMap键仍使用字符串ID
 #[derive(Debug, Clone)]
 pub struct WorkflowRuntime {
     pub session_ulid: SessionUlid,
     definition: Arc<WorkflowDefinition>,
-    node_states: DashMap<String, NodeRuntimeState>,
+    node_states: DashMap<String, NodeRuntimeState>,  // Key: 节点字符串ID（kebab-case）
     counters: DashMap<CounterKey, u32>,
     variables: DashMap<VariableKey, Value>,
-    active_nodes: DashSet<String>,
-    transition_messages: DashMap<String, String>,
+    active_nodes: DashSet<String>,  // 节点字符串ID集合（kebab-case）
+    transition_messages: DashMap<String, String>,  // Key: 节点字符串ID
     status: WorkflowStatus,
     created_at: DateTime<Utc>,
     updated_at: DateTime<Utc>,
@@ -261,8 +277,9 @@ use dashmap::{DashMap, DashSet};
 /// 
 /// 3. **节点执行上下文**
 ///    - `node_states: DashMap<String, NodeRuntimeState>`：节点状态（Waiting/Running/Success/Failed/Skipped）
-///    - `active_nodes: DashSet<String>`：当前活动节点集合
-///    - `transition_messages: DashMap<String, String>`：节点转场时传递的消息
+///      - Key使用字符串（kebab-case），与NodeDefinition.id保持一致
+///    - `active_nodes: DashSet<String>`：当前活动节点集合（kebab-case字符串ID）
+///    - `transition_messages: DashMap<String, String>`：节点转场时传递的消息（Key为kebab-case字符串ID）
 /// 
 /// 4. **死锁检测**
 ///    - `last_progress_at: DateTime<Utc>`：记录最后进度时间
@@ -295,6 +312,10 @@ pub enum StorageError {
 
 ```rust
 /// 工作流事件类型
+/// 
+/// **节点ID说明**：事件中的 node_id 字段使用字符串（kebab-case）格式，
+/// 与工作流定义中的节点ID保持一致。
+/// TODO: 与 TECH.md 中的 NodeUlid 进行区分，具体映射关系待实现确认。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum WorkflowEvent {
@@ -304,28 +325,28 @@ pub enum WorkflowEvent {
     },
     NodeStarted {
         session_ulid: SessionUlid,
-        node_id: String,
+        node_id: String,  // 节点字符串ID（kebab-case），对应NodeDefinition.id
         agent_ulid: AgentUlid,
     },
     NodeCompleted {
         session_ulid: SessionUlid,
-        node_id: String,
+        node_id: String,  // 节点字符串ID（kebab-case）
         output: String,
     },
     NodeFailed {
         session_ulid: SessionUlid,
-        node_id: String,
+        node_id: String,  // 节点字符串ID（kebab-case）
         error: String,
     },
     NodeTransitionIntent {
         session_ulid: SessionUlid,
-        node_id: String,
+        node_id: String,  // 节点字符串ID（kebab-case）
         message: Option<String>,
     },
     EdgeTriggered {
         session_ulid: SessionUlid,
-        from: String,
-        to: String,
+        from: String,  // 源节点字符串ID
+        to: String,    // 目标节点字符串ID
         option: Option<String>,
     },
     WorkflowCompleted {
@@ -355,6 +376,10 @@ pub trait EventPublisher: Send + Sync {
 /// 
 /// 引擎协调工作流执行，负责节点调度和状态管理。
 /// 事件发布见 [TECH-SESSION.md#3-消息模型设计](TECH-SESSION.md#3-消息模型设计)
+/// 
+/// **节点ID说明**：引擎内部使用字符串（kebab-case）作为节点标识，
+/// 与工作流定义中的 NodeDefinition.id 保持一致。
+/// TODO: 与 TECH.md 中的 NodeUlid 进行区分，运行时可能需要建立字符串ID到NodeUlid的映射
 pub struct WorkflowEngine {
     agent_engine: Arc<AgentEngine>,
     event_publisher: Arc<dyn EventPublisher>,

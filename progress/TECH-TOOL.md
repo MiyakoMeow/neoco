@@ -57,7 +57,7 @@ graph TB
 | MCP | `mcp::server_name` | `mcp::context7` |
 | 多智能体 | `multi-agent::action` | `multi-agent::spawn` |
 | 上下文 | `context::action` | `context::observe` |
-| 工作流 | `workflow::<action>` | `workflow::pass`, `workflow::option` (具体工具ID) |
+| 工作流 | `workflow::action` | `workflow::pass`, `workflow::option` |
 | 激活 | `activate::type` | `activate::skill` |
 
 ## 3. 工具接口设计
@@ -817,15 +817,19 @@ impl ToolExecutor for FileDeleteTool {
         context: &ToolContext,
         args: Value,
     ) -> Result<ToolResult, ToolError> {
-        // TODO: 实现文件删除逻辑
+        // TODO: 实现文件/目录删除逻辑
         // 1. 从args解析path为String
         // 2. 验证路径安全性：
         //    a. 使用std::fs::canonicalize规范化路径，解析所有符号链接和相对路径
         //    b. 确保规范化后的绝对路径以context.working_dir的规范化路径为前缀
         //    c. 防止路径遍历攻击（../）、符号链接逃逸、硬链接逃逸
-        // 3. 检查文件是否存在
-        // 4. 调用std::fs::remove_file删除文件
-        // 5. 返回删除成功的结果
+        // 3. 检查文件/目录是否存在
+        // 4. 如果目标是目录，必须验证目录为空（ REQUIREMENT.md 规定）
+        //    a. 使用std::fs::read_dir读取目录
+        //    b. 如果目录中包含任何条目（文件、子目录），返回错误
+        //    c. 仅当目录为空时，才调用std::fs::remove_dir删除目录
+        // 5. 如果目标是文件，调用std::fs::remove_file删除文件
+        // 6. 返回删除成功的结果
         unimplemented!()
     }
 }
