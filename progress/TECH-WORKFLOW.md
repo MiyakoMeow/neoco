@@ -183,7 +183,7 @@ impl WorkflowRuntime {
         // 2. 初始化空的active_nodes HashSet<NodeUlid>
         // 3. 初始化空的node_states HashMap<NodeUlid, NodeRuntimeState>
         // 4. 初始化空的counters HashMap<String, u32>
-        // 5. 初始化空的transition_messages HashMap<NodeUlid, String>
+        // 5. 初始化空的transition_messages DashMap<NodeUlid, String>
         // 6. 设置status为WorkflowStatus::Ready
         // 7. 设置created_at和updated_at为当前UTC时间
         unimplemented!()
