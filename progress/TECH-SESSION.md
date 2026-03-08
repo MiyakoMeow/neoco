@@ -263,22 +263,20 @@ pub struct ModelRef {
 pub enum AgentMode {
     Primary,
     SubAgent,
-    Multiple(Vec<SubAgentConfig>),
+    Multiple(Vec<AgentModeType>),
 }
 
-/// 子Agent配置（支持自定义）
+/// 模式类型（用于数组）
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SubAgentConfig {
-    pub name: String,
-    pub description: Option<String>,
-    /// 覆盖父Agent的skills
-    pub skills: Option<Vec<String>>,
-    /// 覆盖父Agent的mcp_servers
-    pub mcp_servers: Option<Vec<String>>,
+pub enum AgentModeType {
+    #[serde(rename = "primary")]
+    Primary,
+    #[serde(rename = "subagent")]
+    SubAgent,
 }
 
 /// 原始Agent定义（YAML解析用）
-/// 解析时自动将字符串形式的model转为ModelRef
+/// 解析时自动将字符串形式的model和mode转为统一结构
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RawAgentDefinition {
     pub id: Option<String>,
@@ -299,7 +297,7 @@ pub struct RawAgentDefinition {
 #[serde(untagged)]
 pub enum RawAgentMode {
     String(String),
-    Multiple(Vec<SubAgentConfig>),
+    Multiple(Vec<String>),
 }
 
 impl AgentDefinition {
@@ -353,11 +351,12 @@ impl RawAgentDefinition {
         // 2. 解析 mode 字段
         //    - "primary" -> Primary
         //    - "subagent" -> SubAgent
-        //    - 数组 -> Multiple(SubAgentConfig)
+        //    - 数组：["primary", "subagent"] -> Multiple([Primary, SubAgent])
         //    - 无：Primary
-        // 3. 填充默认值
+        // 3. 填充默认值（prompts, tools等为空Vec）
         unimplemented!()
     }
+}
 }
 
     /// 获取实际使用的模型组
