@@ -1,5 +1,8 @@
 # TECH-MCP: MCP模块
 
+/// 当前支持的协议版本
+pub const CURRENT_PROTOCOL_VERSION: &str = "2025-11-25";
+
 本文档描述NeoCo项目的MCP（Model Context Protocol）模块设计。
 
 **设计原则：**
@@ -364,7 +367,7 @@ pub struct ResourceList {
 pub struct ResourceContent {
     pub uri: String,
     pub mime_type: Option<String>,
-    /// base64 编码的内容
+    /// base64 编码的内容 (String 类型)
     pub blob: String,
 }
 ```
@@ -532,7 +535,7 @@ pub async fn restore_session(
     session_id: &SessionId,
 ) -> Result<McpSession, McpError> {
     let mut params = serde_json::Map::new();
-    params.insert("protocolVersion".to_string(), serde_json::Value::String("2025-11-25".to_string()));
+    params.insert("protocolVersion".to_string(), serde_json::Value::String(CURRENT_PROTOCOL_VERSION.to_string()));
     params.insert("sessionId".to_string(), serde_json::Value::String(session_id.as_str().to_string()));
     
     let request = Request::new("initialize", Value::Object(params));
@@ -547,7 +550,7 @@ pub async fn restore_session(
     let session = McpSession {
         id: session_id.clone(),
         server_capabilities: parse_server_capabilities(&result)?,
-        protocol_version: "2025-11-25".to_string(),
+        protocol_version: CURRENT_PROTOCOL_VERSION.to_string(),
         created_at: Utc::now(),
         last_activity: Utc::now(),
     };

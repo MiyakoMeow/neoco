@@ -941,7 +941,7 @@ graph TB
 | L6 | 密钥零化 | Zeroizing自动内存擦除 | 已实现 |
 | L7 | OFP双向认证 | HMAC-SHA256 P2P认证 | 不适用 |
 | L8 | Capability能力门 | RBAC能力驱动访问控制 | 已实现 |
-| L9 | 安全响应头 | CSP, HSTS, X-Frame-Options | N/A |
+| L9 | 安全响应头 | CSP, HSTS, X-Frame-Options | 不适用 |
 | L10 | 健康端点管控 | 公开/私有诊断分离 | 未启动 |
 | L11 | 子进程沙箱 | env_clear+进程树隔离 | 已实现 |
 | L12 | Prompt注入扫描 | 检测override/exfiltration | 未启动 |
@@ -1167,7 +1167,7 @@ NeoCo提供两种扩展Agent能力的机制：**提示词组件(Prompt Component
 | 工具超时 | 默认30s | 可配置 |
 | 上下文上限 | 模型限制 | - |
 
-### 12.4 二进制大小优化分析
+### 12.2 二进制大小优化分析
 
 **OpenFang 实际大小**：~32MB（Release 构建）
 
@@ -1183,7 +1183,7 @@ NeoCo提供两种扩展Agent能力的机制：**提示词组件(Prompt Component
 
 **结论**：在当前功能集下，<20MB 目标过于激进。建议将目标调整为 30-35MB 以保持功能完整性和可维护性。
 
-### 12.2 优化策略
+### 12.3 优化策略
 
 | 优化点 | 策略 |
 |-------|------|
@@ -1192,13 +1192,13 @@ NeoCo提供两种扩展Agent能力的机制：**提示词组件(Prompt Component
 | 存储 | 异步IO、批量写入 |
 | 内存 | Session缓存LRU、消息分页 |
 
-### 12.3 资源限制
+### 12.4 资源限制
 
 - 工具超时：默认30s（可配置）
 - 上下文上限：模型限制
 - 并发Agent数：由运行时配置决定
 
-### 12.4 编译优化配置
+### 12.5 编译优化配置
 
 ```toml
 [profile.release]
@@ -1239,16 +1239,16 @@ lto = "thin"          # Thin LTO，相比 fat LTO 编译更快
 
 > **版本说明**：以下技术参考基于 OpenFang v0.1.x 系列，最新版本为 v0.3.30 (2026-03-08)。
 
-| 维度 | OpenFang | NeoCo |
-|------|----------|-------|
-| **版本** | v0.1.x / v0.3.30 | 0.1.0 |
-| **规模** | 137K LOC, 14 crates | 待评估 |
-| **架构** | Kernel Handle Trait | 依赖反转接口 |
-| **安全** | 16 层独立安全系统 | 16 层安全体系 |
-| **通信** | EventBus + Trigger | EventBus |
-| **工具** | Wasmtime 双计量沙箱 | 工具执行沙箱 |
-| **Provider** | 27 个 LLM 驱动 | 多 Provider 支持 |
-| **Channel** | 40 个消息适配器 | MCP 协议 |
+| 维度 | OpenFang | NeoCo 架构目标 | NeoCo 当前状态 |
+|------|----------|----------------|----------------|
+| **版本** | v0.1.x / v0.3.30 | 0.1.0 | 设计阶段 |
+| **规模** | 137K LOC, 14 crates | 待评估 | - |
+| **架构** | Kernel Handle Trait | 依赖反转接口 | 设计阶段 |
+| **安全** | 16 层独立安全系统 | 16 层安全体系 | 规划中 |
+| **通信** | EventBus + Trigger | EventBus | 实现中 |
+| **工具** | Wasmtime 双计量沙箱 | 工具执行沙箱 | 实现中 |
+| **Provider** | 27 个 LLM 驱动 | 多 Provider 支持 | 设计阶段 |
+| **Channel** | 40 个消息适配器 | MCP 协议 | 实现中 |
 
 **核心借鉴点：**
 - Kernel Handle Trait 解耦内核与运行时
