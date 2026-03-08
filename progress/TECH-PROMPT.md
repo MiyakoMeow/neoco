@@ -127,7 +127,6 @@ sequenceDiagram
 ```markdown
 ---
 id: fs::read
-visible: true
 ---
 
 # fs::read 工具提示词
