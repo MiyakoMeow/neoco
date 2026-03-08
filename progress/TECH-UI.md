@@ -622,6 +622,29 @@ $ neoco --config /custom/path/config.toml
 
 ---
 
+## 10. 依赖配置
+
+### Cargo.toml 配置
+
+```toml
+crossterm = { version = "0.29", features = [
+    "events",          # 事件支持（键盘输入等）
+    "bracketed-paste", # 括号粘贴模式支持
+    "windows"         # Windows 平台支持
+] }
+axum = "0.7"           # HTTP 服务框架（daemon 模式可选）
+```
+
+### Feature 说明
+
+| Feature | 说明 |
+|---------|------|
+| `events` | 启用事件处理，支持键盘输入捕获 |
+| `bracketed-paste` | 支持终端粘贴模式（更准确的粘贴处理） |
+| `windows` | Windows 平台特定优化 |
+
+---
+
 *关联文档：*
 - [TECH.md](TECH.md) - 总体架构文档
 - [TECH-SESSION.md](TECH-SESSION.md) - Session管理模块

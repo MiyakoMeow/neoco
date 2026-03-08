@@ -61,6 +61,11 @@ pub struct ChatRequest<'a> {
     pub stream: bool,
     pub temperature: Option<f64>,
     pub max_tokens: Option<u32>,
+    pub max_completion_tokens: Option<u32>,  // 新增：限制输出token数量
+    pub frequency_penalty: Option<f64>,       // 新增：频率惩罚
+    pub presence_penalty: Option<f64>,       // 新增：存在惩罚
+    pub top_p: Option<f64>,                  // 新增：核采样
+    pub seed: Option<i64>,                   // 新增：确定性输出种子
     /// 工具定义列表（provider-neutral 抽象）
     /// 由工具注册表统一管理，与具体 LLM Provider 无关
     pub tools: Option<Vec<crate::tool::ToolDefinition>>,
@@ -490,15 +495,7 @@ pub struct ModelCapabilityKey {
 static MODEL_CAPABILITIES: LazyLock<HashMap<ModelCapabilityKey, ModelCapabilities>> = LazyLock::new(|| {
     let mut m = HashMap::new();
     
-    // OpenAI - GPT-4 Vision 系列
-    m.insert(ModelCapabilityKey { provider: "openai".into(), model: "gpt-4-vision-preview".into() }, ModelCapabilities {
-        streaming: true,
-        tools: true,
-        functions: true,
-        json_mode: true,
-        vision: true,
-        context_window: 128_000,
-    });
+    // OpenAI - GPT-4o 系列（当前推荐）
     m.insert(ModelCapabilityKey { provider: "openai".into(), model: "gpt-4o".into() }, ModelCapabilities {
         streaming: true,
         tools: true,
@@ -507,18 +504,34 @@ static MODEL_CAPABILITIES: LazyLock<HashMap<ModelCapabilityKey, ModelCapabilitie
         vision: true,
         context_window: 128_000,
     });
-    
-    // OpenAI - GPT-4 Turbo
-    m.insert(ModelCapabilityKey { provider: "openai".into(), model: "gpt-4-turbo".into() }, ModelCapabilities {
+    m.insert(ModelCapabilityKey { provider: "openai".into(), model: "gpt-4o-mini".into() }, ModelCapabilities {
         streaming: true,
         tools: true,
         functions: true,
         json_mode: true,
+        vision: true,
+        context_window: 64_000,
+    });
+    
+    // OpenAI - o1 系列（推理模型）
+    m.insert(ModelCapabilityKey { provider: "openai".into(), model: "o1".into() }, ModelCapabilities {
+        streaming: false,  // o1 不支持流式输出
+        tools: false,
+        functions: false,
+        json_mode: false,
+        vision: false,
+        context_window: 200_000,
+    });
+    m.insert(ModelCapabilityKey { provider: "openai".into(), model: "o1-mini".into() }, ModelCapabilities {
+        streaming: false,
+        tools: false,
+        functions: false,
+        json_mode: false,
         vision: false,
         context_window: 128_000,
     });
     
-    // OpenAI - GPT-3.5 系列
+    // OpenAI - GPT-3.5 系列（Legacy）
     m.insert(ModelCapabilityKey { provider: "openai".into(), model: "gpt-3.5-turbo".into() }, ModelCapabilities {
         streaming: true,
         tools: true,
@@ -710,6 +723,16 @@ impl ModelError {
 - `Api` 错误变体现在包含 `provider` 字段，明确标识是哪个提供商（如 "openai"、"anthropic"）
 - 错误消息格式：`{provider} - {message}`，例如：`"openai - Invalid API key"`
 - 便于在日志中追踪和调试特定提供商的问题
+
+---
+
+## 12. 模型更新日志
+
+### 2025-03 更新
+- 添加 GPT-4o mini 模型支持
+- 添加 o1 / o1-mini 推理模型支持
+- 移除已弃用的 gpt-4-vision-preview、gpt-4-turbo 模型
+- 添加 max_completion_tokens、frequency_penalty、presence_penalty、top_p、seed 参数
 
 ---
 

@@ -103,7 +103,7 @@ pub struct ToolDefinition {
     pub description: String,
     /// JSON Schema 格式的参数定义
     /// 使用 JSON Schema Draft 2020-12 规范
-    /// 参考：https://json-schema.org/draft/2020-12/release-notes
+    /// 参考：https://json-schema.org/draft/2020-12/schema
     pub schema: Value,
     pub capabilities: ToolCapabilities,
     pub timeout: Duration,
@@ -942,6 +942,26 @@ impl ToolError {
     }
 }
 ```
+
+## 19. JSON Schema 使用说明
+
+### 规范版本
+本项目使用 JSON Schema Draft 2020-12 规范定义工具参数。
+
+### $schema 声明
+建议在工具的 inputSchema 中添加 $schema 声明：
+```json
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": { ... }
+}
+```
+
+### 建议添加的字段
+- `title`: 人类可读的名称
+- `description`: 详细描述
+- `examples`: 参数示例
 
 ---
 
