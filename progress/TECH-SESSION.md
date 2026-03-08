@@ -11,23 +11,23 @@ Session管理模块负责管理对话Session的生命周期、消息存储和Age
 
 ## 2. 核心概念
 
-### 2.1 标识符体系（强类型）
+### 2.1 标识符体系（强类型 - ULID Newtype模式）
 
 ```mermaid
 classDiagram
-    class SessionId {
+    class SessionUlid {
         +Ulid ulid
-        +new() SessionId
-        +from_string(&str) Result~SessionId~
+        +new() SessionUlid
+        +from_string(&str) Result~SessionUlid~
         +as_str() &str
     }
     
-    class AgentId {
+    class AgentUlid {
         +session: Ulid
         +agent: Ulid
-        +new_root(session_id) AgentId
-        +new_child(parent) AgentId
-        +session_id() SessionId
+        +new_root(session_ulid) AgentUlid
+        +new_child(parent) AgentUlid
+        +session_ulid() SessionUlid
     }
     
     class MessageId {
@@ -36,23 +36,41 @@ classDiagram
         +as_u64() u64
     }
     
-    class NodeId {
-        +String id
-        +new(kebab-case) NodeId (validated)
+    class NodeUlid {
+        +Ulid ulid
+        +new() NodeUlid
+        +from_string(&str) Result~NodeUlid~
+        +as_str() &str
     }
     
-    SessionId --> AgentId : contains
-    SessionId --> MessageId : allocates
+    class ToolUlid {
+        +Ulid ulid
+        +new() ToolUlid
+        +from_string(&str) Result~ToolUlid~
+        +as_str() &str
+    }
+    
+    class SkillUlid {
+        +Ulid ulid
+        +new() SkillUlid
+        +from_string(&str) Result~SkillUlid~
+        +as_str() &str
+    }
+    
+    SessionUlid --> AgentUlid : contains
+    SessionUlid --> MessageId : allocates
 ```
 
 **标识符规则：**
 
 | 标识符 | 生成时机 | 结构 | 校验 |
 |--------|---------|------|------|
-| `SessionId` | 创建Session时 | `SessionId(Ulid)` | 26位Ulid |
-| `AgentId` | Agent实例化时 | `{ session: Ulid, agent: Ulid }` | 双Ulid |
-| `MessageId` | 消息添加时 | `MessageId(u64)` | 原子自增 |
-| `NodeId` | 工作流定义时 | `NodeId(String)` | kebab-case |
+| `SessionUlid` | 创建Session时 | `SessionUlid(Ulid)` | 26位Ulid |
+| `AgentUlid` | Agent实例化时 | `{ session: Ulid, agent: Ulid }` | 双Ulid |
+| `MessageId` | 消息添加时 | `MessageId(u64)` | 原子自增（保持u64） |
+| `NodeUlid` | 工作流节点创建时 | `NodeUlid(Ulid)` | 26位Ulid |
+| `ToolUlid` | 工具注册时 | `ToolUlid(Ulid)` | 26位Ulid |
+| `SkillUlid` | Skill加载时 | `SkillUlid(Ulid)` | 26位Ulid |
 
 ### 2.2 领域仓储接口（依赖反转）
 
@@ -84,13 +102,13 @@ pub trait SessionRepository: Send + Sync {
     async fn save(&self, session: &Session) -> Result<(), StorageError>;
     
     /// 按ID查找Session
-    async fn find_by_id(&self, id: &SessionId) -> Result<Option<Session>, StorageError>;
+    async fn find_by_id(&self, id: &SessionUlid) -> Result<Option<Session>, StorageError>;
     
     /// 删除Session
-    async fn delete(&self, id: &SessionId) -> Result<(), StorageError>;
+    async fn delete(&self, id: &SessionUlid) -> Result<(), StorageError>;
     
     /// 列出所有Session
-    async fn list(&self) -> Result<Vec<SessionId>, StorageError>;
+    async fn list(&self) -> Result<Vec<SessionUlid>, StorageError>;
 }
 
 /// Agent仓储接口
@@ -100,26 +118,26 @@ pub trait AgentRepository: Send + Sync {
     async fn save(&self, agent: &Agent) -> Result<(), StorageError>;
     
     /// 按ID查找Agent
-    async fn find_by_id(&self, id: &AgentId) -> Result<Option<Agent>, StorageError>;
+    async fn find_by_id(&self, id: &AgentUlid) -> Result<Option<Agent>, StorageError>;
     
     /// 查找Session下的所有Agent
-    async fn find_by_session(&self, session_id: &SessionId) -> Result<Vec<Agent>, StorageError>;
+    async fn find_by_session(&self, session_ulid: &SessionUlid) -> Result<Vec<Agent>, StorageError>;
 }
 
 /// 消息仓储接口
 #[async_trait]
 pub trait MessageRepository: Send + Sync {
     /// 追加消息
-    async fn append(&self, agent_id: &AgentId, message: &Message) -> Result<(), StorageError>;
+    async fn append(&self, agent_ulid: &AgentUlid, message: &Message) -> Result<(), StorageError>;
     
     /// 列出Agent的所有消息
-    async fn list(&self, agent_id: &AgentId) -> Result<Vec<Message>, StorageError>;
+    async fn list(&self, agent_ulid: &AgentUlid) -> Result<Vec<Message>, StorageError>;
     
     /// 删除前缀消息（删除before_id之前的消息，保留新消息）
-    async fn delete_prefix(&self, agent_id: &AgentId, before_id: MessageId) -> Result<(), StorageError>;
+    async fn delete_prefix(&self, agent_ulid: &AgentUlid, before_id: MessageId) -> Result<(), StorageError>;
     
     /// 删除后缀消息（删除after_id之后的消息，保留旧消息）
-    async fn delete_suffix(&self, agent_id: &AgentId, after_id: MessageId) -> Result<(), StorageError>;
+    async fn delete_suffix(&self, agent_ulid: &AgentUlid, after_id: MessageId) -> Result<(), StorageError>;
 }
 ```
 
@@ -150,9 +168,9 @@ pub struct SessionMetadata {
 
 /// Session领域模型（不含storage字段）
 pub struct Session {
-    id: SessionId,
+    id: SessionUlid,
     session_type: SessionType,
-    root_agent_id: AgentId,
+    root_agent_ulid: AgentUlid,
     hierarchy: AgentHierarchy,
     id_allocator: MessageIdAllocator,
     metadata: SessionMetadata,
@@ -165,14 +183,14 @@ impl Session {
         session_type: SessionType,
         metadata: SessionMetadata,
     ) -> Self {
-        let id = SessionId::new();
-        let root_agent_id = AgentId::new_root(&id);
+        let id = SessionUlid::new();
+        let root_agent_ulid = AgentUlid::new_root(&id);
         
         Self {
             id: id.clone(),
             session_type,
-            root_agent_id: root_agent_id.clone(),
-            hierarchy: AgentHierarchy::new(root_agent_id),
+            root_agent_ulid: root_agent_ulid.clone(),
+            hierarchy: AgentHierarchy::new(root_agent_ulid),
             id_allocator: MessageIdAllocator::new(1),
             metadata,
             created_at: Utc::now(),
@@ -180,9 +198,9 @@ impl Session {
         }
     }
     
-    pub fn id(&self) -> &SessionId { &self.id }
+    pub fn id(&self) -> &SessionUlid { &self.id }
     pub fn session_type(&self) -> &SessionType { &self.session_type }
-    pub fn root_agent_id(&self) -> &AgentId { &self.root_agent_id }
+    pub fn root_agent_ulid(&self) -> &AgentUlid { &self.root_agent_ulid }
     pub fn hierarchy(&self) -> &AgentHierarchy { &self.hierarchy }
     pub fn id_allocator(&self) -> &MessageIdAllocator { &self.id_allocator }
     pub fn metadata(&self) -> &SessionMetadata { &self.metadata }
@@ -193,15 +211,15 @@ impl Session {
     
     pub fn spawn_agent(
         &mut self,
-        parent_id: AgentId,
-    ) -> Result<AgentId, SessionError> {
-        if parent_id != self.root_agent_id && !self.hierarchy.has_agent(&parent_id) {
-            return Err(SessionError::AgentNotFound(parent_id));
+        parent_ulid: AgentUlid,
+    ) -> Result<AgentUlid, SessionError> {
+        if parent_ulid != self.root_agent_ulid && !self.hierarchy.has_agent(&parent_ulid) {
+            return Err(SessionError::AgentNotFound(parent_ulid));
         }
         
-        let agent_id = AgentId::new_child(&parent_id);
-        self.hierarchy.add_child(parent_id, agent_id.clone());
-        Ok(agent_id)
+        let agent_ulid = AgentUlid::new_child(&parent_ulid);
+        self.hierarchy.add_child(parent_ulid, agent_ulid.clone());
+        Ok(agent_ulid)
     }
     
     pub fn allocate_message_id(&self) -> Option<MessageId> {
@@ -212,9 +230,9 @@ impl Session {
 /// Session存储表示
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SessionMeta {
-    pub id: SessionId,
+    pub id: SessionUlid,
     pub session_type: SessionType,
-    pub root_agent_id: AgentId,
+    pub root_agent_ulid: AgentUlid,
     pub next_message_id: u64,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -370,27 +388,27 @@ impl AgentDefinition {
 /// Agent运行时状态
 #[derive(Debug, Clone)]
 pub struct Agent {
-    pub id: AgentId,
-    pub parent_id: Option<AgentId>,
+    pub id: AgentUlid,
+    pub parent_ulid: Option<AgentUlid>,
     pub definition_id: String,
     pub messages: Vec<Message>,
     pub state: AgentState,
-    pub active_tools: Vec<ToolId>,
+    pub active_tools: Vec<ToolUlid>,
     pub active_mcp: Vec<McpServerId>,
-    pub active_skills: Vec<SkillId>,
+    pub active_skills: Vec<SkillUlid>,
     pub created_at: DateTime<Utc>,
     pub last_activity: DateTime<Utc>,
 }
 
 impl Agent {
     pub fn new(
-        id: AgentId,
-        parent_id: Option<AgentId>,
+        id: AgentUlid,
+        parent_ulid: Option<AgentUlid>,
         definition_id: String,
     ) -> Self {
         Self {
             id,
-            parent_id,
+            parent_ulid,
             definition_id,
             messages: Vec::new(),
             state: AgentState::Idle,
@@ -411,22 +429,22 @@ impl Agent {
 /// Agent层级关系
 #[derive(Debug, Clone)]
 pub struct AgentHierarchy {
-    root: AgentId,
-    parent_map: HashMap<AgentId, AgentId>,
-    children_map: HashMap<AgentId, Vec<AgentId>>,
+    root: AgentUlid,
+    parent_map: HashMap<AgentUlid, AgentUlid>,
+    children_map: HashMap<AgentUlid, Vec<AgentUlid>>,
 }
 
 impl AgentHierarchy {
-    pub fn new(root: AgentId) -> Self {
+    pub fn new(root: AgentUlid) -> Self {
         // TODO: 实现层级关系初始化
         // 1. 接收根节点ID作为参数
-        // 2. 创建空的parent_map (HashMap<AgentId, AgentId>)
-        // 3. 创建空的children_map (HashMap<AgentId, Vec<AgentId>>)
+        // 2. 创建空的parent_map (HashMap<AgentUlid, AgentUlid>)
+        // 3. 创建空的children_map (HashMap<AgentUlid, Vec<AgentUlid>>)
         // 4. 将根节点加入children_map，value为空Vec
         unimplemented!()
     }
     
-    pub fn add_child(&mut self, parent: AgentId, child: AgentId) {
+    pub fn add_child(&mut self, parent: AgentUlid, child: AgentUlid) {
         // TODO: 实现添加子节点
         // 1. 在parent_map中插入 child -> parent 的映射
         // 2. 在children_map中为parent添加child到Vec
@@ -434,29 +452,29 @@ impl AgentHierarchy {
         unimplemented!()
     }
     
-    pub fn has_agent(&self, id: &AgentId) -> bool {
+    pub fn has_agent(&self, id: &AgentUlid) -> bool {
         // TODO: 实现存在性检查
         // 1. 检查id是否等于根节点
         // 2. 检查parent_map中是否包含该id作为key
-        // 3. 满足任一条件返回true（注意Weak需要upgrade检查）
+        // 3. 满足任一条件返回true
         unimplemented!()
     }
     
-    pub fn get_parent(&self, id: &AgentId) -> Option<AgentId> {
+    pub fn get_parent(&self, id: &AgentUlid) -> Option<AgentUlid> {
         // TODO: 实现获取父节点
-        // 1. 从parent_map中查找id对应的父AgentId
-        // 2. 返回Some(AgentId)或None
+        // 1. 从parent_map中查找id对应的父AgentUlid
+        // 2. 返回Some(AgentUlid)或None
         unimplemented!()
     }
     
-    pub fn get_children(&self, id: &AgentId) -> Vec<AgentId> {
+    pub fn get_children(&self, id: &AgentUlid) -> Vec<AgentUlid> {
         // TODO: 实现获取子节点列表
-        // 1. 从children_map中查找id对应的Vec<AgentId>
-        // 2. 返回子AgentId列表
+        // 1. 从children_map中查找id对应的Vec<AgentUlid>
+        // 2. 返回子AgentUlid列表
         unimplemented!()
     }
     
-    pub fn get_ancestors(&self, id: &AgentId) -> Vec<AgentId> {
+    pub fn get_ancestors(&self, id: &AgentUlid) -> Vec<AgentUlid> {
         // TODO: 实现获取所有祖先节点
         // 1. 创建空的结果Vec
         // 2. 从id开始循环向上查找parent
@@ -465,7 +483,7 @@ impl AgentHierarchy {
         unimplemented!()
     }
     
-    pub fn get_descendants(&self, id: &AgentId) -> Vec<AgentId> {
+    pub fn get_descendants(&self, id: &AgentUlid) -> Vec<AgentUlid> {
         // TODO: 实现获取所有后代节点
         // 1. 使用BFS算法创建队列
         // 2. 将id的所有直接子节点入队
@@ -476,7 +494,7 @@ impl AgentHierarchy {
     
     pub fn serialize(&self) -> HierarchyMeta {
         // TODO: 序列化层级关系
-        // 1. 收集所有AgentId
+        // 1. 收集所有AgentUlid
         // 2. 构建parent_map和children_map
         // 3. 返回HierarchyMeta
         todo!()
@@ -493,9 +511,9 @@ impl AgentHierarchy {
 /// 层级关系序列化表示
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HierarchyMeta {
-    pub root: AgentId,
-    pub parent_map: HashMap<AgentId, AgentId>,
-    pub children_map: HashMap<AgentId, Vec<AgentId>>,
+    pub root: AgentUlid,
+    pub parent_map: HashMap<AgentUlid, AgentUlid>,
+    pub children_map: HashMap<AgentUlid, Vec<AgentUlid>>,
 }
 
 /// Agent状态（运行时使用）
@@ -736,17 +754,17 @@ graph TD
 pub trait StorageBackend: Send + Sync {
     // Session操作
     async fn save_session(&self, session: &Session) -> Result<(), StorageError>;
-    async fn load_session(&self, id: &SessionId) -> Result<Session, StorageError>;
-    async fn delete_session(&self, id: &SessionId) -> Result<(), StorageError>;
+    async fn load_session(&self, id: &SessionUlid) -> Result<Session, StorageError>;
+    async fn delete_session(&self, id: &SessionUlid) -> Result<(), StorageError>;
     
     // Agent操作
     async fn save_agent(&self, agent: &Agent) -> Result<(), StorageError>;
-    async fn load_agent(&self, id: &AgentId) -> Result<Agent, StorageError>;
-    async fn list_agents(&self, session_id: &SessionId) -> Result<Vec<AgentId>, StorageError>;
+    async fn load_agent(&self, id: &AgentUlid) -> Result<Agent, StorageError>;
+    async fn list_agents(&self, session_ulid: &SessionUlid) -> Result<Vec<AgentUlid>, StorageError>;
     
     // 消息操作
-    async fn append_message(&self, agent_id: &AgentId, message: &Message) -> Result<(), StorageError>;
-    async fn load_messages(&self, agent_id: &AgentId) -> Result<Vec<Message>, StorageError>;
+    async fn append_message(&self, agent_ulid: &AgentUlid, message: &Message) -> Result<(), StorageError>;
+    async fn load_messages(&self, agent_ulid: &AgentUlid) -> Result<Vec<Message>, StorageError>;
 }
 ```
 
@@ -765,7 +783,7 @@ pub trait StorageBackend: Send + Sync {
 
 ```toml
 [id]
-session = "01HF8X5JQC8ZXJ3YKZ0J9K2D9Z"
+session_ulid = "01HF8X5JQC8ZXJ3YKZ0J9K2D9Z"
 
 [session]
 type = "workflow"
@@ -780,16 +798,16 @@ working_dir = "/home/user/projects"
 workflow_id = "prd"
 ```
 
-**Agent消息（{agent_id}.toml）：**
+**Agent消息（{agent_ulid}.toml）：**
 
 ```toml
 [id]
-session = "01HF8X5JQC8ZXJ3YKZ0J9K2D9Z"
-agent = "01HF8X5JQC8ZXJ3YKZ0J9K2D9Z"
+session_ulid = "01HF8X5JQC8ZXJ3YKZ0J9K2D9Z"
+agent_ulid = "01HF8X5JQC8ZXJ3YKZ0J9K2D9Z"
 
 [agent]
 definition_id = "coder"
-parent_id = null  # 根Agent无parent
+parent_ulid = null  # 根Agent无parent
 state = "running"
 
 [[messages]]
@@ -868,8 +886,8 @@ sequenceDiagram
     
     User->>SessionManager: create_session(type, metadata)
     SessionManager->>SessionManager: 创建Session领域模型
-    SessionManager->>SessionManager: 生成SessionId
-    SessionManager->>SessionManager: 创建根AgentId
+    SessionManager->>SessionManager: 生成SessionUlid
+    SessionManager->>SessionManager: 创建根AgentUlid
     SessionManager->>AgentRepo: save(root_agent)
     SessionManager->>SessionRepo: save(session)
     SessionManager-->>User: Session
@@ -881,7 +899,7 @@ sequenceDiagram
 impl SessionManager {
     pub async fn load_session(
         &self,
-        session_id: &SessionId,
+        session_ulid: &SessionUlid,
     ) -> Result<Session, SessionError> {
         // [TODO] 实现要点说明
         // 1. 从存储加载Session元数据
@@ -1025,10 +1043,10 @@ impl<'a, T: TokenCounter> ContextBuilder<'a, T> {
 #[derive(Debug, Error)]
 pub enum SessionError {
     #[error("Session不存在: {0}")]
-    NotFound(SessionId),
+    NotFound(SessionUlid),
     
     #[error("Agent不存在: {0}")]
-    AgentNotFound(AgentId),
+    AgentNotFound(AgentUlid),
     
     #[error("存储错误: {0}")]
     Storage(#[source] StorageError),
@@ -1116,7 +1134,7 @@ pub struct MemoryEntry {
 pub enum MemoryCategory {
     Global,
     Directory(PathBuf),
-    Session(SessionId),
+    Session(SessionUlid),
 }
 
 #[derive(Debug, Error)]

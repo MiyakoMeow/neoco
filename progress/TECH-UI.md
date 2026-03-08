@@ -66,13 +66,13 @@ pub struct CliArgs {
     #[arg(short = 'm', long, global = true)]
     message: Option<String>,
     
-    /// 指定Session ID（用于恢复已有会话）
+    /// 指定Session ULID（用于恢复已有会话）
     /// 
     /// 可在TUI模式或CLI模式下使用。
     /// 在TUI模式下，恢复指定会话的交互。
     /// 在CLI模式下，在指定会话中发送消息。
     #[arg(short = 's', long, global = true)]
-    session: Option<SessionId>,
+    session: Option<SessionUlid>,
     
     /// 指定配置文件路径（覆盖默认合并行为）
     /// 
@@ -529,7 +529,7 @@ $ neco
 [AI响应...]
 
 # 恢复上次会话
-$ neco --session 01ARZ3NDEKTSV4RRFFQ69G5FAV
+$ neco --session 01HF8X5JQC8ZXJ3YKZ0J9K2D9Z
 > 继续我们之前的话题
 [AI响应...]
 ```
@@ -542,7 +542,7 @@ $ neco -m "什么是Rust的所有权系统？"
 [直接返回结果，退出]
 
 # 在已有会话中查询
-$ neco -m "继续解释" --session 01ARZ3NDEKTSV4RRFFQ69G5FAV
+$ neco -m "继续解释" --session 01HF8X5JQC8ZXJ3YKZ0J9K2D9Z
 [直接返回结果，退出]
 
 # 指定配置文件

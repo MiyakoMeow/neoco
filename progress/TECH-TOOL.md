@@ -85,7 +85,7 @@ pub enum ResourceLevel {
 /// 工具定义
 #[derive(Debug, Clone)]
 pub struct ToolDefinition {
-    pub id: ToolId,
+    pub id: ToolUlid,
     pub description: String,
     /// JSON Schema 格式的参数定义
     /// 使用 JSON Schema Draft 2020-12 规范
@@ -97,8 +97,8 @@ pub struct ToolDefinition {
 
 /// 工具执行上下文
 pub struct ToolContext {
-    pub session_id: SessionId,
-    pub agent_id: AgentId,
+    pub session_ulid: SessionUlid,
+    pub agent_ulid: AgentUlid,
     pub working_dir: PathBuf,
 }
 
@@ -138,22 +138,22 @@ pub trait ToolExecutor: Send + Sync {
 pub trait ToolRegistry: Send + Sync {
     fn register(&self, tool: Arc<dyn ToolExecutor>);
     
-    fn get(&self, id: &ToolId) -> Option<Arc<dyn ToolExecutor>>;
+    fn get(&self, id: &ToolUlid) -> Option<Arc<dyn ToolExecutor>>;
     
     fn definitions(&self) -> Vec<ToolDefinition>;
     
-    fn timeout(&self, id: &ToolId) -> Duration;
+    fn timeout(&self, id: &ToolUlid) -> Duration;
     
     fn set_timeout(&self, prefix: &str, duration: Duration);
     
-    fn list_tools(&self) -> Vec<ToolId>;
+    fn list_tools(&self) -> Vec<ToolUlid>;
 }
 
-/// 工具ID（强类型）
+/// 工具ID（强类型ULID）
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct ToolId(pub String);
+pub struct ToolUlid(pub String);
 
-impl ToolId {
+impl ToolUlid {
     pub fn from_parts(namespace: &str, name: &str) -> Self {
         Self(format!("{}::{}", namespace, name))
     }
@@ -193,7 +193,7 @@ impl ToolId {
 ```rust
 /// 默认工具注册表实现
 pub struct DefaultToolRegistry {
-    tools: RwLock<HashMap<ToolId, Arc<dyn ToolExecutor>>>,
+    tools: RwLock<HashMap<ToolUlid, Arc<dyn ToolExecutor>>>,
     timeouts: RwLock<HashMap<String, Duration>>,
 }
 
@@ -250,7 +250,7 @@ impl ToolRegistry for DefaultToolRegistry {
         self.tools.write().await.insert(def.id.clone(), executor);
     }
     
-    async fn get(&self, id: &ToolId) -> Option<Arc<dyn ToolExecutor>> {
+    async fn get(&self, id: &ToolUlid) -> Option<Arc<dyn ToolExecutor>> {
         self.tools.read().await.get(id).cloned()
     }
     
@@ -260,7 +260,7 @@ impl ToolRegistry for DefaultToolRegistry {
             .collect()
     }
     
-    async fn timeout(&self, id: &ToolId) -> Option<Duration> {
+    async fn timeout(&self, id: &ToolUlid) -> Option<Duration> {
         let tools = self.tools.read().await;
         if let Some(tool) = tools.get(id) {
             Some(tool.definition().timeout)
@@ -269,11 +269,11 @@ impl ToolRegistry for DefaultToolRegistry {
         }
     }
     
-    async fn set_timeout(&self, id: ToolId, timeout: Duration) {
+    async fn set_timeout(&self, id: ToolUlid, timeout: Duration) {
         self.timeouts.write().await.insert(id.0, timeout);
     }
     
-    async fn list_tools(&self) -> Vec<ToolId> {
+    async fn list_tools(&self) -> Vec<ToolUlid> {
         self.tools.read().await.keys().cloned().collect()
     }
 }
@@ -300,7 +300,7 @@ pub mod fs {
     impl ToolExecutor for FileReadTool {
         fn definition(&self) -> &ToolDefinition {
             static DEF: Lazy<ToolDefinition> = Lazy::new(|| ToolDefinition {
-                id: ToolId("fs::read".into()),
+                id: ToolUlid("fs::read".into()),
                 description: "读取文件内容".into(),
                 schema: json!({
                     "type": "object",
@@ -354,9 +354,9 @@ pub struct FileWriteTool;
 #[async_trait]
 impl ToolExecutor for FileWriteTool {
     fn definition(&self) -> &ToolDefinition {
-        static DEF: Lazy<ToolDefinition> = Lazy::new(|| ToolDefinition {
-            id: ToolId("fs::write".into()),
-            description: "写入文件内容（完全覆盖）".into(),
+            static DEF: Lazy<ToolDefinition> = Lazy::new(|| ToolDefinition {
+                id: ToolUlid("fs::write".into()),
+                description: "写入文件内容（完全覆盖）".into(),
             schema: json!({
                 "type": "object",
                 "properties": {
@@ -398,9 +398,9 @@ pub struct FileEditTool;
 #[async_trait]
 impl ToolExecutor for FileEditTool {
     fn definition(&self) -> &ToolDefinition {
-        static DEF: Lazy<ToolDefinition> = Lazy::new(|| ToolDefinition {
-            id: ToolId("fs::edit".into()),
-            description: "基于verify编辑文件内容".into(),
+            static DEF: Lazy<ToolDefinition> = Lazy::new(|| ToolDefinition {
+                id: ToolUlid("fs::edit".into()),
+                description: "基于verify编辑文件内容".into(),
             schema: json!({
                 "type": "object",
                 "properties": {
@@ -499,9 +499,9 @@ pub struct FileDeleteTool;
 #[async_trait]
 impl ToolExecutor for FileDeleteTool {
     fn definition(&self) -> &ToolDefinition {
-        static DEF: Lazy<ToolDefinition> = Lazy::new(|| ToolDefinition {
-            id: ToolId("fs::delete".into()),
-            description: "删除文件".into(),
+            static DEF: Lazy<ToolDefinition> = Lazy::new(|| ToolDefinition {
+                id: ToolUlid("fs::delete".into()),
+                description: "删除文件".into(),
             schema: json!({
                 "type": "object",
                 "properties": {
@@ -570,9 +570,9 @@ impl ContextObserveTool {
 #[async_trait]
 impl ToolExecutor for ContextObserveTool {
     fn definition(&self) -> &ToolDefinition {
-        static DEF: Lazy<ToolDefinition> = Lazy::new(|| ToolDefinition {
-            id: ToolId("context::observe".into()),
-            description: "观测上下文状态，获取内存使用仪表盘".into(),
+            static DEF: Lazy<ToolDefinition> = Lazy::new(|| ToolDefinition {
+                id: ToolUlid("context::observe".into()),
+                description: "观测上下文状态，获取内存使用仪表盘".into(),
             schema: json!({
                 "type": "object",
                 "properties": {
@@ -628,9 +628,9 @@ impl ContextCompactTool {
 #[async_trait]
 impl ToolExecutor for ContextCompactTool {
     fn definition(&self) -> &ToolDefinition {
-        static DEF: Lazy<ToolDefinition> = Lazy::new(|| ToolDefinition {
-            id: ToolId("context::compact".into()),
-            description: "主动压缩上下文，将历史消息压缩为摘要（Agent主动管理内存）".into(),
+            static DEF: Lazy<ToolDefinition> = Lazy::new(|| ToolDefinition {
+                id: ToolUlid("context::compact".into()),
+                description: "主动压缩上下文，将历史消息压缩为摘要（Agent主动管理内存）".into(),
             schema: json!({
                 "type": "object",
                 "properties": {

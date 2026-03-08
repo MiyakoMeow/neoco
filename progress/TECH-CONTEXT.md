@@ -142,23 +142,23 @@ pub trait ContextManager: Send + Sync {
     /// 构建上下文消息列表
     async fn build_context(
         &self,
-        agent_id: &AgentId,
+        agent_ulid: &AgentUlid,
         max_tokens: usize,
     ) -> Result<Vec<ModelMessage>, ContextError>;
     
     /// 检查是否需要压缩
-    async fn should_compact(&self, agent_id: &AgentId) -> bool;
+    async fn should_compact(&self, agent_ulid: &AgentUlid) -> bool;
     
     /// 执行压缩
     async fn compact(
         &self,
-        agent_id: &AgentId,
+        agent_ulid: &AgentUlid,
     ) -> Result<CompactResult, ContextError>;
     
     /// 获取上下文统计信息
     async fn get_stats(
         &self,
-        agent_id: &AgentId,
+        agent_ulid: &AgentUlid,
     ) -> Result<ContextStats, ContextError>;
 }
 ```
@@ -177,7 +177,7 @@ pub struct ContextManagerImpl {
 impl ContextManager for ContextManagerImpl {
     async fn build_context(
         &self,
-        agent_id: &AgentId,
+        agent_ulid: &AgentUlid,
         max_tokens: usize,
     ) -> Result<Vec<ModelMessage>, ContextError> {
         // TODO: 实现上下文构建
@@ -187,7 +187,7 @@ impl ContextManager for ContextManagerImpl {
         unimplemented!()
     }
     
-    async fn should_compact(&self, agent_id: &AgentId) -> bool {
+    async fn should_compact(&self, agent_ulid: &AgentUlid) -> bool {
         // TODO: 实现压缩检查
         // 1. 从MessageRepository获取消息
         // 2. 计算token数量
@@ -197,7 +197,7 @@ impl ContextManager for ContextManagerImpl {
     
     async fn compact(
         &self,
-        agent_id: &AgentId,
+        agent_ulid: &AgentUlid,
     ) -> Result<CompactResult, ContextError> {
         // TODO: 实现压缩
         // 1. 获取消息列表
@@ -209,7 +209,7 @@ impl ContextManager for ContextManagerImpl {
     
     async fn get_stats(
         &self,
-        agent_id: &AgentId,
+        agent_ulid: &AgentUlid,
     ) -> Result<ContextStats, ContextError> {
         // TODO: 实现统计获取
         unimplemented!()
@@ -525,7 +525,7 @@ impl TokenCounter for SimpleCounter {
 #[derive(Debug, Error)]
 pub enum ContextError {
     #[error("Agent不存在: {0}")]
-    AgentNotFound(AgentId),
+    AgentNotFound(AgentUlid),
     
     #[error("模型调用错误: {0}")]
     Model(#[from] ModelError),

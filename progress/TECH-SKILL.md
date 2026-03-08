@@ -92,29 +92,27 @@ tags:
 ### 4.1 SkillId 强类型
 
 ```rust
-/// Skill ID 强类型
+/// Skill ID 强类型（ULID Newtype）
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct SkillId(String);
+pub struct SkillUlid(Ulid);
 
-impl SkillId {
-    pub fn new(s: impl Into<String>) -> Result<Self, SkillError> {
-        let s = s.into();
-        if !s.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-') {
-            return Err(SkillError::ValidationError(
-                "SkillId must contain only lowercase letters, digits, and hyphens".to_string()
-            ));
-        }
-        Ok(Self(s))
+impl SkillUlid {
+    pub fn new() -> Self {
+        Self(Ulid::new())
     }
     
-    pub fn as_str(&self) -> &str {
-        &self.0
+    pub fn from_string(s: &str) -> Result<Self, SkillError> {
+        Ok(Self(Ulid::from_string(s)?))
+    }
+    
+    pub fn as_str(&self) -> String {
+        self.0.encode()
     }
 }
 
-impl std::fmt::Display for SkillId {
+impl std::fmt::Display for SkillUlid {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
+        write!(f, "{}", self.0.encode())
     }
 }
 ```
@@ -125,8 +123,8 @@ impl std::fmt::Display for SkillId {
 #[async_trait]
 pub trait SkillService: Send + Sync {
     async fn discover_skills(&self) -> Result<Vec<SkillDefinition>, SkillError>;
-    async fn activate(&self, skill_id: &SkillId) -> Result<ActivatedSkill, SkillError>;
-    async fn deactivate(&self, skill_id: &SkillId) -> Result<(), SkillError>;
+    async fn activate(&self, skill_ulid: &SkillUlid) -> Result<ActivatedSkill, SkillError>;
+    async fn deactivate(&self, skill_ulid: &SkillUlid) -> Result<(), SkillError>;
 }
 ```
 
@@ -134,7 +132,7 @@ pub trait SkillService: Send + Sync {
 
 ```rust
 pub struct ActivatedSkill {
-    pub id: SkillId,
+    pub id: SkillUlid,
     pub name: String,
     pub instruction: String,
     pub metadata: SkillMetadata,
@@ -189,7 +187,7 @@ pub struct SkillService {
 }
 
 pub struct Skill {
-    pub id: SkillId,
+    pub id: SkillUlid,
     pub name: String,
     pub description: String,
     pub content: String,
@@ -202,14 +200,14 @@ pub struct SkillIndex {
 }
 
 pub struct SkillInfo {
-    pub id: SkillId,
+    pub id: SkillUlid,
     pub name: String,
     pub description: String,
     pub tags: Vec<String>,
 }
 
 impl SkillIndex {
-    pub fn get(&self, id: &SkillId) -> Option<&SkillInfo> {
+    pub fn get(&self, id: &SkillUlid) -> Option<&SkillInfo> {
         self.skills.iter().find(|s| &s.id == id)
     }
 }
@@ -252,16 +250,16 @@ impl SkillService {
         unimplemented!()
     }
     
-    pub async fn load_skill(&self, id: &SkillId) -> Result<Skill, SkillError> {
+    pub async fn load_skill(&self, id: &SkillUlid) -> Result<Skill, SkillError> {
         // [TODO] 实现完整Skill加载
-        // 1. 根据skill_id查找Skill目录路径
+        // 1. 根据skill_ulid查找Skill目录路径
         // 2. 读取完整的SKILL.md内容
         // 3. 解析frontmatter和指令内容
         // 4. 构建Skill结构体（包含id、name、description、content、tags等）
         unimplemented!()
     }
     
-    pub async fn activate(&self, id: &SkillId) -> Result<ActivatedSkill, SkillError> {
+    pub async fn activate(&self, id: &SkillUlid) -> Result<ActivatedSkill, SkillError> {
         // [TODO] 实现Skill激活
         // 1. 加载完整Skill内容（调用load_skill）
         // 2. 扫描scripts/references/assets目录
@@ -272,7 +270,7 @@ impl SkillService {
         unimplemented!()
     }
 
-    pub async fn deactivate(&self, id: &SkillId) -> Result<(), SkillError> {
+    pub async fn deactivate(&self, id: &SkillUlid) -> Result<(), SkillError> {
         // [TODO] 实现Skill停用
         // 1. 从activated_skills中查找Skill
         // 2. 遍历Skill.tools，从ToolRegistry中注销所有工具
@@ -290,7 +288,7 @@ impl SkillService {
 #[derive(Debug, Error)]
 pub enum SkillError {
     #[error("Skill未找到: {0}")]
-    NotFound(SkillId),
+    NotFound(SkillUlid),
     
     #[error("解析失败: {0}")]
     ParseError(#[source] serde_yaml::Error),

@@ -243,7 +243,7 @@ graph TD
 
 | 模块 | 领域边界 | 核心类型 |
 |------|---------|----------|
-| neco-core | 通用类型系统 | SessionId, AgentId, MessageId, Event |
+| neco-core | 通用类型系统 | SessionUlid, AgentUlid, MessageId, Event |
 | neco-session | 会话与Agent管理 | Session, Agent, Hierarchy |
 | neco-workflow | 工作流编排 | WorkflowDef, NodeRuntime |
 | neco-tool | 工具执行 | ToolExecutor, ToolRegistry |
@@ -260,18 +260,18 @@ graph TD
 > - [TECH-PROMPT.md](TECH-PROMPT.md) - 提示词组件
 > - [TECH-SKILL.md](TECH-SKILL.md) - Skills技能
 
-### 3.1 统一标识符系统
+### 3.1 统一标识符系统（ULID Newtype模式）
 
 **设计原则**：使用 newtype 模式替代类型别名，提供编译期校验
 
 | 类型 | 结构 | 校验规则 |
 |------|------|----------|
-| `SessionId` | `struct SessionId(Ulid)` | 26位Ulid字符串 |
-| `AgentId` | `struct AgentId { session: Ulid, agent: Ulid }` | 双Ulid结构。session字段直接标识所属Session，agent字段标识唯一Agent实例。查询Agent所属Session可直接从AgentId.session获取，无需通过SessionManager索引 |
-| `MessageId` | `struct MessageId(u64)` | 原子自增，Session范围唯一 |
-| `NodeId` | `struct NodeId(String)` | kebab-case格式验证 |
-| `ToolId` | `struct ToolId(String)` | `namespace::name` 格式 |
-| `SkillId` | `struct SkillId(String)` | 小写字母、数字、连字符 |
+| `SessionUlid` | `struct SessionUlid(Ulid)` | 26位Ulid字符串 |
+| `AgentUlid` | `struct AgentUlid { session: Ulid, agent: Ulid }` | 双Ulid结构。session字段直接标识所属Session，agent字段标识唯一Agent实例。查询Agent所属Session可直接从AgentUlid.session获取，无需通过SessionManager索引 |
+| `MessageId` | `struct MessageId(u64)` | 原子自增，Session范围唯一（保持u64） |
+| `NodeUlid` | `struct NodeUlid(Ulid)` | 26位Ulid字符串 |
+| `ToolUlid` | `struct ToolUlid(Ulid)` | 26位Ulid字符串 |
+| `SkillUlid` | `struct SkillUlid(Ulid)` | 26位Ulid字符串 |
 
 ### 3.2 统一消息系统
 
@@ -535,41 +535,41 @@ pub enum Event {
 /// Session领域事件
 #[derive(Debug, Clone)]
 pub enum SessionEvent {
-    Created { id: SessionId, session_type: SessionType },
-    Updated { id: SessionId },
-    Deleted { id: SessionId },
+    Created { id: SessionUlid, session_type: SessionType },
+    Updated { id: SessionUlid },
+    Deleted { id: SessionUlid },
 }
 
 /// Agent领域事件
 #[derive(Debug, Clone)]
 pub enum AgentEvent {
-    Created { id: AgentId, parent_id: Option<AgentId> },
-    StateChanged { id: AgentId, old: AgentState, new: AgentState },
-    MessageAdded { id: AgentId, message_id: MessageId },
-    ToolCalled { id: AgentId, tool_id: ToolId },
-    ToolResult { id: AgentId, tool_id: ToolId, success: bool },
-    Completed { id: AgentId, output: String },
-    Error { id: AgentId, error: String },
+    Created { id: AgentUlid, parent_ulid: Option<AgentUlid> },
+    StateChanged { id: AgentUlid, old: AgentState, new: AgentState },
+    MessageAdded { id: AgentUlid, message_id: MessageId },
+    ToolCalled { id: AgentUlid, tool_ulid: ToolUlid },
+    ToolResult { id: AgentUlid, tool_ulid: ToolUlid, success: bool },
+    Completed { id: AgentUlid, output: String },
+    Error { id: AgentUlid, error: String },
 }
 
 /// Workflow领域事件
 #[derive(Debug, Clone)]
 pub enum WorkflowEvent {
-    Started { session_id: SessionId, definition_id: String },
-    NodeStarted { session_id: SessionId, node_id: NodeId },
-    NodeCompleted { session_id: SessionId, node_id: NodeId, result: String },
-    Transition { session_id: SessionId, from: NodeId, to: NodeId },
-    Completed { session_id: SessionId },
-    Failed { session_id: SessionId, error: String },
+    Started { session_ulid: SessionUlid, definition_id: String },
+    NodeStarted { session_ulid: SessionUlid, node_ulid: NodeUlid },
+    NodeCompleted { session_ulid: SessionUlid, node_ulid: NodeUlid, result: String },
+    Transition { session_ulid: SessionUlid, from: NodeUlid, to: NodeUlid },
+    Completed { session_ulid: SessionUlid },
+    Failed { session_ulid: SessionUlid, error: String },
 }
 
 /// Tool领域事件
 #[derive(Debug, Clone)]
 pub enum ToolEvent {
-    Registered { tool_id: ToolId },
-    Executing { tool_id: ToolId, agent_id: AgentId },
-    Executed { tool_id: ToolId, agent_id: AgentId, success: bool },
-    Error { tool_id: ToolId, error: String },
+    Registered { tool_ulid: ToolUlid },
+    Executing { tool_ulid: ToolUlid, agent_ulid: AgentUlid },
+    Executed { tool_ulid: ToolUlid, agent_ulid: AgentUlid, success: bool },
+    Error { tool_ulid: ToolUlid, error: String },
 }
 
 /// 系统事件

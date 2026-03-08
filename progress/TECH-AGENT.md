@@ -101,15 +101,15 @@ graph LR
 #[async_trait]
 pub trait AgentRepository: Send + Sync {
     async fn save(&self, agent: &Agent) -> Result<(), StorageError>;
-    async fn find_by_id(&self, id: &AgentId) -> Result<Option<Agent>, StorageError>;
-    async fn find_children(&self, parent_id: &AgentId) -> Result<Vec<Agent>, StorageError>;
+    async fn find_by_id(&self, id: &AgentUlid) -> Result<Option<Agent>, StorageError>;
+    async fn find_children(&self, parent_ulid: &AgentUlid) -> Result<Vec<Agent>, StorageError>;
 }
 
 /// 消息仓储接口
 #[async_trait]
 pub trait MessageRepository: Send + Sync {
     async fn save(&self, message: &Message) -> Result<(), StorageError>;
-    async fn find_by_session(&self, session_id: &SessionId) -> Result<Vec<Message>, StorageError>;
+    async fn find_by_session(&self, session_ulid: &SessionUlid) -> Result<Vec<Message>, StorageError>;
 }
 ```
 
@@ -142,8 +142,8 @@ pub enum AgentState {
 
 /// Agent领域模型
 pub struct Agent {
-    id: AgentId,
-    parent_id: Option<AgentId>,
+    id: AgentUlid,
+    parent_ulid: Option<AgentUlid>,
     definition_id: String,
     state: AgentState,
     model_group: Option<String>,
@@ -153,8 +153,8 @@ pub struct Agent {
 }
 
 impl Agent {
-    pub fn id(&self) -> &AgentId { &self.id }
-    pub fn parent_id(&self) -> Option<&AgentId> { self.parent_id.as_ref() }
+    pub fn id(&self) -> &AgentUlid { &self.id }
+    pub fn parent_ulid(&self) -> Option<&AgentUlid> { self.parent_ulid.as_ref() }
     pub fn definition_id(&self) -> &str { &self.definition_id }
     pub fn state(&self) -> &AgentState { &self.state }
     pub fn model_group(&self) -> Option<&str> { self.model_group.as_deref() }
@@ -183,8 +183,8 @@ impl Agent {
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| `id` | AgentId | Agent唯一标识 |
-| `parent_id` | Option\<AgentId\> | 父Agent ID |
+| `id` | AgentUlid | Agent唯一标识 |
+| `parent_ulid` | Option\<AgentUlid\> | 父Agent ID |
 | `definition_id` | String | Agent定义标识 |
 | `state` | AgentState | Agent当前状态 |
 | `model_group` | Option\<String\> | 使用的模型组 |
@@ -213,7 +213,7 @@ impl AgentEngine {
     
     pub async fn run_agent(
         &self,
-        agent_id: AgentId,
+        agent_ulid: AgentUlid,
         input: String,
     ) -> Result<AgentResult, AgentError> {
         // TODO: 实现Agent运行逻辑
@@ -328,14 +328,14 @@ sequenceDiagram
     
     pub async fn spawn_child(
         &self,
-        parent_id: AgentId,
+        parent_ulid: AgentUlid,
         definition_id: String,
-    ) -> Result<AgentId, AgentError> {
+    ) -> Result<AgentUlid, AgentError> {
         // TODO: 实现子Agent创建逻辑
         // 1. 验证父Agent存在
         // 2. 在Session中创建子Agent
         // 3. 发布AgentCreated事件
-        // 4. 返回AgentId
+        // 4. 返回AgentUlid
         unimplemented!()
     }
 ```
@@ -382,8 +382,8 @@ pub struct AgentResult {
 #[derive(Debug, Clone)]
 pub struct InterAgentMessage {
     pub id: MessageId,
-    pub from: AgentId,
-    pub to: AgentId,
+    pub from: AgentUlid,
+    pub to: AgentUlid,
     pub message_type: MessageType,
     pub content: String,
     pub timestamp: DateTime<Utc>,
@@ -446,7 +446,7 @@ pub struct SpawnAgentTool {
 impl ToolExecutor for SpawnAgentTool {
     fn definition(&self) -> &ToolDefinition {
         static DEF: Lazy<ToolDefinition> = Lazy::new(|| ToolDefinition {
-            id: ToolId("multi-agent::spawn".into()),
+            id: ToolUlid("multi-agent::spawn".into()),
             description: "生成一个下级Agent来执行特定任务".into(),
             schema: json!({
                 "type": "object",
@@ -498,7 +498,7 @@ pub struct SendMessageTool {
 impl ToolExecutor for SendMessageTool {
     fn definition(&self) -> &ToolDefinition {
         static DEF: Lazy<ToolDefinition> = Lazy::new(|| ToolDefinition {
-            id: ToolId("multi-agent::send".into()),
+            id: ToolUlid("multi-agent::send".into()),
             description: "向指定Agent发送消息".into(),
             schema: json!({
                 "type": "object",
@@ -547,7 +547,7 @@ pub struct ReportTool {
 impl ToolExecutor for ReportTool {
     fn definition(&self) -> &ToolDefinition {
         static DEF: Lazy<ToolDefinition> = Lazy::new(|| ToolDefinition {
-            id: ToolId("multi-agent::report".into()),
+            id: ToolUlid("multi-agent::report".into()),
             description: "向上级Agent汇报任务进度或结果".into(),
             schema: json!({
                 "type": "object",
@@ -630,28 +630,28 @@ pub enum Event {
 }
 
 pub enum AgentEvent {
-    Created { id: AgentId, parent_id: Option<AgentId> },
-    StateChanged { id: AgentId, old: AgentState, new: AgentState },
-    MessageAdded { id: AgentId, message_id: MessageId },
-    ToolCalled { id: AgentId, tool_id: ToolId },
-    ToolResult { id: AgentId, tool_id: ToolId, success: bool },
-    Completed { id: AgentId, output: String },
-    Error { id: AgentId, error: String },
+    Created { id: AgentUlid, parent_ulid: Option<AgentUlid> },
+    StateChanged { id: AgentUlid, old: AgentState, new: AgentState },
+    MessageAdded { id: AgentUlid, message_id: MessageId },
+    ToolCalled { id: AgentUlid, tool_ulid: ToolUlid },
+    ToolResult { id: AgentUlid, tool_ulid: ToolUlid, success: bool },
+    Completed { id: AgentUlid, output: String },
+    Error { id: AgentUlid, error: String },
 }
 
 pub enum SessionEvent {
-    Created { id: SessionId, session_type: SessionType },
-    Updated { id: SessionId },
-    Deleted { id: SessionId },
+    Created { id: SessionUlid, session_type: SessionType },
+    Updated { id: SessionUlid },
+    Deleted { id: SessionUlid },
 }
 
 pub enum WorkflowEvent {
-    Started { session_id: SessionId, definition: String },
-    NodeStarted { session_id: SessionId, node_id: NodeId },
-    NodeCompleted { session_id: SessionId, node_id: NodeId, result: String },
-    Transition { session_id: SessionId, from: NodeId, to: NodeId },
-    Completed { session_id: SessionId },
-    Failed { session_id: SessionId, error: String },
+    Started { session_ulid: SessionUlid, definition: String },
+    NodeStarted { session_ulid: SessionUlid, node_ulid: NodeUlid },
+    NodeCompleted { session_ulid: SessionUlid, node_ulid: NodeUlid, result: String },
+    Transition { session_ulid: SessionUlid, from: NodeUlid, to: NodeUlid },
+    Completed { session_ulid: SessionUlid },
+    Failed { session_ulid: SessionUlid, error: String },
 }
 ```
 
@@ -684,7 +684,7 @@ pub enum TriggerAction {
     /// 执行指定工具
     ExecuteTool { tool_name: String, args: Value },
     /// 向指定Agent发送消息
-    SendMessage { target: AgentId, content: String },
+    SendMessage { target: AgentUlid, content: String },
     /// 触发回调函数
     Callback { callback_id: String },
     /// 记录日志
@@ -795,7 +795,7 @@ pub enum SkillContent {
 #[derive(Debug, Error)]
 pub enum AgentError {
     #[error("Agent不存在: {0}")]
-    NotFound(AgentId),
+    NotFound(AgentUlid),
     
     #[error("父Agent不存在")]
     ParentNotFound,

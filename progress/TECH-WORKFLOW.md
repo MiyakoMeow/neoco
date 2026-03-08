@@ -79,8 +79,8 @@ pub struct WorkflowParams(pub HashMap<String, Value>);
 /// 节点定义
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NodeDefinition {
-    pub id: NodeId,
-    pub agent: Option<AgentId>,
+    pub id: NodeUlid,
+    pub agent_ulid: Option<AgentUlid>,
     #[serde(default)]
     pub new_session: bool,
 }
@@ -88,8 +88,8 @@ pub struct NodeDefinition {
 /// 边定义
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EdgeDefinition {
-    pub from: NodeId,
-    pub to: NodeId,
+    pub from: NodeUlid,
+    pub to: NodeUlid,
     #[serde(default)]
     pub select: Option<Vec<String>>,
     #[serde(default)]
@@ -103,33 +103,34 @@ pub struct Requirement {
     pub param_ref: Option<String>,
 }
 
-/// 节点ID（强类型）
+/// 节点ID（强类型ULID）
 /// 
-/// 节点ID采用kebab-case格式，确保跨工作流的一致性命名。
-/// 反序列化时会进行校验，无效ID会被拒绝。
+/// 节点ID采用ULID格式，确保跨工作流的一致性命名。
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize)]
-pub struct NodeId(pub String);
+pub struct NodeUlid(pub Ulid);
 
-impl NodeId {
-    pub fn new(s: impl Into<String>) -> Result<Self, String> {
-        let s = s.into();
-        // 验证kebab-case格式
-        if !s.is_empty() && s.chars().all(|c| c.is_ascii_lowercase() || c == '-' || c.is_ascii_digit()) {
-            Ok(Self(s))
-        } else {
-            Err(format!("NodeId must be kebab-case: {}", s))
-        }
+impl NodeUlid {
+    pub fn new() -> Self {
+        Self(Ulid::new())
+    }
+    
+    pub fn from_string(s: &str) -> Result<Self, IdError> {
+        Ok(Self(Ulid::from_string(s)?))
+    }
+    
+    pub fn as_str(&self) -> String {
+        self.0.encode()
     }
 }
 
-// 自定义反序列化实现，确保反序列化时也进行校验
-impl<'de> Deserialize<'de> for NodeId {
+// 自定义反序列化实现
+impl<'de> Deserialize<'de> for NodeUlid {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?;
-        Self::new(s).map_err(|e| serde::de::Error::custom(e))
+        Self::from_string(&s).map_err(|e| serde::de::Error::custom(e))
     }
 }
 ```
@@ -140,12 +141,12 @@ impl<'de> Deserialize<'de> for NodeId {
 /// 工作流运行时状态
 #[derive(Debug, Clone)]
 pub struct WorkflowRuntime {
-    pub session_id: SessionId,
+    pub session_ulid: SessionUlid,
     definition: Arc<WorkflowDefinition>,
-    node_states: DashMap<NodeId, NodeRuntimeState>,
+    node_states: DashMap<NodeUlid, NodeRuntimeState>,
     counters: DashMap<CounterKey, u32>,
     variables: DashMap<VariableKey, Value>,
-    active_nodes: DashSet<NodeId>,
+    active_nodes: DashSet<NodeUlid>,
     status: WorkflowStatus,
     created_at: DateTime<Utc>,
     updated_at: DateTime<Utc>,
@@ -173,33 +174,33 @@ impl VariableKey {
 
 impl WorkflowRuntime {
     pub fn new(
-        session_id: SessionId,
+        session_ulid: SessionUlid,
         definition: WorkflowDefinition,
     ) -> Self {
         // TODO: 实现工作流运行时初始化
-        // 1. 接收session_id和definition作为参数
-        // 2. 初始化空的active_nodes HashSet<NodeId>
-        // 3. 初始化空的node_states HashMap<NodeId, NodeRuntimeState>
+        // 1. 接收session_ulid和definition作为参数
+        // 2. 初始化空的active_nodes HashSet<NodeUlid>
+        // 3. 初始化空的node_states HashMap<NodeUlid, NodeRuntimeState>
         // 4. 初始化空的counters HashMap<String, u32>
         // 5. 设置status为WorkflowRuntimeState::Ready
         // 6. 设置created_at和updated_at为当前UTC时间
         unimplemented!()
     }
     
-    pub fn start_node(&mut self, node_id: NodeId, agent_id: AgentId) {
+    pub fn start_node(&mut self, node_ulid: NodeUlid, agent_ulid: AgentUlid) {
         // TODO: 实现节点启动逻辑
         // 1. 检查节点是否已在active_nodes中
-        // 2. 创建NodeRuntimeState::Running { agent_id }
+        // 2. 创建NodeRuntimeState::Running { agent_ulid }
         // 3. 将状态插入node_states
-        // 4. 将node_id加入active_nodes
+        // 4. 将node_ulid加入active_nodes
         // 5. 更新updated_at为当前时间
         unimplemented!()
     }
     
-    pub fn complete_node(&mut self, node_id: &NodeId, output: String) {
+    pub fn complete_node(&mut self, node_ulid: &NodeUlid, output: String) {
         // TODO: 实现节点完成逻辑
         // 1. 更新node_states中该节点的状态为Success { output }
-        // 2. 从active_nodes HashSet中移除该node_id
+        // 2. 从active_nodes HashSet中移除该node_ulid
         // 3. 更新updated_at为当前时间
         todo!()
     }
@@ -225,7 +226,7 @@ impl WorkflowRuntime {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum NodeRuntimeState {
     Waiting,
-    Running { agent_id: AgentId },
+    Running { agent_ulid: AgentUlid },
     Success { output: String },
     Failed { error: String },
     Skipped,
@@ -252,9 +253,9 @@ use dashmap::{DashMap, DashSet};
 #[async_trait]
 pub trait WorkflowRepository: Send + Sync {
     async fn save(&self, runtime: &WorkflowRuntime) -> Result<(), StorageError>;
-    async fn find_by_id(&self, session_id: &SessionId) -> Result<Option<WorkflowRuntime>, StorageError>;
+    async fn find_by_id(&self, session_ulid: &SessionUlid) -> Result<Option<WorkflowRuntime>, StorageError>;
     async fn find_by_status(&self, status: WorkflowStatus) -> Result<Vec<WorkflowRuntime>, StorageError>;
-    async fn delete(&self, session_id: &SessionId) -> Result<(), StorageError>;
+    async fn delete(&self, session_ulid: &SessionUlid) -> Result<(), StorageError>;
 }
 
 /// 存储错误类型
@@ -279,35 +280,35 @@ pub enum StorageError {
 #[serde(tag = "type")]
 pub enum WorkflowEvent {
     WorkflowStarted {
-        session_id: SessionId,
+        session_ulid: SessionUlid,
         definition_id: String,
     },
     NodeStarted {
-        session_id: SessionId,
-        node_id: NodeId,
-        agent_id: AgentId,
+        session_ulid: SessionUlid,
+        node_ulid: NodeUlid,
+        agent_ulid: AgentUlid,
     },
     NodeCompleted {
-        session_id: SessionId,
-        node_id: NodeId,
+        session_ulid: SessionUlid,
+        node_ulid: NodeUlid,
         output: String,
     },
     NodeFailed {
-        session_id: SessionId,
-        node_id: NodeId,
+        session_ulid: SessionUlid,
+        node_ulid: NodeUlid,
         error: String,
     },
     EdgeTriggered {
-        session_id: SessionId,
-        from: NodeId,
-        to: NodeId,
+        session_ulid: SessionUlid,
+        from: NodeUlid,
+        to: NodeUlid,
         option: Option<String>,
     },
     WorkflowCompleted {
-        session_id: SessionId,
+        session_ulid: SessionUlid,
     },
     WorkflowFailed {
-        session_id: SessionId,
+        session_ulid: SessionUlid,
         reason: String,
     },
 }
@@ -351,7 +352,7 @@ impl WorkflowEngine {
     pub async fn handle_node_complete(
         &self,
         runtime: &mut WorkflowRuntime,
-        node_id: NodeId,
+        node_ulid: NodeUlid,
         output: String,
     ) -> Result<(), WorkflowError> {
         // TODO: 实现节点完成处理
@@ -366,7 +367,7 @@ impl WorkflowEngine {
     pub fn find_start_nodes(
         &self,
         definition: &WorkflowDefinition,
-    ) -> Vec<NodeId> {
+    ) -> Vec<NodeUlid> {
         // TODO: 查找起始节点
         // 1. 创建HashSet收集所有有入边的节点ID
         // 2. 遍历所有edges，将target（to）加入HashSet
@@ -377,8 +378,8 @@ impl WorkflowEngine {
     pub fn evaluate_edges(
         &self,
         runtime: &WorkflowRuntime,
-        current_node: &NodeId,
-    ) -> Vec<NodeId> {
+        current_node: &NodeUlid,
+    ) -> Vec<NodeUlid> {
         // TODO: 评估边的条件以确定下一个节点
         // 1. 查找定义中从current_node出发的所有边
         // 2. 对每条边调用evaluate_requirement评估条件
@@ -486,14 +487,14 @@ impl WorkflowEngine {
 ```rust
 pub struct WorkflowTransitionTool {
     runtime: Arc<RwLock<WorkflowRuntime>>,
-    node_id: NodeId,
+    node_ulid: NodeUlid,
 }
 
 #[async_trait]
 impl ToolExecutor for WorkflowTransitionTool {
     fn definition(&self) -> &ToolDefinition {
         static DEF: Lazy<ToolDefinition> = Lazy::new(|| ToolDefinition {
-            id: ToolId("workflow::option".into()),
+            id: ToolUlid("workflow::option".into()),
             description: "控制工作流节点之间的转换".into(),
             schema: json!({
                 "type": "object",
@@ -534,7 +535,7 @@ impl ToolExecutor for WorkflowTransitionTool {
 pub fn register_workflow_tools(
     registry: &mut dyn ToolRegistry,
     runtime: Arc<RwLock<WorkflowRuntime>>,
-    node_id: NodeId,
+    node_ulid: NodeUlid,
 ) {
     // TODO: 注册工作流相关工具
     // 1. 注册 workflow 工具（WorkflowTransitionTool）
@@ -664,10 +665,10 @@ graph LR
 ```rust
 #[async_trait]
 pub trait WorkflowControl: Send + Sync {
-    async fn pause(&self, session_id: SessionId) -> Result<(), WorkflowError>;
-    async fn resume(&self, session_id: SessionId) -> Result<(), WorkflowError>;
-    async fn terminate(&self, session_id: SessionId, reason: String) -> Result<(), WorkflowError>;
-    async fn get_status(&self, session_id: SessionId) -> Result<WorkflowStatusInfo, WorkflowError>;
+    async fn pause(&self, session_ulid: SessionUlid) -> Result<(), WorkflowError>;
+    async fn resume(&self, session_ulid: SessionUlid) -> Result<(), WorkflowError>;
+    async fn terminate(&self, session_ulid: SessionUlid, reason: String) -> Result<(), WorkflowError>;
+    async fn get_status(&self, session_ulid: SessionUlid) -> Result<WorkflowStatusInfo, WorkflowError>;
 }
 ```
 
@@ -677,7 +678,7 @@ pub trait WorkflowControl: Send + Sync {
 #[derive(Debug, Error)]
 pub enum WorkflowError {
     #[error("节点未找到: {0}")]
-    NodeNotFound(NodeId),
+    NodeNotFound(NodeUlid),
     
     #[error("没有起始节点")]
     NoStartNode,
@@ -709,7 +710,7 @@ impl WorkflowError {
 
 *关联文档：*
 - [TECH.md](TECH.md) - 总体架构文档
-- [TECH-SESSION.md](TECH-SESSION.md) - Session管理模块（SessionId定义、消息模型）
+- [TECH-SESSION.md](TECH-SESSION.md) - Session管理模块（SessionUlid定义、消息模型）
 - [TECH-AGENT.md](TECH-AGENT.md) - 多智能体协作模块（AgentEngine）
 - [TECH-TOOL.md](TECH-TOOL.md) - 工具系统（ToolExecutor、ToolRegistry）
 - [TECH-CONFIG.md](TECH-CONFIG.md) - 配置管理（WorkflowDef加载）

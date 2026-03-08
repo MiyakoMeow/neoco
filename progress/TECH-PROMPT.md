@@ -151,9 +151,9 @@ pub trait PromptBuilder {
 
 ```rust
 pub trait SessionRepository: Send + Sync {
-    async fn get_or_create(&self, session_id: &str) -> Result<Session, SessionError>;
+    async fn get_or_create(&self, session_ulid: &str) -> Result<Session, SessionError>;
     async fn save(&self, session: &Session) -> Result<(), SessionError>;
-    async fn find_by_id(&self, session_id: &str) -> Result<Option<Session>, SessionError>;
+    async fn find_by_id(&self, session_ulid: &str) -> Result<Option<Session>, SessionError>;
 }
 ```
 

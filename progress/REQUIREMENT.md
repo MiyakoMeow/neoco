@@ -69,24 +69,24 @@
 
 ### Session管理
 
-- 存储在`~/.local/neco/(session_id)/agents/(agent_id).toml`文件。该文件存储所有的上下文内容。
-- **Session ID与Agent ULID的关系**：
-  - Session ID是顶级容器的ULID，在创建Session时生成
-  - Agent ULID是每个Agent实例的ULID，在Agent开始对话时生成（第一个Agent除外，其使用Session ID）
-  - 第一个Agent（最上层）的Agent ULID与Session ID相同
-- Session ID使用ULID（Universally Unique Lexicographically Sortable Identifier）。使用`ulid`这个crate。
+- 存储在`~/.local/neco/(session_ulid)/agents/(agent_ulid).toml`文件。该文件存储所有的上下文内容。
+- **Session ULID与Agent ULID的关系**：
+  - Session ULID是顶级容器的ULID，在创建Session时生成
+  - Agent ULID是每个Agent实例的ULID，在Agent开始对话时生成（第一个Agent除外，其使用Session ULID）
+  - 第一个Agent（最上层）的Agent ULID与Session ULID相同
+- Session ULID使用ULID（Universally Unique Lexicographically Sortable Identifier）。使用`ulid`这个crate。
 
 #### 消息内容存储
 
 - 使用TOML存储消息内容：
 
-- 参考：`(agent_id).toml`。不同Agent使用不同文件。
+- 参考：`(agent_ulid).toml`。不同Agent使用不同文件。
 
 ```toml
 # Agent配置
 [agent]
 definition_id = "coder"
-parent_id = "01HF..."  # 上级Agent的ID，最上层Agent此字段省略
+parent_ulid = "01HF..."  # 上级Agent的ID，最上层Agent此字段省略
 
 # Agent消息列表
 [[messages]]
@@ -103,7 +103,7 @@ role = "assistant"
 content = "xxx"
 ```
 
-- 通过`parent_id`字段可以恢复完整的Agent树形结构。
+- 通过`parent_ulid`字段可以恢复完整的Agent树形结构。
 
 ### MCP
 
