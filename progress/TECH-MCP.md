@@ -329,6 +329,8 @@ pub enum DisconnectReason {
 
 ### 8.1 版本历史
 
+> 注意：完整的常量定义见下表。
+
 | 版本 | 日期 | 主要变更 |
 |------|------|----------|
 | 2025-11-25 | 最新 | 支持 Resources v2、Prompts v2、Session恢复增强 |
@@ -365,7 +367,9 @@ pub struct ResourceList {
 /// 资源内容响应
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ResourceContent {
+    /// 资源 URI
     pub uri: String,
+    /// MIME 类型 (String 类型)
     pub mime_type: Option<String>,
     /// base64 编码的内容 (String 类型)
     pub blob: String,
@@ -551,7 +555,8 @@ pub async fn restore_session(
         .map_err(|e| McpError::ProtocolError(e.to_string()))?;
     
     // 重建会话状态
-    // 注意：created_at 为恢复时间而非原始创建时间
+    // 注意：created_at 为恢复时间（Utc::now()），而非原始会话创建时间。
+    // 如需保留原始创建时间，需从服务器响应中获取。
     let session = McpSession {
         id: session_id.clone(),
         server_capabilities: parse_server_capabilities(&result)?,
@@ -593,7 +598,7 @@ pub mod jsonrpc {
 
 ### 12.2 错误类型扩展
 
-> 注意：完整的 `McpError` 定义见第5节。以下为补充的错误变体和JSON-RPC映射扩展。
+> 注意：以下为第5节 `McpError` 枚举的补充变体定义，与第5节共同构成完整的错误类型。
 
 ```rust
 // 在第5节的 McpError 枚举中补充以下变体：
@@ -724,8 +729,11 @@ impl Default for McpSecurityConfig {
 }
 
 // 安全配置说明：
-// 默认配置允许所有 Origin（allowed_origins 为空），适合本地开发环境。
-// 生产环境建议显式配置 allowed_origins 以增强安全性。
+// ⚠️ 安全警告：默认配置允许所有 Origin（allowed_origins 为空），适合本地开发环境。
+// 生产环境必须显式配置 allowed_origins 以防止 CSRF 和 Origin 欺骗攻击。
+// 示例安全配置：
+//   allowed_origins: vec!["https://app.example.com".to_string()]
+//   allow_null_origin: false  // 禁止 null Origin（如 file:// 协议）
 
 /// Origin 验证器
 pub struct OriginValidator {

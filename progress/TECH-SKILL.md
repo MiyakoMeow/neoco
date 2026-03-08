@@ -164,7 +164,7 @@ pub struct SkillMetadata {
     /// 兼容性声明
     pub compatibility: Option<SkillCompatibility>,
     /// 标准化元数据容器
-    pub metadata: SkillMetadataContainer,
+    pub details: SkillMetadataContainer,
     /// 依赖项
     pub dependencies: Vec<String>,
 }

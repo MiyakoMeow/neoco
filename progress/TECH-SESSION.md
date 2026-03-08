@@ -1151,13 +1151,18 @@ pub trait Memory: Send + Sync {
     // --- 混合搜索支持 ---
     
     /// 混合搜索 (向量 + BM25)
+    ///
+    /// 参数说明：
+    /// - `vector_weight`: 向量搜索权重，如需使用 MemoryConfig 中的默认值，可传入 `None`
+    /// - `keyword_weight`: 关键词搜索权重，如需使用 MemoryConfig 中的默认值，可传入 `None`
+    /// - 权重范围建议: 0.0~1.0，两者之和通常为 1.0
     async fn hybrid_search(
         &self,
         query: &str,
         query_embedding: &[f32],
         limit: usize,
-        vector_weight: f32,
-        keyword_weight: f32,
+        vector_weight: Option<f32>,
+        keyword_weight: Option<f32>,
     ) -> Result<Vec<ScoredEntry>, MemoryError>;
     
     // --- 索引管理 ---
