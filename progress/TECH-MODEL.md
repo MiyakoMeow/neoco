@@ -510,7 +510,7 @@ static MODEL_CAPABILITIES: LazyLock<HashMap<ModelCapabilityKey, ModelCapabilitie
         functions: true,
         json_mode: true,
         vision: true,
-        context_window: 64_000,
+        context_window: 128_000,
     });
     
     // OpenAI - o1 系列（推理模型）
@@ -519,7 +519,7 @@ static MODEL_CAPABILITIES: LazyLock<HashMap<ModelCapabilityKey, ModelCapabilitie
         tools: false,
         functions: false,
         json_mode: false,
-        vision: false,
+        vision: true,  // o1 支持图片输入
         context_window: 200_000,
     });
     m.insert(ModelCapabilityKey { provider: "openai".into(), model: "o1-mini".into() }, ModelCapabilities {

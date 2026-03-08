@@ -182,6 +182,8 @@ pub async fn connect_http(
 
 ## 5. 错误处理
 
+作为公共错误边界供其他 crate 显式映射使用：
+
 ```rust
 #[derive(Debug, Error)]
 pub enum McpError {
@@ -235,7 +237,7 @@ MCP协议基于JSON-RPC 2.0规范，主要消息类型包括：
     "id": 1,
     "method": "initialize",
     "params": {
-        "protocolVersion": "2025-11-25",
+        "protocolVersion": "2025-06-18",
         "capabilities": {
             "roots": { "listChanged": true },
             "sampling": {}
@@ -364,24 +366,23 @@ rmcp = { version = "1.1", features = [
 
 **Stdio 传输：**
 ```rust
-use rmcp::Client;
-use rmcp::transport::child_process::TokioChildProcess;
+use rmcp::{ServiceExt, transport::{ConfigureCommandExt, TokioChildProcess}};
+use tokio::process::Command;
 
-// 使用 Command 创建子进程传输
-let transport = TokioChildProcess::new(Command::new("npx"), vec!["-y", "@modelcontextprotocol/server-filesystem", "/tmp"])?;
-let client = Client::new(transport);
-let peer = client.serve().await?;
+let client = ()
+    .serve(TokioChildProcess::new(Command::new("npx").configure(|cmd| {
+        cmd.args(["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]);
+    }))?)
+    .await?;
 ```
 
 **Streamable HTTP 传输：**
 ```rust
-use rmcp::Client;
-use rmcp::transport::streamable_http_client::StreamableHttpClientTransport;
+use rmcp::{ServiceExt, transport::StreamableHttpClientTransport};
 
-// 创建 HTTP 客户端传输
-let transport = StreamableHttpClientTransport::new("http://localhost:3000/mcp".to_string())?;
-let client = Client::new(transport);
-let peer = client.serve().await?;
+let client = ()
+    .serve(StreamableHttpClientTransport::from_uri("http://localhost:3000/mcp"))
+    .await?;
 ```
 
 ---

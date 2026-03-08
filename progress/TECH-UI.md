@@ -632,7 +632,7 @@ crossterm = { version = "0.29", features = [
     "bracketed-paste", # 括号粘贴模式支持
     "windows"         # Windows 平台支持
 ] }
-axum = "0.7"           # HTTP 服务框架（daemon 模式可选）
+axum = "0.8"           # HTTP 服务框架（daemon 模式可选）
 ```
 
 ### Feature 说明
