@@ -278,34 +278,6 @@ impl ToolRegistry for DefaultToolRegistry {
         self.tools.read().await.keys().cloned().collect()
     }
 }
-    
-    fn get(&self, id: &ToolId) -> Option<Arc<dyn ToolExecutor>> {
-        self.tools.blocking_read().get(id).cloned()
-    }
-    
-    fn definitions(&self) -> Vec<ToolDefinition> {
-        self.tools.blocking_read().values()
-            .map(|tool| tool.definition().clone())
-            .collect()
-    }
-    
-    fn timeout(&self, id: &ToolId) -> Option<Duration> {
-        let tools = self.tools.blocking_read();
-        if let Some(tool) = tools.get(id) {
-            Some(tool.definition().timeout)
-        } else {
-            self.timeouts.blocking_read().get(id.0.as_str()).copied()
-        }
-    }
-    
-    fn set_timeout(&self, prefix: &str, timeout: Duration) {
-        self.timeouts.blocking_write().insert(prefix.to_string(), timeout);
-    }
-    
-    fn list_tools(&self) -> Vec<ToolId> {
-        self.tools.blocking_read().keys().cloned().collect()
-    }
-}
 ```
 
 ## 4. 文件系统工具
