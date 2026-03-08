@@ -528,18 +528,18 @@ impl ToolExecutor for FileDeleteTool {
 }
 ```
 
-## 4.5 上下文工具
+## 5. 上下文工具
 
 > 上下文工具帮助 Agent 管理内存，遵循 Arena Allocator 心智模型。
 
-### 4.5.1 工具定义
+### 5.1.1 工具定义
 
 | 工具 | 功能 | 超时 |
 |------|------|------|
 | `context::observe` | 观测上下文状态，获取 Dashboard | 5秒 |
 | `context::compact` | 主动压缩上下文（Layer A） | 30秒 |
 
-### 4.5.2 context::observe
+### 5.1.2 context::observe
 
 ```rust
 pub struct ContextObserveTool {
@@ -585,7 +585,7 @@ impl ToolExecutor for ContextObserveTool {
 }
 ```
 
-### 4.5.3 context::compact
+### 5.1.3 context::compact
 
 ```rust
 pub struct ContextCompactTool {
@@ -630,7 +630,7 @@ impl ToolExecutor for ContextCompactTool {
 }
 ```
 
-## 5. 工具数据流
+## 6. 工具数据流
 
 ```mermaid
 sequenceDiagram
@@ -653,7 +653,7 @@ sequenceDiagram
 3. ToolExecutor执行具体的工具逻辑（如文件读写）
 4. 工具执行完成后返回ToolResult给Agent
 
-## 6. 工具执行状态机
+## 7. 工具执行状态机
 
 ```mermaid
 stateDiagram-v2
@@ -689,7 +689,7 @@ stateDiagram-v2
 - 执行完成 → Completed
 - 执行出错 → Failed
 
-## 7. 工具错误
+## 8. 工具错误
 
 ```rust
 #[derive(Debug, Error)]
