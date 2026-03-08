@@ -268,10 +268,29 @@ graph TD
 |------|------|----------|
 | `SessionUlid` | `struct SessionUlid(Ulid)` | 26位Ulid字符串 |
 | `AgentUlid` | `struct AgentUlid { session: Ulid, agent: Ulid }` | 双Ulid结构。session字段直接标识所属Session，agent字段标识唯一Agent实例。查询Agent所属Session可直接从AgentUlid.session获取，无需通过SessionManager索引 |
-| `MessageId` | `struct MessageId(u64)` | 原子自增，Session范围唯一（保持u64） |
+| `MessageId` | `struct MessageId(u64)` | 原子自增，跨所有Agent和工作流节点全局唯一 |
 | `NodeUlid` | `struct NodeUlid(Ulid)` | 26位Ulid字符串 |
-| `ToolId` | `struct ToolId(Vec<String>)` | namespace::name 格式（如 `["fs", "read"]`） |
+| `ToolId` | `struct ToolId(Vec<String>)` | namespace::name 格式（如 `["fs", "read"]`，渲染为 `fs::read`） |
 | `SkillUlid` | `struct SkillUlid(Ulid)` | 26位Ulid字符串 |
+
+### 3.2 节点Agent与Session关系
+
+> 工作流的节点Agent同时也是节点内的最上级Agent。节点Agent的ULID与节点Session ID相同。
+
+这一设计简化了层级关系：
+- 查询Agent所属Session可直接从 `AgentUlid.session` 获取
+- 工作流节点Session与节点Agent共享同一ULID
+
+### 3.3 Agent定义查找优先级
+
+Agent定义文件查找顺序（优先级从高到低）：
+1. `workflows/<workflow_id>/agents/<agent_id>.md`（工作流特定配置）
+2. `.neoco/agents/<agent_id>.md`（当前项目）
+3. `.agents/agents/<agent_id>.md`（当前项目）
+4. `~/.config/neoco/agents/<agent_id>.md`（全局主配置）
+5. `~/.agents/agents/<agent_id>.md`（全局通用配置）
+
+> 注：工作流特定配置优先级最高，体现"工作流目录 > 配置目录"规则
 
 ### 3.2 统一消息系统
 
@@ -1171,7 +1190,7 @@ NeoCo提供两种扩展Agent能力的机制：**提示词组件(Prompt Component
 
 ### 12.3 资源限制
 
-- 工具超时：默认30s（可配置）
+- 工具超时：默认30s，fs类型默认10s，mcp类型默认60s（可配置）
 - 上下文上限：模型限制
 - 并发Agent数：由运行时配置决定
 
@@ -1269,8 +1288,8 @@ graph TB
 |------|----------|------|
 | tokio | 1.40 | 异步运行时 |
 | serde | 1.0 | 序列化框架 |
-| reqwest | 0.11 | HTTP 客户端 |
-| rmcp | 1.1 | MCP 客户端 |
+| async-openai | 0.33.0 | OpenAI API 客户端 |
+| rmcp | 1.1.0 | MCP 客户端 |
 
 ---
 

@@ -142,10 +142,30 @@ pub enum AgentState {
 }
 
 /// Agent模式 - 对应需求文档的mode字段
+/// 支持字符串形式和数组形式：
+/// - 字符串形式：mode = "primary" 或 mode = "subagent"
+/// - 数组形式：mode = ["primary", "subagent"] 或 mode = ["subagent"]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(untagged)]
 pub enum AgentMode {
-    Primary,   // 主Agent，直接与用户对话
-    Subagent,  // 子Agent，由上级Agent创建
+    Single(String),
+    Multiple(Vec<String>),
+}
+
+impl AgentMode {
+    pub fn is_primary(&self) -> bool {
+        match self {
+            AgentMode::Single(s) => s == "primary",
+            AgentMode::Multiple(v) => v.contains(&"primary".to_string()),
+        }
+    }
+    
+    pub fn is_subagent(&self) -> bool {
+        match self {
+            AgentMode::Single(s) => s == "subagent",
+            AgentMode::Multiple(v) => v.contains(&"subagent".to_string()),
+        }
+    }
 }
 
 /// Agent领域模型
@@ -205,11 +225,12 @@ impl Agent {
 
 > **注意**：Agent引擎不直接持有领域模型，通过仓储接口访问
 >
-> **mode字段创建约束（不变量）**：
-> - 根Agent（直接与用户对话的Session Root Agent）：固定为 `Primary` 模式
-> - 子Agent（由 `spawn_child` 创建）：固定为 `Subagent` 模式
->
-> 此约束确保基于模式做权限或行为分流时不会出现语义漂移。
+> **mode字段说明**：
+> - 支持字符串形式：`primary` 或 `subagent`
+> - 支持数组形式：`[primary, subagent]` 或 `[subagent]`（表示该Agent只能作为子Agent）
+> - 根Agent（Session Root）运行时固定为 `primary` 模式
+> - 子Agent运行时固定为 `subagent` 模式
+
 
 ```rust
 /// Agent引擎（应用层）
@@ -450,7 +471,7 @@ pub enum TaskStatus {
 
 ## 4. 工具实现
 
-### 4.1 multi-agent::spawn 工具
+### 4.1 multi_agent::spawn 工具
 
 ```rust
 pub struct SpawnAgentTool {
@@ -461,7 +482,7 @@ pub struct SpawnAgentTool {
 impl ToolExecutor for SpawnAgentTool {
     fn definition(&self) -> &ToolDefinition {
         static DEF: Lazy<ToolDefinition> = Lazy::new(|| ToolDefinition {
-            id: ToolId::new("multi-agent", "spawn"),
+            id: ToolId::new("multi_agent", "spawn"),
             description: "生成一个下级Agent来执行特定任务".into(),
             schema: json!({
                 "type": "object",
@@ -503,7 +524,7 @@ impl ToolExecutor for SpawnAgentTool {
 }
 ```
 
-### 4.2 multi-agent::send 工具
+### 4.2 multi_agent::send 工具
 
 ```rust
 pub struct SendMessageTool {
@@ -514,7 +535,7 @@ pub struct SendMessageTool {
 impl ToolExecutor for SendMessageTool {
     fn definition(&self) -> &ToolDefinition {
         static DEF: Lazy<ToolDefinition> = Lazy::new(|| ToolDefinition {
-            id: ToolId::new("multi-agent", "send"),
+            id: ToolId::new("multi_agent", "send"),
             description: "向指定Agent发送消息".into(),
             schema: json!({
                 "type": "object",
@@ -553,7 +574,7 @@ impl ToolExecutor for SendMessageTool {
 }
 ```
 
-### 4.3 multi-agent::report 工具
+### 4.3 multi_agent::report 工具
 
 ```rust
 pub struct ReportTool {
@@ -564,7 +585,7 @@ pub struct ReportTool {
 impl ToolExecutor for ReportTool {
     fn definition(&self) -> &ToolDefinition {
         static DEF: Lazy<ToolDefinition> = Lazy::new(|| ToolDefinition {
-            id: ToolId::new("multi-agent", "report"),
+            id: ToolId::new("multi_agent", "report"),
             description: "向上级Agent汇报任务进度或结果".into(),
             schema: json!({
                 "type": "object",

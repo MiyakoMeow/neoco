@@ -110,25 +110,11 @@ impl std::ops::Deref for ModelGroups {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModelGroup {
-    pub models: Vec<ModelRef>,
+    pub models: Vec<String>,
 }
 
-/// 模型引用（支持参数）
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ModelRef {
-    pub provider: String,
-    pub name: String,
-    #[serde(default)]
-    pub params: HashMap<String, Value>,
-}
-
-impl ModelRef {
-    pub fn parse(s: &str) -> Result<Self, ConfigError> {
-        // 格式：provider/model?param=value
-        // TODO(#??): 实现解析逻辑
-        unimplemented!()
-    }
-}
+/// 模型引用解析（支持参数）
+/// 格式：provider/model?param=value
 
 /// 模型提供商配置
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -157,8 +143,13 @@ pub struct ModelProvider {
     #[serde(rename = "type")]
     pub provider_type: ProviderType,
     pub name: String,
-    pub base_url: Url,
-    pub api_key: ApiKeyConfig,
+    pub base: Url,
+    #[serde(default)]
+    pub api_key_env: Option<String>,
+    #[serde(default)]
+    pub api_key_envs: Option<Vec<String>>,
+    #[serde(default)]
+    pub api_key: Option<SecretString>,
     #[serde(default)]
     pub default_params: HashMap<String, Value>,
     #[serde(default)]
@@ -176,29 +167,8 @@ pub enum ProviderType {
     OpenRouter,
 }
 
-/// API密钥配置
-/// 
+/// API密钥优先级: api_key_env > api_key_envs > api_key
 /// 使用 zeroize crate 确保密钥在内存在放时自动清零，防止内存泄露
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "source", rename_all = "snake_case")]
-pub enum ApiKeyConfig {
-    Env { name: String },
-    EnvList { names: Vec<String> },
-    Direct { key: SecretString },
-}
-
-impl ApiKeyConfig {
-    pub fn resolve(&self) -> Result<SecretString, ConfigError> {
-        // 实现要点：
-        // 1. 根据 ApiKeyConfig 类型（Env/EnvList/Direct）获取 API 密钥
-        // 2. Env 类型：从指定名称的环境变量读取
-        // 3. EnvList 类型：遍历多个环境变量名，返回第一个存在的值
-        // 4. Direct 类型：直接返回嵌入的密钥（注意：生产环境避免使用）
-        // 5. 正确处理密钥不存在的情况，返回对应的 ConfigError
-        // 6. 使用 zeroize::Zeroize 确保密钥在Drop时自动清零
-        unimplemented!()
-    }
-}
 
 /// 重试配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -251,26 +221,18 @@ impl std::ops::Deref for McpServers {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct McpServerConfig {
-    pub transport: McpTransportConfig,
+    #[serde(default)]
+    pub command: Option<String>,
+    #[serde(default)]
+    pub args: Option<Vec<String>>,
+    #[serde(default)]
+    pub url: Option<Url>,
+    #[serde(default)]
+    pub bearer_token_env: Option<String>,
+    #[serde(default)]
+    pub http_headers: HashMap<String, String>,
     #[serde(default)]
     pub env: HashMap<String, String>,
-}
-
-/// MCP传输配置
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "lowercase")]
-pub enum McpTransportConfig {
-    Stdio {
-        command: String,
-        args: Vec<String>,
-    },
-    Http {
-        url: Url,
-        #[serde(default)]
-        headers: HashMap<String, String>,
-        #[serde(default)]
-        bearer_token: Option<SecretString>,
-    },
 }
 ```
 
@@ -288,9 +250,16 @@ pub struct SystemConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StorageConfig {
+    #[serde(default = "default_session_dir")]
     pub session_dir: PathBuf,
     #[serde(default = "default_compression")]
     pub compression: bool,
+}
+
+fn default_session_dir() -> PathBuf {
+    dirs::data_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("neoco")
 }
 
 fn default_compression() -> bool { true }
