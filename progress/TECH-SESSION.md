@@ -431,13 +431,6 @@ impl AgentHierarchy {
         unimplemented!()
     }
     
-    pub fn get_children(&self, id: &AgentId) -> Vec<AgentId> {
-        // TODO: 实现获取子节点列表
-        // 1. 从children_map中查找id对应的Vec<AgentId>
-        // 2. 返回子AgentId列表
-        unimplemented!()
-    }
-    
     pub fn get_ancestors(&self, id: &AgentId) -> Vec<AgentId> {
         // TODO: 实现获取所有祖先节点
         // 1. 创建空的结果Vec

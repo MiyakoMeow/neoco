@@ -492,6 +492,8 @@ model:
   temperature: 0.1
 
 # 注意：model_group 与 model 同时存在时，优先使用 model_group
+
+**当 model 和 model_group 均未设置时：** 使用模型默认配置（由运行时决定具体模型）。
 ```
 
 **mode字段支持的格式：**
@@ -508,6 +510,8 @@ mode:
 # 或
 mode:
   - subagent     # 只有子Agent
+
+# 注意：数组不能为空，空数组无效（等同于未设置）
 ```
 
 **字段说明：**
