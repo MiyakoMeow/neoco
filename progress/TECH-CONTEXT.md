@@ -371,12 +371,12 @@ pub enum PruningStage {
 ### 5.4 context::observe 工具
 
 ```rust
-pub struct ObserveTool {
+pub struct ContextObserveTool {
     observer: Arc<dyn ContextObserver>,
 }
 
 #[async_trait]
-impl ToolExecutor for ObserveTool {
+impl ToolExecutor for ContextObserveTool {
     fn definition(&self) -> &ToolDefinition {
         // [TODO] 实现工具定义
         // 1. 定义工具ID和描述

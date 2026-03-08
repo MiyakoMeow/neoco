@@ -197,9 +197,17 @@ impl<'a> ModelMessage<'a> {
                     return Err(MessageValidationError { message: "Tool message cannot have tool_calls".into() });
                 }
             }
-            Role::User | Role::Assistant => {
+            Role::User => {
                 if self.tool_call_id.is_some() {
-                    return Err(MessageValidationError { message: "User/Assistant message cannot have tool_call_id".into() });
+                    return Err(MessageValidationError { message: "User message cannot have tool_call_id".into() });
+                }
+                if self.tool_calls.is_some() {
+                    return Err(MessageValidationError { message: "User message cannot have tool_calls".into() });
+                }
+            }
+            Role::Assistant => {
+                if self.tool_call_id.is_some() {
+                    return Err(MessageValidationError { message: "Assistant message cannot have tool_call_id".into() });
                 }
             }
             Role::System => {
