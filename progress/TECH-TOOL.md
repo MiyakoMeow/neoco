@@ -241,7 +241,7 @@ impl DefaultToolRegistry {
         registry.register(Arc::new(WorkflowOptionTool));
         registry.register(Arc::new(WorkflowPassTool));
         
-        // 6. 上下文工具：question::ask
+        // 6. TUI工具：tui::question
         registry.register(Arc::new(QuestionAskTool));
 
         // 注意：MCP和Skill外部工具在运行时动态注册
@@ -654,7 +654,7 @@ impl ToolExecutor for FileDeleteTool {
 |------|------|------|
 | `context::observe` | 观测上下文状态，获取 Dashboard | 5秒 |
 | `context::compact` | 主动压缩上下文（Layer A） | 30秒 |
-| `question::ask` | 向用户提问（仅限TUI非no-ask模式） | 30秒 |
+| `tui::question` | 向用户提问（仅限TUI非no-ask模式） | 30秒 |
 
 ### 5.1.2 context::observe
 
@@ -714,7 +714,7 @@ impl ToolExecutor for ContextObserveTool {
 }
 ```
 
-### 5.1.3 question::ask
+### 5.1.3 tui::question
 
 ```rust
 pub struct QuestionAskTool;
@@ -723,7 +723,7 @@ pub struct QuestionAskTool;
 impl ToolExecutor for QuestionAskTool {
     fn definition(&self) -> &ToolDefinition {
             static DEF: Lazy<ToolDefinition> = Lazy::new(|| ToolDefinition {
-                id: ToolId::new("question", "ask"),
+                id: ToolId::new("tui", "question"),
                 description: "向用户提问（仅限TUI非no-ask模式）".into(),
             schema: json!({
                 "type": "object",
