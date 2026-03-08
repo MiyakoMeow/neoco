@@ -1162,7 +1162,7 @@ NeoCo提供两种扩展Agent能力的机制：**提示词组件(Prompt Component
 | 指标 | 目标值 | 参考 |
 |------|--------|------|
 | 内存占用 | <55MB | OpenFang ~40MB |
-| 冷启动 | <200ms | OpenFang ~180ms |
+| 冷启动 | <180ms | OpenFang ~180ms |
 | 二进制大小 | <35MB | OpenFang ~32MB |
 | 工具超时 | 默认30s | 可配置 |
 | 上下文上限 | 模型限制 | - |

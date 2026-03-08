@@ -543,6 +543,7 @@ pub async fn restore_session(
         .map_err(|e| McpError::ProtocolError(e.to_string()))?;
     
     // 重建会话状态
+    // 注意：created_at 为恢复时间而非原始创建时间
     let session = McpSession {
         id: session_id.clone(),
         server_capabilities: parse_server_capabilities(&result)?,
@@ -753,16 +754,19 @@ impl Default for ProtocolVersionManager {
 
 impl ProtocolVersionManager {
     pub fn validate(&self, client_version: &str) -> Result<String, McpError> {
-        let client_date = client_version.parse::<NaiveDate>()
+        let client_date = NaiveDate::parse_from_str(client_version, "%Y-%m-%d")
             .map_err(|_| McpError::ProtocolVersionMismatch {
                 client: client_version.to_string(),
                 server: self.max_version.clone(),
             })?;
         
+        const DEFAULT_MIN: NaiveDate = NaiveDate::from_ymd_opt(2024, 11, 5).expect("valid date");
+        const DEFAULT_MAX: NaiveDate = NaiveDate::from_ymd_opt(2025, 11, 25).expect("valid date");
+        
         let min_date = NaiveDate::parse_from_str(&self.min_version, "%Y-%m-%d")
-            .unwrap_or(NaiveDate::from_ymd_opt(2024, 11, 5).unwrap());
+            .unwrap_or(DEFAULT_MIN);
         let max_date = NaiveDate::parse_from_str(&self.max_version, "%Y-%m-%d")
-            .unwrap_or(NaiveDate::from_ymd_opt(2025, 11, 25).unwrap());
+            .unwrap_or(DEFAULT_MAX);
         
         if client_date < min_date {
             return Err(McpError::ProtocolVersionMismatch {
