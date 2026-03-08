@@ -57,7 +57,7 @@ graph TB
 | MCP | `mcp::server_name` | `mcp::context7` |
 | 多智能体 | `multi-agent::action` | `multi-agent::spawn` |
 | 上下文 | `context::action` | `context::observe` |
-| 工作流 | `workflow::option` | `workflow::pass`, `workflow::option` |
+| 工作流 | `workflow::<action>` | `workflow::pass`, `workflow::option` (具体工具ID) |
 | 激活 | `activate::type` | `activate::skill` |
 
 ## 3. 工具接口设计
@@ -212,12 +212,16 @@ impl DefaultToolRegistry {
         registry.register(FileDeleteTool);
         
         // 2. 上下文工具：context::observe
-        // 依赖注入：observer 实例由外部容器在运行时提供
-        registry.register(ContextObserveTool::new(/* observer: Arc<dyn ContextObserver> */));
+        // 依赖注入方式：通过工厂函数或服务容器获取实例
+        // 示例: let observer = ctx.container().resolve::<dyn ContextObserver>();
+        let context_observer = create_context_observer().await;
+        registry.register(ContextObserveTool::new(context_observer));
         
         // 2.1 上下文工具：context::compact
-        // 依赖注入：compression_service 实例由外部容器在运行时提供
-        registry.register(ContextCompactTool::new(/* compression_service: Arc<CompressionService> */));
+        // 依赖注入方式：通过工厂函数或服务容器获取实例
+        // 示例: let compression = ctx.container().resolve::<CompressionService>();
+        let compression_service = create_compression_service().await;
+        registry.register(ContextCompactTool::new(compression_service));
         
         // 3. 多智能体工具：multi-agent::spawn, multi-agent::send, multi-agent::report
         registry.register(MultiAgentSpawnTool);

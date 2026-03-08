@@ -387,15 +387,40 @@ pub struct HierarchyMeta {
     pub children_map: HashMap<AgentId, Vec<AgentId>>,
 }
 
-/// Agent状态（持久化格式稳定）
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "state", content = "reason", rename_all = "lowercase")]
+/// Agent状态（运行时使用）
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AgentState {
     Idle,
     Running,
     Waiting(WaitingReason),      // 等待原因：工具调用或用户输入
     Completed,
     Failed(FailureReason),       // 失败原因及错误信息
+}
+
+/// Agent状态（持久化DTO - 格式稳定）
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AgentStateDto {
+    pub state: AgentStateKind,
+    pub reason_kind: Option<ReasonKind>,
+    pub message: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AgentStateKind {
+    Idle,
+    Running,
+    Waiting,
+    Completed,
+    Failed,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ReasonKind {
+    ToolCall,
+    UserInput,
+    Error,
+    Recoverable,
+    Unrecoverable,
 }
 
 /// 等待原因

@@ -190,15 +190,25 @@ impl<'a> ModelMessage<'a> {
     pub fn validate(&self) -> Result<(), MessageValidationError> {
         match self.role {
             Role::Tool => {
-                ensure!(self.tool_call_id.is_some(), "Tool message must have tool_call_id");
-                ensure!(self.tool_calls.is_none(), "Tool message cannot have tool_calls");
+                if self.tool_call_id.is_none() {
+                    return Err(MessageValidationError { message: "Tool message must have tool_call_id".into() });
+                }
+                if self.tool_calls.is_some() {
+                    return Err(MessageValidationError { message: "Tool message cannot have tool_calls".into() });
+                }
             }
             Role::User | Role::Assistant => {
-                ensure!(self.tool_call_id.is_none(), "User/Assistant message cannot have tool_call_id");
+                if self.tool_call_id.is_some() {
+                    return Err(MessageValidationError { message: "User/Assistant message cannot have tool_call_id".into() });
+                }
             }
             Role::System => {
-                ensure!(self.tool_calls.is_none(), "System message cannot have tool_calls");
-                ensure!(self.tool_call_id.is_none(), "System message cannot have tool_call_id");
+                if self.tool_calls.is_some() {
+                    return Err(MessageValidationError { message: "System message cannot have tool_calls".into() });
+                }
+                if self.tool_call_id.is_some() {
+                    return Err(MessageValidationError { message: "System message cannot have tool_call_id".into() });
+                }
             }
         }
         Ok(())
