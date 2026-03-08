@@ -632,6 +632,9 @@ pub enum McpError {
     
     #[error("协议版本不匹配: 客户端={client}, 服务器={server}")]
     ProtocolVersionMismatch { client: String, server: String },
+    
+    #[error("安全错误: {0}")]
+    SecurityError(String),
 }
 
 impl McpError {
@@ -652,6 +655,7 @@ impl McpError {
             Self::SessionNotInitialized => jsonrpc::SESSION_NOT_INITIALIZED,
             Self::SessionResumeFailed(_) => jsonrpc::SESSION_RESUME_FAILED,
             Self::ProtocolVersionMismatch { .. } => jsonrpc::PROTOCOL_VERSION_MISMATCH,
+            Self::SecurityError(_) => jsonrpc::INTERNAL_ERROR,
             _ => jsonrpc::INTERNAL_ERROR,
         };
         

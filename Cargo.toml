@@ -9,8 +9,8 @@ license = "Apache-2.0"
 authors = ["MiyakoMeow"]
 
 [profile.release]
-# 开发模式：平衡编译速度与性能
-lto = "thin"          # Thin LTO，编译速度更快
+# Release 配置：平衡编译速度与优化效果
+lto = "thin"          # Thin LTO，相比 fat LTO 编译更快
 
 [workspace.lints.rust]
 missing_docs = "deny"

@@ -1202,8 +1202,8 @@ NeoCo提供两种扩展Agent能力的机制：**提示词组件(Prompt Component
 
 ```toml
 [profile.release]
-# 开发模式配置：平衡编译速度与性能
-lto = "thin"          # Thin LTO，编译速度更快
+# Release 配置：平衡编译速度与优化效果
+lto = "thin"          # Thin LTO，相比 fat LTO 编译更快
 
 # 发布模式（如需极致优化）：
 # opt-level = 2        # 级别 2 平衡优化

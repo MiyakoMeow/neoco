@@ -1205,7 +1205,7 @@ pub struct MemoryConfig {
 pub enum MemoryBackend {
     SQLite,
     PostgreSQL,
-    Lucid,
+    Lucid, // TODO: 澄清此后端的具体含义
     Markdown,
     None,
 }
