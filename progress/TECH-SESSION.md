@@ -395,7 +395,7 @@ pub struct Agent {
     pub definition_id: String,
     pub messages: Vec<Message>,
     pub state: AgentState,
-    pub active_tools: Vec<ToolUlid>,
+    pub active_tools: Vec<ToolId>,
     pub active_mcp: Vec<McpServerId>,
     pub active_skills: Vec<SkillUlid>,
     pub created_at: DateTime<Utc>,
@@ -804,12 +804,13 @@ workflow_id = "prd"
 
 ```toml
 [id]
-session_ulid = "01HF8X5JQC8ZXJ3YKZ0J9K2D9Z"
-agent_ulid = "01HF8X5JQC8ZXJ3YKZ0J9K2D9A"
+session = "01HF8X5JQC8ZXJ3YKZ0J9K2D9Z"
+agent = "01HF8X5JQC8ZXJ3YKZ0J9K2D9A"
 
 [agent]
 definition_id = "coder"
-parent_ulid = null  # 根Agent无parent
+parent_session = null  # 根Agent无parent
+parent_agent = null    # 根Agent无parent
 state = "running"
 
 [[messages]]

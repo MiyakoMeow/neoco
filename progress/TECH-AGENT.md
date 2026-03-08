@@ -108,8 +108,9 @@ pub trait AgentRepository: Send + Sync {
 /// 消息仓储接口
 #[async_trait]
 pub trait MessageRepository: Send + Sync {
-    async fn save(&self, message: &Message) -> Result<(), StorageError>;
-    async fn find_by_session(&self, session_ulid: &SessionUlid) -> Result<Vec<Message>, StorageError>;
+    async fn append(&self, agent_ulid: &AgentUlid, message: &Message) -> Result<(), StorageError>;
+    async fn list(&self, agent_ulid: &AgentUlid) -> Result<Vec<Message>, StorageError>;
+    async fn delete_prefix(&self, agent_ulid: &AgentUlid, before_id: MessageId) -> Result<(), StorageError>;
 }
 ```
 
