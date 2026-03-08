@@ -498,6 +498,16 @@ impl ToolExecutor for SpawnAgentTool {
                     "model_group": {
                         "type": "string",
                         "description": "覆盖使用的模型组（可选）。\n子Agent默认继承父Agent的model_group，\n可通过此参数覆盖继承的值。\n\n层级继承语义：\n- 如果不提供此参数，子Agent使用父Agent的model_group\n- 如果提供此参数，子Agent使用指定的model_group，忽略继承值\n- model_group命名规则：使用kebab-case格式，如 'gpt-4', 'claude-3-opus'\n- model_group必须在配置文件中预先定义"
+                    },
+                    "mcp_servers": {
+                        "type": "array",
+                        "items": { "type": "string" },
+                        "description": "额外的MCP服务器列表，追加到Agent定义中的mcp_servers（可选）。\n\n指定服务器必须在配置文件中预先定义。"
+                    },
+                    "skills": {
+                        "type": "array",
+                        "items": { "type": "string" },
+                        "description": "额外的Skills列表，追加到Agent定义中的skills（可选）。\n\n指定Skill必须在配置的skills目录中存在。"
                     }
                 },
                 "required": ["agent_id", "task"]

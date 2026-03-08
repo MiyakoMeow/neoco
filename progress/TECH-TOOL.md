@@ -109,6 +109,10 @@ pub struct ToolDefinition {
     pub timeout: Duration,
     /// 工具分类，影响工具的可用性
     pub category: ToolCategory,
+    /// 关联的提示词组件ID（可选）
+    /// 默认为工具ID，自动关联同名提示词组件
+    /// 例如：工具 "fs::read" 自动关联提示词组件 "fs::read"（对应文件 "fs--read.md"）
+    pub prompt_component: Option<String>,
 }
 
 /// 工具执行上下文
@@ -299,6 +303,52 @@ impl ToolRegistry for DefaultToolRegistry {
     
     async fn list_tools(&self) -> Vec<ToolId> {
         self.tools.read().await.keys().cloned().collect()
+    }
+}
+```
+
+### 3.4 工具提示词组件自动关联
+
+工具注册时，自动关联同名的提示词组件。
+
+**关联规则**：
+
+| 工具ID | 提示词组件ID | 对应文件 |
+|--------|-------------|----------|
+| `fs::read` | `fs::read` | `fs--read.md` |
+| `fs::write` | `fs::write` | `fs--write.md` |
+| `fs::edit` | `fs::edit` | `fs--edit.md` |
+| `fs::delete` | `fs::delete` | `fs--delete.md` |
+| `fs::list` | `fs::list` | `fs--list.md` |
+| `activate` | `activate` | `activate.md` |
+| `multi-agent::spawn` | `multi-agent::spawn` | `multi-agent--spawn.md` |
+| `multi-agent::send` | `multi-agent::send` | `multi-agent--send.md` |
+| `context::observe` | `context::observe` | `context--observe.md` |
+| `context::compact` | `context::compact` | `context--compact.md` |
+
+**替换机制**：
+
+- 工具提示词组件通过 PromptLoader 自动加载
+- 查找顺序：用户配置目录 `prompts/` → 内置默认
+- 用户可通过在配置目录创建同名文件替换内置提示词
+- 例如：创建 `~/.config/neoco/prompts/fs--read.md` 可替换 `fs::read` 工具的默认提示词
+
+**加载时机**：
+
+- 工具执行时，通过 `PromptLoader::load_for_tool(tool_id)` 自动加载
+- 加载的提示词内容作为工具调用上下文的一部分提供
+
+```rust
+impl ToolExecutor for FileReadTool {
+    fn definition(&self) -> &ToolDefinition {
+        static DEF: Lazy<ToolDefinition> = Lazy::new(|| ToolDefinition {
+            id: ToolId::new("fs", "read"),
+            description: "读取文件内容".into(),
+            // ... 其他字段
+            // prompt_component 默认为 None，表示自动使用工具ID作为组件ID
+            prompt_component: None,  
+        });
+        &DEF
     }
 }
 ```

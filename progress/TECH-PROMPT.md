@@ -37,11 +37,40 @@ sequenceDiagram
 
 ### 2.2 组件类型
 
-| 组件 | 加载条件 | 说明 |
-|------|---------|------|
-| `base` | 默认 | 始终加载 |
-| `multi-agent` | 可创建子Agent时 | Agent可以生成下级 |
-| `multi-agent-child` | 作为子Agent时 | Agent有上级 |
+#### 基础提示词组件
+
+| 组件ID | 文件名 | 说明 |
+|--------|--------|------|
+| `base` | `base.md` | 始终加载，包含如何加载未加载的内容的提示 |
+| `multi-agent` | `multi-agent.md` | 可创建子Agent时加载 |
+| `multi-agent-child` | `multi-agent-child.md` | 作为子Agent时加载 |
+
+#### 工具提示词组件
+
+| 组件ID | 文件名 | 说明 |
+|--------|--------|------|
+| `fs::read` | `fs--read.md` | 文件读取工具提示词 |
+| `fs::write` | `fs--write.md` | 文件写入工具提示词 |
+| `fs::edit` | `fs--edit.md` | 文件编辑工具提示词 |
+| `fs::delete` | `fs--delete.md` | 文件删除工具提示词 |
+| `fs::list` | `fs--list.md` | 目录列表工具提示词 |
+| `activate` | `activate.md` | 激活工具提示词 |
+| `multi-agent::spawn` | `multi-agent--spawn.md` | 生成子Agent工具提示词 |
+| `multi-agent::send` | `multi-agent--send.md` | 发送消息工具提示词 |
+| `context::observe` | `context--observe.md` | 上下文观测工具提示词 |
+| `context::compact` | `context--compact.md` | 上下文压缩工具提示词 |
+
+#### 其他自定义组件
+
+| 组件ID | 文件名 | 说明 |
+|--------|--------|------|
+| 其他 | 按需 | 自定义提示词组件 |
+
+**说明**：
+- 所有内置提示词组件都可通过在配置目录创建同名文件进行替换
+- 文件名使用 `--` 替代 `::`（因为 `::` 无法出现在文件系统中）
+- 例如：`fs::read` 对应文件 `fs--read.md`，可通过创建 `prompts/fs--read.md` 替换
+- 如需动态启用能力，请使用 Skills 机制
 
 ## 3. 提示词内容
 
@@ -83,6 +112,53 @@ sequenceDiagram
 使用 `multi-agent::spawn` 工具
 ```
 
+### 3.3 工具提示词组件
+
+工具提示词组件在工具执行时自动加载，作为工具的额外上下文，帮助Agent正确使用工具。
+
+#### 命名规则
+
+- 工具提示词组件使用工具ID作为组件ID
+- 文件名使用 `--` 替代 `::`（因为 `::` 无法出现在文件系统中）
+- 例如：`fs::read` 对应文件 `fs--read.md`
+
+#### 文件格式
+
+```markdown
+---
+id: fs::read
+visible: true
+---
+
+# fs::read 工具提示词
+
+## 功能说明
+
+读取指定文件的内容。
+
+## 使用场景
+
+- 查看代码文件内容
+- 读取配置文件
+- 检查文档内容
+
+## 注意事项
+
+- 文件路径必须是相对路径或绝对路径
+- 读取大文件时可能需要指定 offset 和 limit 参数
+```
+
+#### 替换机制
+
+- 所有内置工具提示词组件都可通过在配置目录创建同名文件进行替换
+- 替换时优先使用用户配置目录中的版本
+- 例如：创建 `prompts/fs--read.md` 可替换内置的 `fs::read` 工具提示词
+
+#### 加载时机
+
+- 工具提示词组件在工具执行时自动加载
+- 加载后作为工具调用上下文的一部分，提供给Agent
+
 ## 4. Agent配置
 
 ```toml
@@ -99,30 +175,65 @@ multi-agent = true
 提示词加载器负责从文件系统加载提示词组件。
 
 ```rust
+/// 提示词组件元数据
+#[derive(Debug, Clone)]
+pub struct PromptComponent {
+    /// 组件标识，如 "fs::read"
+    pub id: String,
+    /// 文件名（不含扩展名），如 "fs--read"
+    pub file_name: String,
+    /// 组件内容（延迟加载）
+    pub content: Option<String>,
+}
+
 pub trait PromptLoader {
-    fn load(&self, component: &str) -> Result<String, PromptError>;
-    fn list_components(&self) -> Result<Vec<String>, PromptError>;
+    /// 通过组件ID加载提示词内容
+    /// id 可以是组件标识（如 "fs::read"）或文件名（不含扩展名，如 "fs--read"）
+    fn load(&self, id: &str) -> Result<String, PromptError>;
+    
+    /// 列出所有可用组件的元数据
+    fn list_components(&self) -> Result<Vec<PromptComponent>, PromptError>;
+    
+    /// 根据工具ID获取对应的提示词组件
+    /// 自动处理 :: 到 -- 的转换
+    fn load_for_tool(&self, tool_id: &str) -> Result<Option<String>, PromptError> {
+        // 将 tool_id 转换为文件名格式
+        let file_name = tool_id.replace("::", "--");
+        // 尝试加载
+        match self.load(&file_name) {
+            Ok(content) => Ok(Some(content)),
+            Err(PromptError::NotFound(_)) => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
 }
 
 /// 加载行为规范：
 /// - 文件编码：支持UTF-8（带BOM或不带BOM），自动检测并去除BOM
 /// - 换行符处理：自动将\r\n（Windows）和\r（Classic Mac）转换为\n（Unix）
-/// - 路径解析：component参数使用kebab-case命名，映射为{component}.md文件
+/// - 路径解析：id参数可以是组件标识（如 "fs::read"）或文件名（如 "fs--read"）
 /// - 路径遍历防护：不允许包含".."或绝对路径，仅限prompts/目录内
 /// - 错误处理：文件不存在返回PromptError::NotFound，编码错误返回PromptError::Encoding
+/// - 替换优先级：用户配置目录 > 内置默认
 ```
 
 **参数说明：**
-- `component: &str` - 提示词组件名称（如 "base", "multi-agent"）
+- `id: &str` - 提示词组件标识（如 "base", "fs::read"）或文件名（不含扩展名，如 "fs--read"）
+- `list_components()` - 返回所有可用组件的元数据列表
 
 **返回值定义：**
-- `Result<String, PromptError>` - 成功返回提示词内容，失败返回错误
+- `load()` - 成功返回提示词内容，失败返回错误
+- `list_components()` - 返回 `Vec<PromptComponent>`
 
 **编码规范：**
 - 文件编码：UTF-8（带BOM或不带BOM均可）
 - 换行符：支持 `\n`（Unix）和 `\r\n`（Windows），统一转换为 `\n`
 - 空白处理：保留首尾空白行，但trim每行右侧空格
 - 特殊字符：支持Unicode字符（包括中文、emoji等）
+
+**替换优先级：**
+- 查找顺序：用户配置目录 → 内置默认
+- 替换机制：所有内置提示词组件都可通过在配置目录创建同名文件进行替换
 
 ### 5.2 PromptBuilder 接口
 

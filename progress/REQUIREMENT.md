@@ -217,6 +217,12 @@ content = "xxx"
     - 注：配置名称中的特殊字符（如`-`）会映射为`::`（如`my-tool` → `mcp::my-tool`）
 - `multi-agent`
    - `spawn`：生成下级Agent。
+     - 参数说明：
+       - `agent_id`：要生成的Agent标识（必填）
+       - `task`：分配给下级Agent的任务描述（必填）
+       - `model_group`：覆盖使用的模型组（可选）
+       - `mcp_servers`：额外的MCP服务器列表，追加到Agent定义中的mcp_servers（可选）
+       - `skills`：额外的Skills列表，追加到Agent定义中的skills（可选）
    - `send`：向指定Agent传递消息。
 - `context`：上下文观测工具。
    - `observe`：查看当前上下文的详细信息。
@@ -369,15 +375,56 @@ http_headers = { "X-Figma-Region" = "us-east-1" }
 - 该Markdown文件的内容即为该组件的提示词。
 - 无头部信息。`xxx`即为这个提示词组件的`name`。
 
+#### 提示词组件头部信息
+
+```yaml
+---
+id: "fs::read"  # 可选，默认为文件名（不含扩展名）。组件标识，支持::等特殊字符
+---
+```
+
+| 字段 | 必填 | 默认值 | 说明 |
+|------|------|--------|------|
+| `id` | 否 | 文件名（不含扩展名） | 组件标识，支持 `::` 等特殊字符 |
+
+**使用规则**：
+1. 提示词组件通过 Agent 定义的 `prompts` 列表显式引用
+2. 所有内置提示词组件都可通过在配置目录创建同名文件进行替换
+3. 如需动态启用能力，请使用 Skills 机制
+
+**文件命名规则**：
+- 文件名使用 `--` 替代 `::`（因为 `::` 无法出现在文件系统中）
+- 例如：`fs::read` 对应文件 `fs--read.md`
+- 通过 `id` 字段可指定不同的组件标识
+
 #### 内置提示词组件
 
-- `base`：任何时候都加载。包含如何加载未加载的内容的提示。
-- `multi-agent`：如果这个Agent可以生成下级Agent，则加载。
-- `multi-agent-child`：如果这个模型有上级Agent，则加载。
+| 组件名 | 文件名 | 说明 |
+|--------|--------|------|
+| `base` | `base.md` | 基础提示词，任何时候都加载 |
+| `multi-agent` | `multi-agent.md` | 多智能体提示词，可生成下级Agent时加载 |
+| `multi-agent-child` | `multi-agent-child.md` | 子Agent提示词，作为子Agent时加载 |
+| `fs::read` | `fs--read.md` | 文件读取工具提示词 |
+| `fs::write` | `fs--write.md` | 文件写入工具提示词 |
+| `fs::edit` | `fs--edit.md` | 文件编辑工具提示词 |
+| `fs::delete` | `fs--delete.md` | 文件删除工具提示词 |
+| `fs::list` | `fs--list.md` | 目录列表工具提示词 |
+| `activate` | `activate.md` | 激活工具提示词 |
+| `multi-agent::spawn` | `multi-agent--spawn.md` | 生成子Agent工具提示词 |
+| `multi-agent::send` | `multi-agent--send.md` | 发送消息工具提示词 |
+| `context::observe` | `context--observe.md` | 上下文观测工具提示词 |
+| `context::compact` | `context--compact.md` | 上下文压缩工具提示词 |
+
+**替换规则**：
+- 所有内置提示词组件都可通过在配置目录 `prompts/` 下创建同名文件进行替换
+- 例如：创建 `prompts/base.md` 替换内置 `base` 组件
+- 例如：创建 `prompts/fs--read.md` 替换工具 `fs::read` 的提示词
 
 #### 工具提示词组件
 
-- 在工具定义处，随工具加载。
+- 工具提示词组件在工具执行时自动加载，作为工具的额外上下文
+- 命名格式：`prompts/工具ID--转换后.md`（`::` 转换为 `--`）
+- 组件内容会在工具执行时作为上下文提供，帮助Agent正确使用工具
 
 ### Agent定义
 
