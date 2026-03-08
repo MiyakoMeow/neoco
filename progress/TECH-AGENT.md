@@ -103,6 +103,7 @@ pub trait AgentRepository: Send + Sync {
     async fn save(&self, agent: &Agent) -> Result<(), StorageError>;
     async fn find_by_id(&self, id: &AgentUlid) -> Result<Option<Agent>, StorageError>;
     async fn find_children(&self, parent_ulid: &AgentUlid) -> Result<Vec<Agent>, StorageError>;
+    async fn find_by_session(&self, session_ulid: &SessionUlid) -> Result<Vec<Agent>, StorageError>;
 }
 
 /// 消息仓储接口
@@ -111,6 +112,7 @@ pub trait MessageRepository: Send + Sync {
     async fn append(&self, agent_ulid: &AgentUlid, message: &Message) -> Result<(), StorageError>;
     async fn list(&self, agent_ulid: &AgentUlid) -> Result<Vec<Message>, StorageError>;
     async fn delete_prefix(&self, agent_ulid: &AgentUlid, before_id: MessageId) -> Result<(), StorageError>;
+    async fn delete_suffix(&self, agent_ulid: &AgentUlid, after_id: MessageId) -> Result<(), StorageError>;
 }
 ```
 
@@ -131,9 +133,26 @@ pub trait MessageRepository: Send + Sync {
 ### 3.2 领域模型定义
 
 ```rust
-/// Agent状态
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Agent状态（运行时使用）
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AgentState {
+    Idle,
+    Running,
+    Waiting(WaitingReason),      // 等待原因：工具调用或用户输入
+    Completed,
+    Failed(FailureReason),       // 失败原因及错误信息
+}
+
+/// Agent状态（持久化DTO - 格式稳定）
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AgentStateDto {
+    pub state: AgentStateKind,
+    pub reason_kind: Option<ReasonKind>,
+    pub message: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AgentStateKind {
     Idle,
     Running,
     Waiting,
@@ -141,8 +160,35 @@ pub enum AgentState {
     Failed,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ReasonKind {
+    ToolCall,
+    UserInput,
+    Error,
+    Recoverable,
+    Unrecoverable,
+}
+
+/// 等待原因
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum WaitingReason {
+    ToolCall,     // 等待工具执行结果
+    UserInput,    // 等待用户输入
+}
+
+/// 失败原因
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum FailureReason {
+    Error(String),        // 错误信息
+    Recoverable(String),  // 可恢复的错误
+    Unrecoverable(String) // 不可恢复的错误
+}
+
 /// Agent模式 - 对应需求文档的mode字段
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum AgentMode {
     Primary,   // 主Agent，直接与用户对话
     Subagent,  // 子Agent，由上级Agent创建
@@ -651,8 +697,8 @@ pub enum AgentEvent {
     Created { id: AgentUlid, parent_ulid: Option<AgentUlid> },
     StateChanged { id: AgentUlid, old: AgentState, new: AgentState },
     MessageAdded { id: AgentUlid, message_id: MessageId },
-    ToolCalled { id: AgentUlid, tool_ulid: ToolId },
-    ToolResult { id: AgentUlid, tool_ulid: ToolId, success: bool },
+    ToolCalled { id: AgentUlid, tool_id: ToolId },
+    ToolResult { id: AgentUlid, tool_id: ToolId, success: bool },
     Completed { id: AgentUlid, output: String },
     Error { id: AgentUlid, error: String },
 }
@@ -664,7 +710,7 @@ pub enum SessionEvent {
 }
 
 pub enum WorkflowEvent {
-    Started { session_ulid: SessionUlid, definition: String },
+    Started { session_ulid: SessionUlid, definition_id: String },
     NodeStarted { session_ulid: SessionUlid, node_ulid: NodeUlid },
     NodeCompleted { session_ulid: SessionUlid, node_ulid: NodeUlid, result: String },
     Transition { session_ulid: SessionUlid, from: NodeUlid, to: NodeUlid },

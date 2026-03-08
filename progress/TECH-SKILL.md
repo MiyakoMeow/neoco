@@ -93,6 +93,8 @@ tags:
 
 ```rust
 /// Skill ID 强类型（ULID Newtype）
+///
+/// 注意：此定义需与 TECH-SESSION.md 中的 SkillUlid 保持一致
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct SkillUlid(Ulid);
 

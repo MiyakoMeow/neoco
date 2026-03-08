@@ -315,11 +315,12 @@ pub struct Message {
 ### 4.6 模型引用
 
 ```rust
-/// 模型引用
-#[derive(Debug, Clone)]
+/// 模型引用（统一格式）
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModelRef {
-    pub name: String,
     pub provider: String,
+    pub name: String,
+    pub temperature: Option<f64>,
 }
 ```
 
@@ -330,21 +331,23 @@ pub struct ModelRef {
 /// 
 /// 注意：此类型应与 TECH-CONFIG.md 中的 RetryConfig 保持一致
 /// 实际实现应从 config 模块导入，避免重复定义
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RetryConfig {
     pub max_retries: u32,
-    pub initial_delay_ms: u64,
-    pub max_delay_ms: u64,
-    pub backoff_multiplier: f64,
+    #[serde(with = "serde_human_readable_duration")]
+    pub initial_backoff: Duration,     // 初始延迟
+    pub backoff_multiplier: f64,        // 退避倍数
+    #[serde(with = "serde_human_readable_duration")]
+    pub max_backoff: Duration,          // 最大延迟
 }
 
 impl Default for RetryConfig {
     fn default() -> Self {
         Self {
             max_retries: 3,
-            initial_delay_ms: 1000,  // 1秒，对应需求文档的 1s, 2s, 4s 退避序列
-            max_delay_ms: 4000,       // 最大4秒，与退避序列最后一个值一致
+            initial_backoff: Duration::from_secs(1),  // 1秒，对应需求文档的 1s, 2s, 4s 退避序列
             backoff_multiplier: 2.0,
+            max_backoff: Duration::from_secs(4),       // 最大4秒，与退避序列最后一个值一致
         }
     }
 }

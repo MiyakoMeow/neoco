@@ -302,17 +302,19 @@ stateDiagram-v2
 ```rust
 pub struct ReconnectConfig {
     pub max_attempts: u32,      // 最大重连次数，默认3
-    pub initial_delay_ms: u64,  // 初始延迟，默认1000ms
-    pub max_delay_ms: u64,      // 最大延迟，默认4000ms
-    pub backoff_multiplier: f64, // 退避倍数，默认2.0
+    #[serde(with = "serde_human_readable_duration")]
+    pub initial_backoff: Duration,  // 初始延迟，默认1s
+    #[serde(with = "serde_human_readable_duration")]
+    pub max_backoff: Duration,       // 最大延迟，默认4s
+    pub backoff_multiplier: f64,     // 退避倍数，默认2.0
 }
 
 impl Default for ReconnectConfig {
     fn default() -> Self {
         Self {
             max_attempts: 3,
-            initial_delay_ms: 1000,
-            max_delay_ms: 4000,
+            initial_backoff: Duration::from_secs(1),
+            max_backoff: Duration::from_secs(4),
             backoff_multiplier: 2.0,
         }
     }

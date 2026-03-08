@@ -130,6 +130,33 @@ impl ModelRef {
     }
 }
 
+/// 模型组引用
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModelGroupRef(String);
+
+impl ModelGroupRef {
+    pub fn new(s: impl Into<String>) -> Self {
+        Self(s.into())
+    }
+    
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl Default for ModelGroupRef {
+    fn default() -> Self {
+        Self("fast".to_string())
+    }
+}
+
+impl std::ops::Deref for ModelGroupRef {
+    type Target = str;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 /// 模型提供商配置
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ModelProviders(HashMap<String, ModelProvider>);
@@ -301,15 +328,14 @@ pub struct ContextConfig {
     pub auto_compact_threshold: f64,
     #[serde(default = "default_true")]
     pub auto_compact_enabled: bool,
-    #[serde(default = "default_compact_model_group")]
-    pub compact_model_group: String,
+    #[serde(default)]
+    pub compact_model_group: ModelGroupRef,
     #[serde(default = "default_keep_recent_messages")]
     pub keep_recent_messages: usize,
 }
 
 fn default_compact_threshold() -> f64 { 0.9 }
 fn default_true() -> bool { true }
-fn default_compact_model_group() -> String { "fast".to_string() }
 fn default_keep_recent_messages() -> usize { 10 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

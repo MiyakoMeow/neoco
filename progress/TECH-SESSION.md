@@ -43,7 +43,7 @@ classDiagram
     }
     
     class ToolId {
-        +String id
+        +Vec<String> parts  // [namespace, name] 格式，如 ["fs", "read"]
         +new(namespace, name) ToolId
         +from_parts(&str, &str) Result~ToolId~
         +namespace() &str
@@ -588,14 +588,8 @@ pub enum Role {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolCall {
     pub id: String,
-    pub r#type: String,
-    pub function: ToolFunction,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ToolFunction {
     pub name: String,
-    pub arguments: String,
+    pub arguments: Value,
 }
 
 /// 消息元数据
@@ -1066,22 +1060,40 @@ impl SessionError {
 
 #[derive(Debug, Error)]
 pub enum StorageError {
+    #[error("数据未找到: {0}")]
+    NotFound(String),
+    
     #[error("IO错误: {0}")]
     Io(#[source] std::io::Error),
     
-    #[error("文件不存在: {0}")]
-    NotFound(PathBuf),
+    #[error("数据库错误: {0}")]
+    Database(String),
     
     #[error("序列化错误: {0}")]
     Serialization(#[source] serde_json::Error),
     
-    #[error("文件损坏: {0}")]
+    #[error("数据损坏: {0}")]
     Corruption(String),
+    
+    #[error("存储空间不足: {0}")]
+    InsufficientStorage(String),
+    
+    #[error("冲突: {0}")]
+    Conflict(String),
+    
+    #[error("存储不可用: {0}")]
+    Unavailable(String),
+    
+    #[error("权限拒绝: {0}")]
+    PermissionDenied(String),
 }
 
 impl StorageError {
     pub fn is_retryable(&self) -> bool {
-        matches!(self, Self::Io(e) if e.kind() == std::io::ErrorKind::NotFound)
+        matches!(
+            self,
+            Self::Io(_) | Self::Unavailable(_) | Self::Database(_)
+        )
     }
 }
 

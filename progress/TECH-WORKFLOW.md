@@ -85,22 +85,30 @@ pub struct NodeDefinition {
     pub new_session: bool,
 }
 
+/// 转场选项
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SelectOption {
+    pub option: String,
+}
+
+/// 需求条件
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Requirement {
+    pub option: String,
+    pub min_count: u32,
+    #[serde(default)]
+    pub param_ref: Option<String>,
+}
+
 /// 边定义
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EdgeDefinition {
     pub from: NodeUlid,
     pub to: NodeUlid,
     #[serde(default)]
-    pub select: Option<Vec<String>>,
+    pub select: Option<Vec<SelectOption>>,
     #[serde(default)]
     pub require: Option<Vec<Requirement>>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Requirement {
-    pub option: String,
-    pub min_count: u32,
-    pub param_ref: Option<String>,
 }
 
 /// 节点ID（强类型ULID）
