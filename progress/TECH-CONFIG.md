@@ -336,8 +336,8 @@ pub enum RunMode {
     Tui,
     /// CLI直接模式：使用 -m/--message 参数启动
     Cli,
-    /// 后台守护进程模式：使用 agent 子命令启动
-    Agent,
+    /// 后台守护进程模式：使用 daemon 子命令启动
+    Daemon,
 }
 ```
 
