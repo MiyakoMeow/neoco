@@ -471,6 +471,10 @@ model_group: frontier
 prompts:
   - base
   - multi-agent
+skills:
+  - rust-coding
+mcp_servers:
+  - filesystem
 ---
 # Agent 提示词内容...
 ```
@@ -490,20 +494,45 @@ model:
 # 注意：model_group 与 model 同时存在时，优先使用 model_group
 ```
 
+**mode字段支持的格式：**
+
+```yaml
+# 格式1：字符串形式
+mode: primary      # 主Agent（默认）
+mode: subagent     # 子Agent
+
+# 格式2：数组形式（多子Agent配置）
+mode:
+  - name: coder
+    description: 编码助手
+    skills:
+      - rust-coding
+  - name: reviewer
+    description: 代码审查
+    mcp_servers:
+      - filesystem
+```
+
 **字段说明：**
 
 | 字段 | 必填 | 默认值 | 说明 |
 |------|------|--------|------|
 | `id` | 否 | 文件名 | Agent标识 |
 | `description` | 否 | (无) | Agent描述 |
-| `mode` | 否 | `primary` | `subagent` / `[subagent, primary]` / `primary` |
+| `mode` | 否 | `primary` | `primary` / `subagent` / 数组（多子Agent配置） |
 | `model` | 否 | 使用 `model_group` | 模型配置，支持两种格式：<br>• 字符串：`"anthropic/claude-sonnet-4-20250514"`<br>• 对象：`{ provider, name, temperature }`<br>**与model_group同时存在时，优先使用model_group** |
 | `temperature` | 否 | 模型默认 | 温度参数（单独指定时优先） |
-| `model_group` | 是 | - | 模型组，**优先于model字段** |
+| `model_group` | 否 | - | 模型组，**优先于model字段** |
 | `prompts` | 否 | `[]` | 提示词列表 |
 | `tools` | 否 | `[]` | **字段保留但解析时忽略** |
-| `mcp_servers` | 否 | `[]` | MCP服务器 |
+| `mcp_servers` | 否 | `[]` | MCP服务器列表 |
 | `skills` | 否 | `[]` | 技能列表 |
+
+**子Agent配置说明：** 当mode为数组时，每个元素可包含：
+- `name`：子Agent名称（必填）
+- `description`：子Agent描述（可选）
+- `skills`：覆盖父Agent的skills（可选）
+- `mcp_servers`：覆盖父Agent的mcp_servers（可选）
 
 **兼容现有格式：** 所有新增字段均为可选，不提供时使用默认值。
 

@@ -225,26 +225,24 @@ pub struct SessionMeta {
 ### 3.2 Agent领域模型（分离配置与运行时）
 
 ```rust
-/// Agent定义（静态配置）
+/// Agent定义（解析后统一结构）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentDefinition {
     /// Agent标识，默认为文件名
     pub id: Option<String>,
     /// Agent描述
     pub description: Option<String>,
-    /// 运行模式：subagent / [subagent, primary] / primary
-    pub mode: Option<AgentMode>,
-    /// 模型配置，支持两种格式：
-    /// - 字符串："anthropic/claude-sonnet-4-20250514"
-    /// - 对象：ModelConfig { provider, name, temperature }
-    pub model: Option<ModelConfig>,
-    /// 温度参数（单独指定时优先）
+    /// 运行模式：primary / subagent / [subagents...]
+    pub mode: AgentMode,
+    /// 模型组（与model同时存在时优先使用）
+    pub model_group: Option<String>,
+    /// 模型引用
+    pub model: Option<ModelRef>,
+    /// 温度参数
     pub temperature: Option<f64>,
-    /// 模型组，与model同时存在时优先使用model_group
-    pub model_group: String,
     /// 提示词列表
     pub prompts: Vec<String>,
-    /// 工具列表（字段保留但解析时忽略）
+    /// 工具列表（保留但解析时忽略）
     pub tools: Vec<String>,
     /// MCP服务器列表
     pub mcp_servers: Vec<String>,
@@ -252,59 +250,115 @@ pub struct AgentDefinition {
     pub skills: Vec<String>,
 }
 
-/// 模型配置（支持两种格式）
+/// 模型引用（统一格式）
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum ModelConfig {
-    /// 字符串形式：provider/name
-    String(String),
-    /// 对象形式：完整配置
-    Object(ModelConfigObj),
-}
-
-/// 模型配置对象
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ModelConfigObj {
+pub struct ModelRef {
     pub provider: String,
     pub name: String,
     pub temperature: Option<f64>,
 }
 
-/// Agent运行模式
+/// 运行模式
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
 pub enum AgentMode {
-    /// 单个模式：subagent 或 primary
-    Single(AgentModeType),
-    /// 数组模式：不能为空
-    Multiple(Vec<SubAgentMode>),
-}
-
-/// Agent模式类型
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum AgentModeType {
-    #[serde(rename = "primary")]
     Primary,
-    #[serde(rename = "subagent")]
     SubAgent,
+    Multiple(Vec<SubAgentConfig>),
 }
 
-/// 子Agent模式配置
+/// 子Agent配置（支持自定义）
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SubAgentMode {
+pub struct SubAgentConfig {
     pub name: String,
     pub description: Option<String>,
+    /// 覆盖父Agent的skills
+    pub skills: Option<Vec<String>>,
+    /// 覆盖父Agent的mcp_servers
+    pub mcp_servers: Option<Vec<String>>,
+}
+
+/// 原始Agent定义（YAML解析用）
+/// 解析时自动将字符串形式的model转为ModelRef
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RawAgentDefinition {
+    pub id: Option<String>,
+    pub description: Option<String>,
+    pub mode: Option<RawAgentMode>,
+    /// 支持字符串或对象形式，解析时统一转换
+    pub model: Option<serde_yaml::Value>,
+    pub temperature: Option<f64>,
+    pub model_group: Option<String>,
+    pub prompts: Option<Vec<String>>,
+    pub tools: Option<Vec<String>>,
+    pub mcp_servers: Option<Vec<String>>,
+    pub skills: Option<Vec<String>>,
+}
+
+/// 原始模式（支持字符串或数组）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum RawAgentMode {
+    String(String),
+    Multiple(Vec<SubAgentConfig>),
 }
 
 impl AgentDefinition {
     pub fn from_file(path: &Path) -> Result<Self, AgentDefinitionError> {
         // TODO: 实现要点
         // 1. 读取文件内容
-        // 2. 解析YAML头部 (--- delimited)
-        // 3. 提取配置字段
-        // 4. 返回AgentDefinition
+        // 2. 解析YAML头部 (--- delimited) 到 RawAgentDefinition
+        // 3. 将 RawAgentDefinition 转换为 AgentDefinition
+        //    - 解析 model 字段（字符串转ModelRef）
+        //    - 解析 mode 字段（字符串转AgentMode）
+        //    - 填充默认值
         unimplemented!()
     }
+
+    /// 获取实际使用的模型组
+    /// 优先级：model_group > model.provider > 默认
+    pub fn resolve_model_group(&self) -> Option<&str> {
+        // TODO: 实现要点
+        // 1. 如果 model_group 不为空，返回 Some(model_group)
+        // 2. 否则从 model 字段提取 provider
+        // 3. 都为空时返回 None
+        unimplemented!()
+    }
+
+    /// 获取实际使用的模型名称
+    pub fn resolve_model_name(&self) -> Option<&str> {
+        // TODO: 实现要点
+        // 从 model.name 获取
+        unimplemented!()
+    }
+
+    /// 获取实际使用的温度参数
+    /// 优先级：model.temperature > temperature > 模型默认
+    pub fn resolve_temperature(&self) -> Option<f64> {
+        // TODO: 实现要点
+        // 1. 优先从 model.temperature 获取
+        // 2. 其次从独立的 temperature 字段获取
+        // 3. 都为空时返回 None
+        unimplemented!()
+    }
+}
+
+impl RawAgentDefinition {
+    /// 转换为AgentDefinition
+    pub fn parse(self) -> AgentDefinition {
+        // TODO: 实现要点
+        // 1. 解析 model 字段
+        //    - 字符串："provider/name" -> ModelRef { provider, name, temperature: None }
+        //    - 对象：{ provider, name, temperature } -> ModelRef
+        //    - 无：None
+        // 2. 解析 mode 字段
+        //    - "primary" -> Primary
+        //    - "subagent" -> SubAgent
+        //    - 数组 -> Multiple(SubAgentConfig)
+        //    - 无：Primary
+        // 3. 填充默认值
+        unimplemented!()
+    }
+}
 
     /// 获取实际使用的模型组
     /// 优先级：model_group > model > 默认
