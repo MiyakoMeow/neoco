@@ -1202,15 +1202,14 @@ NeoCo提供两种扩展Agent能力的机制：**提示词组件(Prompt Component
 
 ```toml
 [profile.release]
-# 性能优化配置（平衡编译速度与运行时性能）
-opt-level = 2          # 级别 2 平衡优化与编译时间
-lto = "fat"            # Full LTO 优化
-codegen-units = 1      # 最佳优化
-strip = true           # 移除调试符号
+# 开发模式配置：平衡编译速度与性能
+lto = "thin"          # Thin LTO，编译速度更快
 
-# 极致优化（如需进一步压缩）：
-# opt-level = "z"      # 极致体积优化
-# panic = "abort"      # 减少 panic 开销
+# 发布模式（如需极致优化）：
+# opt-level = 2        # 级别 2 平衡优化
+# lto = "fat"          # Full LTO 优化
+# codegen-units = 1    # 最佳优化
+# strip = true         # 移除调试符号
 ```
 
 ## 13. 参考项目

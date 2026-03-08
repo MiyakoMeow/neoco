@@ -9,11 +9,8 @@ license = "Apache-2.0"
 authors = ["MiyakoMeow"]
 
 [profile.release]
-# 性能优化配置（与 TECH.md 文档保持一致）
-opt-level = 2          # 平衡优化与编译时间
-lto = "fat"            # Full LTO 优化
-codegen-units = 1      # 最佳优化
-strip = true           # 移除调试符号
+# 开发模式：平衡编译速度与性能
+lto = "thin"          # Thin LTO，编译速度更快
 
 [workspace.lints.rust]
 missing_docs = "deny"
