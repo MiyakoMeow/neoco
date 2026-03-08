@@ -212,7 +212,8 @@ impl DefaultToolRegistry {
         registry.register(FileDeleteTool);
         
         // 2. 上下文工具：context::observe
-        registry.register(ContextObserveTool);
+        // 注册时需要提供 observer 实例（实际使用时应从依赖注入获取）
+        registry.register(ContextObserveTool::new(/* TODO: observer */));
         
         // 3. 多智能体工具：multi-agent::spawn, multi-agent::send, multi-agent::report
         registry.register(MultiAgentSpawnTool);
@@ -542,6 +543,12 @@ impl ToolExecutor for FileDeleteTool {
 ### 5.1.2 context::observe
 
 ```rust
+impl ContextObserveTool {
+    pub fn new(observer: Arc<dyn ContextObserver>) -> Self {
+        Self { observer }
+    }
+}
+
 pub struct ContextObserveTool {
     observer: Arc<dyn ContextObserver>,
 }
@@ -588,6 +595,12 @@ impl ToolExecutor for ContextObserveTool {
 ### 5.1.3 context::compact
 
 ```rust
+impl ContextCompactTool {
+    pub fn new(compression_service: Arc<CompressionService>) -> Self {
+        Self { compression_service }
+    }
+}
+
 pub struct ContextCompactTool {
     compression_service: Arc<CompressionService>,
 }

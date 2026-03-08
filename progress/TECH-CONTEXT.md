@@ -45,7 +45,7 @@ graph TB
 
 ### 0.4 Pruning 和 RAG 是补救手段
 
-```
+```text
 原则（布局）                    补救手段（trick）
 ─────────────────────────────────────────────────
 Append-only → 前缀稳定         Pruning → 布局失效后的止损
@@ -303,7 +303,7 @@ graph LR
 
 Agent 通过 context::observe 工具可以看到上下文仪表盘：
 
-```
+```text
 [Context Dashboard]
 • Usage:           78.2% (100k/128k)
 • Steps since tag: 35 (last: 'auth-refactor')
