@@ -1,6 +1,6 @@
 # TECH-CONTEXT: 上下文管理模块
 
-本文档描述Neco项目的上下文管理模块设计，采用领域驱动设计，分离领域模型与基础设施。
+本文档描述NeoCo项目的上下文管理模块设计，采用领域驱动设计，分离领域模型与基础设施。
 
 > **核心理念**：Context Window 就是一块 Arena Allocator。管理上下文不是"写prompt"，而是内存管理。
 
@@ -68,7 +68,7 @@ Goldilocks Zone → 信噪比最优
 
 ```mermaid
 graph LR
-    subgraph "neco-context"
+    subgraph "neoco-context"
         CM[ContextManager]
         CS[CompressionService]
         CO[ContextObserver]
@@ -76,9 +76,9 @@ graph LR
     end
     
     subgraph "依赖模块"
-        Session[neco-session]
-        Model[neco-model]
-        Agent[neco-agent]
+        Session[neoco-session]
+        Model[neoco-model]
+        Agent[neoco-agent]
     end
     
     Agent --> CM
@@ -222,7 +222,7 @@ impl ContextManager for ContextManagerImpl {
 
 ```mermaid
 sequenceDiagram
-    participant Agent as neco-agent
+    participant Agent as neoco-agent
     participant CM as ContextManager
     participant MR as MessageRepository
     participant TC as TokenCounter
@@ -240,10 +240,10 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-    participant Agent as neco-agent
+    participant Agent as neoco-agent
     participant CM as ContextManager
     participant CS as CompressionService
-    participant Model as neco-model
+    participant Model as neoco-model
     participant MR as MessageRepository
 
     Agent->>CM: compact(agent_id)

@@ -1,6 +1,6 @@
 # TECH-PROMPT: 提示词组件模块
 
-本文档描述Neco项目的提示词组件（Prompt Components）设计。
+本文档描述NeoCo项目的提示词组件（Prompt Components）设计。
 
 ## 1. 模块概述
 
@@ -32,7 +32,7 @@ sequenceDiagram
 
 ```text
 # prompts/ 子目录结构
-.neco/prompts/
+.neoco/prompts/
 ├── base.md              # 基础提示词
 ├── multi-agent.md       # 多智能体提示词
 └── custom.md           # 自定义提示词
@@ -53,7 +53,7 @@ sequenceDiagram
 ```markdown
 # base 提示词组件
 
-你是Neco，一个原生支持多智能体协作的AI助手。
+你是NeoCo，一个原生支持多智能体协作的AI助手。
 
 ## 可用工具
 

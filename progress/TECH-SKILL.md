@@ -1,6 +1,6 @@
 # TECH-SKILL: Skills模块
 
-本文档描述Neco项目的Skills模块设计。
+本文档描述NeoCo项目的Skills模块设计。
 
 ## 1. 模块概述
 
@@ -219,7 +219,7 @@ impl SkillIndex {
 impl SkillService {
     pub async fn load_index(&self) -> Result<SkillIndex, SkillError> {
         // [TODO] 实现Skill索引加载
-        // 1. 扫描配置的skills目录（默认 ~/.neco/skills 或项目内 ./skills）
+        // 1. 扫描配置的skills目录（默认 ~/.neoco/skills 或项目内 ./skills）
         // 2. 遍历顶层目录，每个有效目录视为一个Skill
         // 3. 解析SKILL.md的YAML frontmatter提取元数据
         // 4. 验证必需字段（name, description）

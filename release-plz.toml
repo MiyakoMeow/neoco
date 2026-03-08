@@ -61,11 +61,11 @@ git_release_body = """
 
 ---
 
-📦 **Crates.io**: This version has been published to [crates.io](https://crates.io/crates/neco).
+📦 **Crates.io**: This version has been published to [crates.io](https://crates.io/crates/neoco).
 """
 
 [[package]]
-name = "neco"
+name = "neoco"
 changelog_path = "./CHANGELOG.md"
 
 [changelog]

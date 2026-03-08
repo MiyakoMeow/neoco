@@ -2,7 +2,7 @@
 
 ## 产品信息
 
-- 名称：Neco
+- 名称：NeoCo
 
 - 介绍：
 
@@ -69,7 +69,7 @@
 
 ### Session管理
 
-- 存储在`~/.local/neco/(session_ulid)/agents/(agent_ulid).toml`文件。该文件存储所有的上下文内容。
+- 存储在`~/.local/neoco/(session_ulid)/agents/(agent_ulid).toml`文件。该文件存储所有的上下文内容。
 - **Session ULID与Agent ULID的关系**：
   - Session ULID是顶级容器的ULID，在创建Session时生成
   - Agent ULID是每个Agent实例的ULID，在Agent开始对话时生成（第一个Agent除外，其使用Session ULID）
@@ -223,7 +223,7 @@ content = "xxx"
 
 #### 重要概念：双层结构区分
 
-Neco系统中存在**两个独立的层次结构**，它们在不同层面运作：
+NeoCo系统中存在**两个独立的层次结构**，它们在不同层面运作：
 
 ##### **1. 工作流节点之间的图结构（Workflow-Level Graph）**
 
@@ -253,7 +253,7 @@ Neco系统中存在**两个独立的层次结构**，它们在不同层面运作
 
 - **工作流的节点Agent同时也是节点内的最上级Agent**。
   - **节点Agent的ULID与节点Session ID相同**（遵循前述Session ID与Agent ULID关系规则）。
-  - 消息存储路径为`~/.local/neco/(workflow_session_id)/agents/(node_session_id).toml`（通用路径格式见前述Session管理部分，此处workflow_session_id对应通用格式中的session_id，node_session_id对应agent_id）。
+  - 消息存储路径为`~/.local/neoco/(workflow_session_id)/agents/(node_session_id).toml`（通用路径格式见前述Session管理部分，此处workflow_session_id对应通用格式中的session_id，node_session_id对应agent_id）。
 
 ### 模块化提示词与工具，以及按需加载
 
@@ -337,28 +337,28 @@ Neco系统中存在**两个独立的层次结构**，它们在不同层面运作
 ## 参考配置方式
 
 - 配置目录支持多级查找，按优先级从高到低：
-  1. **当前项目配置**：`.neco/` 目录（项目根目录下）
+  1. **当前项目配置**：`.neoco/` 目录（项目根目录下）
   2. **当前项目配置**：`.agents/` 目录（项目根目录下）
-  3. **主配置目录**：`~/.config/neco`
+  3. **主配置目录**：`~/.config/neoco`
   4. **通用配置目录**：`~/.agents/`
 - 本节的所有"配置路径"，都是相对于上述配置目录的路径。
 
-- 配置目录（`~/.config/neco`）和Session目录（`~/.local/neco`）分离的原因:
+- 配置目录（`~/.config/neoco`）和Session目录（`~/.local/neoco`）分离的原因:
   1. **配置目录**: 存放用户配置、Agent定义、工作流定义等**相对静态**的内容
   2. **Session目录**: 存放运行时数据、消息历史、状态等**动态生成**的内容
 
 - **优先级规则**（从高到低）：
-  1. **当前项目** `.neco/`
+  1. **当前项目** `.neoco/`
   2. **当前项目** `.agents/`
-  3. **全局** `~/.config/neco/`
+  3. **全局** `~/.config/neoco/`
   4. **全局** `~/.agents/`
-  - 例如：`.agents/agents/reviewer.md` > `~/.config/neco/agents/reviewer.md`
+   - 例如：`.agents/agents/reviewer.md` > `~/.config/neoco/agents/reviewer.md`
 
 ### 基本配置文件
 
 - 配置路径（优先级规则如下）：
   1. **格式优先级**：TOML格式（`.toml`）始终优先于YAML格式（`.yaml`）
-  2. **整体优先级**：`neco.toml` > `neco.<tag>.toml` > `neco.yaml` > `neco.<tag>.yaml`
+  2. **整体优先级**：`neoco.toml` > `neoco.<tag>.toml` > `neoco.yaml` > `neoco.<tag>.yaml`
      - 带标签的配置按`<tag>`数字/字母顺序加载，后加载的覆盖先加载的
 
 **配置合并策略**：
@@ -551,7 +551,7 @@ mode:
 
 - 工作流根路径：`workflows/xxx/`
 
-- 类似配置目录，可以单独为工作流配置`neco.toml`、`prompts`、`agents`、`skills`等。
+- 类似配置目录，可以单独为工作流配置`neoco.toml`、`prompts`、`agents`、`skills`等。
 
 #### 定义格式
 
@@ -659,9 +659,9 @@ require = ["approve"]
 
 2. **Agent文件查找顺序**（按优先级从高到低）：
    - 最高优先级：`workflows/<workflow_id>/agents/<agent_id>.md`（工作流特定配置，覆盖所有配置目录）
-   - 次优先查找：`.neco/agents/<agent_id>.md`（当前项目 .neco）
+   - 次优先查找：`.neoco/agents/<agent_id>.md`（当前项目 .neoco）
    - 次优先查找：`.agents/agents/<agent_id>.md`（当前项目 .agents）
-   - 次后备查找：`~/.config/neco/agents/<agent_id>.md`（全局主配置）
+   - 次后备查找：`~/.config/neoco/agents/<agent_id>.md`（全局主配置）
    - 最后后备：`~/.agents/agents/<agent_id>.md`（全局通用配置）
 
    > 注：工作流特定配置优先级最高，体现"工作流目录 > 配置目录"规则
@@ -739,14 +739,14 @@ require = ["approve"]
 
 参考ZeroClaw项目的架构设计:
 
-1. **守护进程**: neco作为系统服务运行，管理Session生命周期
+1. **守护进程**: neoco作为系统服务运行，管理Session生命周期
 2. **IPC通信**: 守护进程与前端通过RESTful API交互
 3. **状态暴露**: 提供HTTP API查询Session状态和进度
 4. **多前端支持**: 支持CLI、Web UI、IDE插件等多种前端
 
 - 与ZeroClaw的主要区别:
-  - ZeroClaw是通用自动化工具，Neco专注于AI Agent协作
-  - Neco的Session管理更复杂（支持智能体树）
+  - ZeroClaw是通用自动化工具，NeoCo专注于AI Agent协作
+  - NeoCo的Session管理更复杂（支持智能体树）
 
 #### API支持
 

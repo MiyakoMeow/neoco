@@ -1,6 +1,6 @@
 # TECH-UI: 用户接口模块
 
-本文档描述Neco项目的用户接口模块设计。
+本文档描述NeoCo项目的用户接口模块设计。
 
 ## 1. 模块概述
 
@@ -51,8 +51,8 @@ pub struct CliInterface {
 }
 
 #[derive(Debug, Parser)]
-#[command(name = "neco")]
-#[command(about = "Neco - 多智能体协作AI应用", long_about = None)]
+#[command(name = "neoco")]
+#[command(about = "NeoCo - 多智能体协作AI应用", long_about = None)]
 #[command(version)]
 pub struct CliArgs {
     /// 子命令（用于启动守护进程模式）
@@ -77,10 +77,10 @@ pub struct CliArgs {
     /// 指定配置文件路径（覆盖默认合并行为）
     /// 
     /// 默认按以下优先级查找并合并所有配置文件（相对于 working_dir）：
-    /// 1. {working_dir}/.neco/neco.toml（当前项目，最高优先级）
-    /// 2. {working_dir}/.agents/neco.toml（当前项目）
-    /// 3. ~/.config/neco/neco.toml（用户主配置，不受 working_dir 影响）
-    /// 4. ~/.agents/neco.toml（通用配置，不受 working_dir 影响）
+    /// 1. {working_dir}/.neoco/neoco.toml（当前项目，最高优先级）
+    /// 2. {working_dir}/.agents/neoco.toml（当前项目）
+    /// 3. ~/.config/neoco/neoco.toml（用户主配置，不受 working_dir 影响）
+    /// 4. ~/.agents/neoco.toml（通用配置，不受 working_dir 影响）
     /// 
     /// 合并规则：高优先级配置覆盖低优先级的相同键，嵌套对象采用深度合并。
     /// 提供此参数将跳过默认合并，直接使用指定文件。
@@ -90,10 +90,10 @@ pub struct CliArgs {
     /// 工作目录（默认为当前目录 "."）
     /// 
     /// 指定项目根目录，用于：
-    /// 1. 查找配置文件：相对路径（.neco/, .agents/）以此目录为基准
+    /// 1. 查找配置文件：相对路径（.neoco/, .agents/）以此目录为基准
     /// 2. 存储数据：Session数据默认存储于此目录下的数据目录中
     /// 
-    /// 注意：绝对路径配置（~/.config/neco/, ~/.agents/）不受此参数影响。
+    /// 注意：绝对路径配置（~/.config/neoco/, ~/.agents/）不受此参数影响。
     #[arg(short = 'w', long, global = true, default_value = ".")]
     working_dir: PathBuf,
 }
@@ -117,7 +117,7 @@ impl CliInterface {
         // 2. 加载配置文件：
         //    - 如果提供--config参数，使用指定文件
         //    - 否则按优先级查找并合并所有配置文件：
-        //      1. {working_dir}/.neco/neco.toml → 2. {working_dir}/.agents/neco.toml → 3. ~/.config/neco/neco.toml → 4. ~/.agents/neco.toml
+        //      1. {working_dir}/.neoco/neoco.toml → 2. {working_dir}/.agents/neoco.toml → 3. ~/.config/neoco/neoco.toml → 4. ~/.agents/neoco.toml
         //      其中 {working_dir} 默认为当前目录（"."）
         //      相对路径配置以 working_dir 为基准，绝对路径配置不受 working_dir 影响
         //      高优先级覆盖低优先级配置，嵌套对象深度合并
@@ -201,16 +201,16 @@ pub enum TuiMode {
 
 ```bash
 # 新建会话（默认）
-neco
+neoco
 
 # 恢复已有会话
-neco --session <session_id>
+neoco --session <session_id>
 
 # 指定配置文件
-neco --config /path/to/config.toml
+neoco --config /path/to/config.toml
 
 # 指定工作目录
-neco --working-dir /path/to/project
+neoco --working-dir /path/to/project
 ```
 
 #### 界面布局
@@ -245,13 +245,13 @@ graph TB
 
 ```bash
 # 使用默认配置启动
-neco agent
+neoco agent
 
 # 指定配置文件
-neco agent --config /path/to/config.toml
+neoco agent --config /path/to/config.toml
 
 # 指定工作目录
-neco agent --working-dir /path/to/project
+neoco agent --working-dir /path/to/project
 ```
 
 ### 5.2 配置结构
@@ -524,12 +524,12 @@ impl ApiError {
 
 ```bash
 # 启动交互式会话
-$ neco
+$ neoco
 > 你好，请帮我分析这段代码
 [AI响应...]
 
 # 恢复上次会话
-$ neco --session 01HF8X5JQC8ZXJ3YKZ0J9K2D9Z
+$ neoco --session 01HF8X5JQC8ZXJ3YKZ0J9K2D9Z
 > 继续我们之前的话题
 [AI响应...]
 ```
@@ -538,29 +538,29 @@ $ neco --session 01HF8X5JQC8ZXJ3YKZ0J9K2D9Z
 
 ```bash
 # 单次查询
-$ neco -m "什么是Rust的所有权系统？"
+$ neoco -m "什么是Rust的所有权系统？"
 [直接返回结果，退出]
 
 # 在已有会话中查询
-$ neco -m "继续解释" --session 01HF8X5JQC8ZXJ3YKZ0J9K2D9Z
+$ neoco -m "继续解释" --session 01HF8X5JQC8ZXJ3YKZ0J9K2D9Z
 [直接返回结果，退出]
 
 # 指定配置文件
-$ neco -m "帮我分析" --config ~/.config/neco/custom.toml
+$ neoco -m "帮我分析" --config ~/.config/neoco/custom.toml
 ```
 
 **错误处理示例**：
 ```bash
 # 消息为空（应用层校验失败）
-$ neco -m ""
+$ neoco -m ""
 error: 消息内容不能为空
 
 # 缺少消息值（参数解析失败）
-$ neco -m
+$ neoco -m
 error: a value is required for '--message <MESSAGE>' but none was supplied
 
 # 未找到配置文件
-$ neco --config /nonexistent/config.toml
+$ neoco --config /nonexistent/config.toml
 error: 配置文件未找到: /nonexistent/config.toml
 ```
 
@@ -568,9 +568,9 @@ error: 配置文件未找到: /nonexistent/config.toml
 
 ```bash
 # 启动守护进程
-$ neco agent
-[INFO] Starting Neco daemon on http://127.0.0.1:8080
-[INFO] Config loaded from ~/.config/neco/neco.toml
+$ neoco agent
+[INFO] Starting NeoCo daemon on http://127.0.0.1:8080
+[INFO] Config loaded from ~/.config/neoco/neoco.toml
 [INFO] Ready to accept connections
 
 # 使用API（通过curl）
@@ -587,35 +587,35 @@ $ curl -X POST http://127.0.0.1:8080/api/v1/sessions/{session_id}/messages \
 
 ```bash
 # 不指定--config时，自动按优先级合并所有配置文件（相对于当前目录）
-$ neco
+$ neoco
 [INFO] Merging config files:
-[INFO]   - .neco/neco.toml (priority 1)
-[INFO]   - .agents/neco.toml (priority 2)
-[INFO]   - ~/.config/neco/neco.toml (priority 3)
-[INFO]   - ~/.agents/neco.toml (priority 4)
+[INFO]   - .neoco/neoco.toml (priority 1)
+[INFO]   - .agents/neoco.toml (priority 2)
+[INFO]   - ~/.config/neoco/neoco.toml (priority 3)
+[INFO]   - ~/.agents/neoco.toml (priority 4)
 [INFO] Config merged successfully (4 files)
 
 # 指定working-dir时，相对路径配置以此目录为基准
-$ neco --working-dir /path/to/project
+$ neoco --working-dir /path/to/project
 [INFO] Merging config files:
-[INFO]   - /path/to/project/.neco/neco.toml (priority 1)
-[INFO]   - /path/to/project/.agents/neco.toml (priority 2)
-[INFO]   - ~/.config/neco/neco.toml (priority 3, absolute path)
-[INFO]   - ~/.agents/neco.toml (priority 4, absolute path)
+[INFO]   - /path/to/project/.neoco/neoco.toml (priority 1)
+[INFO]   - /path/to/project/.agents/neoco.toml (priority 2)
+[INFO]   - ~/.config/neoco/neoco.toml (priority 3, absolute path)
+[INFO]   - ~/.agents/neoco.toml (priority 4, absolute path)
 [INFO] Config merged successfully (4 files)
 
 # 使用--config覆盖默认合并行为
-$ neco --config /custom/path/config.toml
+$ neoco --config /custom/path/config.toml
 [INFO] Loading config from: /custom/path/config.toml
 [INFO] Config loaded successfully (single file)
 
 # 合并行为示例：
-# .neco/neco.toml:         { model = "gpt-4", temperature = 0.7 }
-# .agents/neco.toml:       { model = "gpt-3.5", max_tokens = 2000 }
-# ~/.config/neco/neco.toml: { api_key = "sk-xxx" }
+# .neoco/neoco.toml:         { model = "gpt-4", temperature = 0.7 }
+# .agents/neoco.toml:       { model = "gpt-3.5", max_tokens = 2000 }
+# ~/.config/neoco/neoco.toml: { api_key = "sk-xxx" }
 # 
 # 最终合并结果：           { model = "gpt-4", temperature = 0.7, max_tokens = 2000, api_key = "sk-xxx" }
-#                         ^^^^^^^^^^^   来自.neco/（最高优先级覆盖）
+#                         ^^^^^^^^^^^   来自.neoco/（最高优先级覆盖）
 #                                                         ^^^^^^^^^^^^^^   来自.agents/
 #                                                                            ^^^^^^^^^^^^^^   来自~/.config/
 ```

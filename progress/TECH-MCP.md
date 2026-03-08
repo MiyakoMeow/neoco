@@ -1,6 +1,6 @@
 # TECH-MCP: MCP模块
 
-本文档描述Neco项目的MCP（Model Context Protocol）模块设计。
+本文档描述NeoCo项目的MCP（Model Context Protocol）模块设计。
 
 **设计原则：**
 - 支持stdio和HTTP两种传输模式

@@ -1,6 +1,6 @@
 # TECH-CONFIG: 配置管理模块
 
-本文文档描述Neco项目的配置管理模块设计，采用类型安全的配置结构。
+本文档描述NeoCo项目的配置管理模块设计，采用类型安全的配置结构。
 
 ## 模块架构图
 
@@ -30,18 +30,18 @@ graph TB
 
 ### 2.1 配置目录结构
 
-Neco 支持多级配置目录，按优先级从高到低：
+NeoCo 支持多级配置目录，按优先级从高到低：
 
-1. **当前项目配置**：`.neco/` 目录
+1. **当前项目配置**：`.neoco/` 目录
 2. **当前项目配置**：`.agents/` 目录
-3. **主配置目录**：`~/.config/neco/`
+3. **主配置目录**：`~/.config/neoco/`
 4. **通用配置目录**：`~/.agents/`
 
 ```
 # 优先级从高到低
 
-.neco/                          # 当前项目 .neco（最高）
-├── neco.toml
+.neoco/                          # 当前项目 .neoco（最高）
+├── neoco.toml
 ├── prompts/
 ├── agents/
 ├── skills/
@@ -53,9 +53,9 @@ Neco 支持多级配置目录，按优先级从高到低：
 ├── skills/
 └── workflows/
 
-~/.config/neco/                 # 主配置目录
-├── neco.toml
-├── neco.<tag>.toml
+~/.config/neoco/                 # 主配置目录
+├── neoco.toml
+├── neoco.<tag>.toml
 ├── prompts/
 ├── agents/
 ├── skills/
@@ -355,9 +355,9 @@ flowchart LR
     D --> E[应用]
 
     subgraph 多级配置优先级
-        F[.neco/] --> C
+        F[.neoco/] --> C
         G[.agents/] --> C
-        H[~/.config/neco/] --> C
+        H[~/.config/neoco/] --> C
         I[~/.agents/] --> C
     end
 ```
@@ -366,9 +366,9 @@ flowchart LR
 
 多级配置按以下优先级处理（从高到低）：
 
-1. **当前项目 `.neco/`** - 最高优先级，用于项目特定配置
+1. **当前项目 `.neoco/`** - 最高优先级，用于项目特定配置
 2. **当前项目 `.agents/`** - 项目级通用配置
-3. **`~/.config/neco/`** - 用户主配置目录
+3. **`~/.config/neoco/`** - 用户主配置目录
 4. **`~/.agents/`** - 最低优先级，通用默认配置
 
 **合并规则：**
@@ -426,9 +426,9 @@ pub struct ConfigLoader {
 impl ConfigLoader {
     pub fn new() -> Self {
         let dirs = vec![
-            PathBuf::from(".neco"),
+            PathBuf::from(".neoco"),
             PathBuf::from(".agents"),
-            dirs::config_dir().unwrap_or_default().join("neco"),
+            dirs::config_dir().unwrap_or_default().join("neoco"),
             dirs::home_dir().unwrap_or_default().join(".agents"),
         ];
         Self { 
@@ -512,7 +512,7 @@ impl ConfigValidator {
 ## 5. 配置示例
 
 ```toml
-# neco.toml
+# neoco.toml
 
 [model_groups.frontier]
 models = [{ provider = "zhipuai", name = "glm-4.7" }]
@@ -563,7 +563,7 @@ bearer_token = { source = "env", name = "FIGMA_OAUTH_TOKEN" }
 
 [system]
 [system.storage]
-session_dir = "~/.local/neco"
+session_dir = "~/.local/neoco"
 compression = true
 
 [system.context]

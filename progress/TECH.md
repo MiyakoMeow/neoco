@@ -1,6 +1,6 @@
-# Neco 技术架构文档
+# NeoCo 技术架构文档
 
-本文档描述Neco项目的技术架构，采用领域驱动设计理念，重新划分模块边界、数据结构设计和数据流向。
+本文档描述NeoCo项目的技术架构，采用领域驱动设计理念，重新划分模块边界、数据结构设计和数据流向。
 
 ## 1. 架构设计原则
 
@@ -47,7 +47,7 @@ graph TB
         Storage[存储抽象]
     end
     
-    subgraph "内核抽象层 Kernel Core (neco-core)"
+    subgraph "内核抽象层 Kernel Core (neoco-core)"
         Types[核心类型定义]
         Traits[抽象接口定义]
         Events[事件系统]
@@ -155,34 +155,34 @@ sequenceDiagram
 
 | Crate | 职责 | 关键依赖 |
 |-------|------|----------|
-| `neco-core` | 核心类型、强类型ID、事件系统、领域接口 | - |
-| `neco-config` | 配置管理、类型安全配置结构 | neco-core |
-| `neco-model` | 模型调用服务、故障转移 | neco-core |
-| `neco-session` | Session领域模型、Agent领域模型、仓库接口 | neco-core |
-| `neco-storage` | 存储后端实现（文件系统） | neco-core, neco-session |
-| `neco-mcp` | MCP客户端 | neco-core |
-| `neco-skill` | Skills管理 | neco-core |
-| `neco-context` | 上下文管理（压缩+观测） | neco-core |
-| `neco-agent` | Agent引擎、Agent生命周期 | neco-core, neco-session, neco-model |
-| `neco-workflow` | 工作流引擎 | neco-core, neco-session |
-| `neco-tool` | 工具执行器、工具注册表 | neco-core |
-| `neco-ui` | 用户接口 | neco-core |
-| `neco` | 主入口 | 所有上述crate |
+| `neoco-core` | 核心类型、强类型ID、事件系统、领域接口 | - |
+| `neoco-config` | 配置管理、类型安全配置结构 | neoco-core |
+| `neoco-model` | 模型调用服务、故障转移 | neoco-core |
+| `neoco-session` | Session领域模型、Agent领域模型、仓库接口 | neoco-core |
+| `neoco-storage` | 存储后端实现（文件系统） | neoco-core, neoco-session |
+| `neoco-mcp` | MCP客户端 | neoco-core |
+| `neoco-skill` | Skills管理 | neoco-core |
+| `neoco-context` | 上下文管理（压缩+观测） | neoco-core |
+| `neoco-agent` | Agent引擎、Agent生命周期 | neoco-core, neoco-session, neoco-model |
+| `neoco-workflow` | 工作流引擎 | neoco-core, neoco-session |
+| `neoco-tool` | 工具执行器、工具注册表 | neoco-core |
+| `neoco-ui` | 用户接口 | neoco-core |
+| `neoco` | 主入口 | 所有上述crate |
 
 ### 2.1 Crate依赖关系（领域驱动）
 
 ```mermaid
 graph TD
-    neco[neco]
+    neoco[neoco]
     
     subgraph "Interface"
-        ui[neco-ui]
+        ui[neoco-ui]
     end
     
     subgraph "Application Orchestration"
-        agent[neco-agent]
-        workflow[neco-workflow]
-        session[neco-session]
+        agent[neoco-agent]
+        workflow[neoco-workflow]
+        session[neoco-session]
     end
     
     subgraph "Domain Model"
@@ -192,23 +192,23 @@ graph TD
     end
     
     subgraph "Service Layer"
-        model[neco-model]
-        mcp[neco-mcp]
-        skill[neco-skill]
-        context[neco-context]
-        tool[neco-tool]
+        model[neoco-model]
+        mcp[neoco-mcp]
+        skill[neoco-skill]
+        context[neoco-context]
+        tool[neoco-tool]
     end
     
     subgraph "Infrastructure"
-        storage[neco-storage]
-        config[neco-config]
+        storage[neoco-storage]
+        config[neoco-config]
     end
     
     subgraph "Foundation"
-        core[neco-core]
+        core[neoco-core]
     end
     
-    neco --> ui
+    neoco --> ui
     
     ui --> session
     ui --> agent
@@ -243,11 +243,11 @@ graph TD
 
 | 模块 | 领域边界 | 核心类型 |
 |------|---------|----------|
-| neco-core | 通用类型系统 | SessionUlid, AgentUlid, MessageId, Event |
-| neco-session | 会话与Agent管理 | Session, Agent, Hierarchy |
-| neco-workflow | 工作流编排 | WorkflowDef, NodeRuntime |
-| neco-tool | 工具执行 | ToolExecutor, ToolRegistry |
-| neco-model | LLM调用 | ModelClient, ChatRequest |
+| neoco-core | 通用类型系统 | SessionUlid, AgentUlid, MessageId, Event |
+| neoco-session | 会话与Agent管理 | Session, Agent, Hierarchy |
+| neoco-workflow | 工作流编排 | WorkflowDef, NodeRuntime |
+| neoco-tool | 工具执行 | ToolExecutor, ToolRegistry |
+| neoco-model | LLM调用 | ModelClient, ChatRequest |
 
 ## 3. 核心数据类型系统（强类型标识符）
 
@@ -496,25 +496,25 @@ sequenceDiagram
 
 | Trait | 定义模块 | 职责 |
 |-------|---------|------|
-| `SessionRepository` | neco-session | Session领域接口 |
-| `AgentRepository` | neco-session | Agent领域接口 |
-| `MessageRepository` | neco-session | 消息领域接口 |
+| `SessionRepository` | neoco-session | Session领域接口 |
+| `AgentRepository` | neoco-session | Agent领域接口 |
+| `MessageRepository` | neoco-session | 消息领域接口 |
 
 #### 服务接口（Service）
 
 | Trait | 定义模块 | 职责 |
 |-------|---------|------|
-| `ModelClient` | neco-model | 模型调用 |
-| `ToolExecutor` | neco-tool | 工具执行 |
-| `ToolRegistry` | neco-tool | 工具注册 |
-| `SkillProvider` | neco-skill | Skill提供 |
+| `ModelClient` | neoco-model | 模型调用 |
+| `ToolExecutor` | neoco-tool | 工具执行 |
+| `ToolRegistry` | neoco-tool | 工具注册 |
+| `SkillProvider` | neoco-skill | Skill提供 |
 
 #### 基础设施接口（Infrastructure）
 
 | Trait | 定义模块 | 职责 |
 |-------|---------|------|
-| `StorageBackend` | neco-storage | 存储后端 |
-| `TokenCounter` | neco-context | Token计数 |
+| `StorageBackend` | neoco-storage | 存储后端 |
+| `TokenCounter` | neoco-context | Token计数 |
 
 ### 5.2 事件系统
 
@@ -604,7 +604,7 @@ pub trait EventSubscriber: Send + Sync {
 
 ### 5.3 统一错误类型设计
 
-> **设计原则**: 所有模块错误类型统一在 `neco-core` 的 `AppError` 中定义，采用领域错误分类。
+> **设计原则**: 所有模块错误类型统一在 `neoco-core` 的 `AppError` 中定义，采用领域错误分类。
 
 > 各领域错误的详细定义见各模块技术文档，例如 [TECH-SESSION.md#6-错误类型设计](TECH-SESSION.md#6-错误类型设计)
 
@@ -730,18 +730,18 @@ pub enum IdError {
 
 | 模块 | 错误类型 | 定义位置 |
 |------|---------|---------|
-| 标识符 | `IdError` | neco-core |
-| Session | `SessionError` | neco-session |
-| Storage | `StorageError` | neco-storage |
-| Agent | `AgentError` | neco-agent |
-| Workflow | `WorkflowError` | neco-workflow |
-| Model | `ModelError` | neco-model |
-| Tool | `ToolError` | neco-tool |
-| Config | `ConfigError` | neco-config |
-| Context | `ContextError` | neco-context |
-| MCP | `McpError` | neco-mcp |
-| Skill | `SkillError` | neco-skill |
-| UI | `UiError` | neco-ui |
+| 标识符 | `IdError` | neoco-core |
+| Session | `SessionError` | neoco-session |
+| Storage | `StorageError` | neoco-storage |
+| Agent | `AgentError` | neoco-agent |
+| Workflow | `WorkflowError` | neoco-workflow |
+| Model | `ModelError` | neoco-model |
+| Tool | `ToolError` | neoco-tool |
+| Config | `ConfigError` | neoco-config |
+| Context | `ContextError` | neoco-context |
+| MCP | `McpError` | neoco-mcp |
+| Skill | `SkillError` | neoco-skill |
+| UI | `UiError` | neoco-ui |
 
 ## 6. 存储设计
 
@@ -755,8 +755,8 @@ pub enum IdError {
 
 ```text
 # 配置目录结构
-.neco/                    # 当前项目 .neco
-├── neco.toml
+.neoco/                    # 当前项目 .neoco
+├── neoco.toml
 ├── prompts/
 ├── skills/
 ├── agents/
@@ -768,8 +768,8 @@ pub enum IdError {
 ├── agents/
 └── workflows/
 
-~/.config/neco/           # 全局主配置
-├── neco.toml            # 主配置
+~/.config/neoco/           # 全局主配置
+├── neoco.toml            # 主配置
 ├── prompts/
 ├── skills/
 ├── agents/
@@ -781,7 +781,7 @@ pub enum IdError {
 ├── agents/
 └── workflows/
 
-~/.local/neco/           # 数据目录
+~/.local/neoco/           # 数据目录
 └── {session_id}/        # Session目录
     ├── session.toml     # Session元数据
     └── agents/
@@ -1065,8 +1065,8 @@ graph TB
         R3[Agent运行时]
     end
     
-    subgraph "NecoKernel Trait"
-        NK[NecoKernel]
+    subgraph "NeoCoKernel Trait"
+        NK[NeoCoKernel]
     end
     
     subgraph "内核实现"
@@ -1079,12 +1079,12 @@ graph TB
     NK --> K1
 ```
 
-**NecoKernel Trait 定义：**
+**NeoCoKernel Trait 定义：**
 
-> **设计说明**：`shutdown()` 使用 `async fn` 而非 `fn shutdown() -> impl Future`。这是因为 NecoKernel 主要用于库内部直接调用，而非作为 `dyn NecoKernel` trait object 使用。多个运行时连接到同一个 handle 的场景在当前架构中不存在，此设计简化了异步处理。如需 trait object 支持，可改用 `async_trait` 或 `Box<dyn Future>`。
+> **设计说明**：`shutdown()` 使用 `async fn` 而非 `fn shutdown() -> impl Future`。这是因为 NeoCoKernel 主要用于库内部直接调用，而非作为 `dyn NeoCoKernel` trait object 使用。多个运行时连接到同一个 handle 的场景在当前架构中不存在，此设计简化了异步处理。如需 trait object 支持，可改用 `async_trait` 或 `Box<dyn Future>`。
 
 ```rust
-pub trait NecoKernel: Send + Sync {
+pub trait NeoCoKernel: Send + Sync {
     fn agent_engine(&self) -> Arc<dyn AgentEngine>;
     fn workflow_engine(&self) -> Arc<dyn WorkflowEngine>;
     fn tool_registry(&self) -> Arc<dyn ToolRegistry>;
@@ -1099,7 +1099,7 @@ pub trait NecoKernel: Send + Sync {
 
 ## 11. 提示词组件与Skills
 
-Neco提供两种扩展Agent能力的机制：**提示词组件(Prompt Components)** 和 **Skills**。它们是独立的系统，没有内置关联。
+NeoCo提供两种扩展Agent能力的机制：**提示词组件(Prompt Components)** 和 **Skills**。它们是独立的系统，没有内置关联。
 
 ### 11.1 概念对比
 
@@ -1189,7 +1189,7 @@ strip = true
 
 ### 13.1 ZeroClaw
 
-| 维度 | ZeroClaw | Neco |
+| 维度 | ZeroClaw | NeoCo |
 |------|----------|------|
 | **定位** | Rust 原生自主 AI 助手运行时 | 多智能体协作 AI 应用 |
 | **架构** | Trait-driven + Factory | Trait-driven + 依赖反转 |
@@ -1207,7 +1207,7 @@ strip = true
 
 ### 13.2 OpenFang
 
-| 维度 | OpenFang | Neco |
+| 维度 | OpenFang | NeoCo |
 |------|----------|------|
 | **规模** | 137K LOC, 14 crates | 待评估 |
 | **架构** | Kernel Handle Trait | 依赖反转接口 |
@@ -1227,7 +1227,7 @@ strip = true
 
 ```mermaid
 graph TB
-    subgraph "Neco 架构定位"
+    subgraph "NeoCo 架构定位"
         N[多智能体协作]
     end
     
@@ -1249,7 +1249,7 @@ graph TB
     N --> Z3
 ```
 
-**Neco 架构演进方向：**
+**NeoCo 架构演进方向：**
 1. 引入 Kernel Handle Trait 模式解耦核心模块
 2. 完善 EventBus + Trigger 事件驱动机制
 3. 扩展安全体系至 16 层

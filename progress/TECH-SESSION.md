@@ -1,6 +1,6 @@
 # TECH-SESSION: Session管理模块
 
-本文档描述Neco项目的Session管理模块设计，采用领域驱动设计，分离领域模型与基础设施。
+本文档描述NeoCo项目的Session管理模块设计，采用领域驱动设计，分离领域模型与基础设施。
 
 ## 1. 模块概述
 
@@ -75,12 +75,12 @@ classDiagram
 
 ### 2.2 领域仓储接口（依赖反转）
 
-> 为解决循环依赖问题，在 `neco-core` 中定义领域仓储接口：
+> 为解决循环依赖问题，在 `neoco-core` 中定义领域仓储接口：
 
 ```mermaid
 graph LR
     subgraph "领域层"
-        Context[neco-context] -->|依赖| SessionRepo[SessionRepository trait]
+        Context[neoco-context] -->|依赖| SessionRepo[SessionRepository trait]
         Context -->|依赖| MessageRepo[MessageRepository trait]
     end
     
@@ -95,7 +95,7 @@ graph LR
 ```rust
 /// Session仓储接口 - 用于依赖反转
 /// 
-/// neco-context 依赖此 trait，neco-session 实现此 trait
+/// neoco-context 依赖此 trait，neoco-session 实现此 trait
 /// 运行时通过依赖注入传递具体实现
 #[async_trait]
 pub trait SessionRepository: Send + Sync {
@@ -773,7 +773,7 @@ pub trait StorageBackend: Send + Sync {
 ### 4.2 文件系统存储实现
 
 ```text
-~/.local/neco/
+~/.local/neoco/
 └── {session_id}/
     ├── session.toml          # Session元数据
     ├── hierarchy.json        # Agent层级关系
@@ -1040,7 +1040,7 @@ impl<'a, T: TokenCounter> ContextBuilder<'a, T> {
 
 ## 7. 错误处理
 
-> **注意**: 所有模块错误类型统一在 `neco-core` 的 `AppError` 中汇总。
+> **注意**: 所有模块错误类型统一在 `neoco-core` 的 `AppError` 中汇总。
 
 ```rust
 #[derive(Debug, Error)]

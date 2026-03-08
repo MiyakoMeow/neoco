@@ -1,6 +1,6 @@
 # TECH-AGENT: 多智能体协作模块
 
-本文档描述Neco项目的多智能体协作模块设计，采用领域驱动设计，分离Agent引擎与领域模型。
+本文档描述NeoCo项目的多智能体协作模块设计，采用领域驱动设计，分离Agent引擎与领域模型。
 
 ## 1. 模块概述
 
@@ -79,7 +79,7 @@ graph TB
 
 ### 3.1 仓储接口定义
 
-> 为解决循环依赖问题，在 `neco-core` 中定义领域仓储接口：
+> 为解决循环依赖问题，在 `neoco-core` 中定义领域仓储接口：
 
 ```mermaid
 graph LR
@@ -790,7 +790,7 @@ pub enum SkillContent {
 
 ## 7. 错误处理
 
-> **注意**: 所有模块错误类型统一在 `neco-core` 的 `AppError` 中汇总。
+> **注意**: 所有模块错误类型统一在 `neoco-core` 的 `AppError` 中汇总。
 
 ```rust
 #[derive(Debug, Error)]
