@@ -1,7 +1,6 @@
 [workspace]
-members = ["core"]
 resolver = "3"
-default-members = ["core"]
+default-members = ["."]
 
 [workspace.package]
 edition = "2024"
@@ -55,7 +54,18 @@ panic_in_result_fn = "deny"
 print_stderr = "deny"
 print_stdout = "deny"
 
-# Assert-related lints
 assertions_on_constants = "deny"
 assertions_on_result_states = "deny"
 bool_assert_comparison = "deny"
+
+[package]
+name = "neoco"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+
+[lints]
+workspace = true
