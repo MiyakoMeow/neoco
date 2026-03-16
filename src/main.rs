@@ -5,7 +5,6 @@ use clap::Parser;
 use ratatui::{Terminal, TerminalOptions, Viewport, prelude::*, widgets::Paragraph};
 use rig::client::CompletionClient;
 use rig::completion::Prompt;
-use rig::providers::anthropic::Client as AnthropicClient;
 use rig::providers::openai::Client as OpenAIClient;
 
 mod config;
@@ -105,8 +104,13 @@ async fn main() -> Result<()> {
             agent.prompt(&args.message).await?
         },
         ProviderType::Anthropic => {
-            let client = AnthropicClient::new(api_key)
-                .map_err(|e| anyhow::anyhow!("Failed to create Anthropic client: {}", e))?;
+            use rig::providers::anthropic::Client;
+            let client = Client::builder()
+                .api_key(api_key.as_str())
+                .base_url(&provider_config.base_url)
+                .anthropic_version("2023-06-01")
+                .build()
+                .context("Failed to create Anthropic client")?;
             let agent = client.agent(&model_name).build();
 
             eprintln!(
