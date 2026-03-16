@@ -1,6 +1,42 @@
+# Root Package Config
 [package]
 name = "neoco"
-version = "0.1.0"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
 
 [dependencies]
+
+
+# Workspace Config
+[workspace]
+resolver = "3"
+members = ["."]
+default-members = ["."]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "Apache-2.0"
+authors = ["MiyakoMeow"]
+
+[workspace.dependencies]
+tokio = { version = "1", features = ["full"] }
+
+[profile.release]
+lto = "thin"
+strip = true
+
+[workspace.lints.rust]
+missing_docs = "forbid"
+dead_code = "forbid"
+
+[workspace.lints.rustdoc]
+broken_intra_doc_links = "forbid"
+private_doc_tests = "forbid"
+invalid_html_tags = "forbid"
+bare_urls = "forbid"
+
+[workspace.lints.clippy]
+pedantic = "forbid"

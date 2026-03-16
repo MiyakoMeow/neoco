@@ -1,0 +1,30 @@
+# model和model_group同时设置时，优先使用model_group
+model = "minimax-cn/MiniMax-M2.5?temperature=0.1"
+model_group = "balanced"
+
+[model_groups.smart]
+models = ["deepseek/deepseek-chat"]
+
+[model_groups.fast]
+models = ["zhipuai-coding-plan/glm-4.7-flashx?temperature=0.1"]
+
+[model_groups.balanced]
+models = ["minimax-cn/MiniMax-M2.5"]
+
+[model_providers.zhipuai-coding-plan]
+type = "openai"
+name = "ZhipuAI Coding Plan"
+base_url = "https://open.bigmodel.cn/api/paas/v4"
+api_key_env = "ZHIPU_API_KEY"
+
+[model_providers.minimax-cn]
+type = "openai"
+name = "MiniMax"
+base_url = "https://api.minimaxi.com/v1"
+api_key_env = "MINIMAX_API_KEY"
+
+[model_providers.deepseek]
+type = "openai"
+name = "DeepSeek"
+base_url = "https://api.deepseek.com/v1"
+api_key_env = "DEEPSEEK_API_KEY"
