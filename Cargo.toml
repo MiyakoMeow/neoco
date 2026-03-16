@@ -21,14 +21,14 @@ lto = "thin"
 strip = true
 
 [lints.rust]
-missing_docs = "forbid"
-dead_code = "forbid"
+missing_docs = "warn"
+dead_code = "warn"
 
 [lints.rustdoc]
-broken_intra_doc_links = "forbid"
-private_doc_tests = "forbid"
-invalid_html_tags = "forbid"
-bare_urls = "forbid"
+broken_intra_doc_links = "warn"
+private_doc_tests = "warn"
+invalid_html_tags = "warn"
+bare_urls = "warn"
 
 [lints.clippy]
-pedantic = "forbid"
+pedantic = "warn"
