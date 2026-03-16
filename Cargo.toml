@@ -7,6 +7,14 @@ license.workspace = true
 authors.workspace = true
 
 [dependencies]
+rig-core = "0.32"
+ratatui = "0.30"
+crossterm = "0.29"
+clap = { version = "4", features = ["derive"] }
+toml = "0.8"
+serde = { version = "1", features = ["derive"] }
+anyhow = "1"
+tokio.workspace = true
 
 
 # Workspace Config
@@ -22,7 +30,7 @@ license = "Apache-2.0"
 authors = ["MiyakoMeow"]
 
 [workspace.dependencies]
-tokio = { version = "1", features = ["full"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 
 [profile.release]
 lto = "thin"
