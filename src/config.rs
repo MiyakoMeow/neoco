@@ -11,8 +11,12 @@ use std::path::Path;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum ProviderType {
-    OpenAI,
+    /// OpenAI Completions API (legacy)
+    #[serde(rename = "openai")]
+    OpenAICompletions,
+    /// OpenAI Responses API (newer)
     OpenAIResponses,
+    /// Anthropic API
     Anthropic,
 }
 
@@ -101,7 +105,7 @@ mod tests {
         providers.insert(
             "minimax-cn".to_string(),
             Provider {
-                r#type: ProviderType::OpenAI,
+                r#type: ProviderType::OpenAICompletions,
                 name: "MiniMax".to_string(),
                 base_url: "https://api.minimaxi.com/v1".to_string(),
                 api_key_env: "MINIMAX_API_KEY".to_string(),

@@ -73,12 +73,28 @@ async fn main() -> Result<()> {
 
     // Create client based on provider type
     let response: String = match provider_config.r#type {
-        ProviderType::OpenAI | ProviderType::OpenAIResponses => {
+        ProviderType::OpenAICompletions => {
+            use rig::providers::openai::CompletionsClient;
+            let client = CompletionsClient::builder()
+                .api_key(&api_key)
+                .base_url(&provider_config.base_url)
+                .build()
+                .context("Failed to create OpenAI Completions client")?;
+            let agent = client.agent(&model_name).build();
+
+            eprintln!(
+                "Using provider: {} ({})",
+                provider_config.name, provider_config.base_url
+            );
+
+            agent.prompt(&args.message).await?
+        },
+        ProviderType::OpenAIResponses => {
             let client = OpenAIClient::builder()
                 .api_key(&api_key)
                 .base_url(&provider_config.base_url)
                 .build()
-                .context("Failed to create OpenAI client")?;
+                .context("Failed to create OpenAI Responses client")?;
             let agent = client.agent(&model_name).build();
 
             eprintln!(
