@@ -3,6 +3,7 @@ use rig::completion::ToolDefinition;
 use rig::tool::Tool;
 use serde::Deserialize;
 use std::env;
+use std::sync::LazyLock;
 use tokio::process::Command;
 use tokio::time::timeout;
 
@@ -23,17 +24,15 @@ pub enum CommandError {
     ExitError(i32, String),
 }
 
-pub struct ShellTool {
+static SHELL_CONFIG: LazyLock<ShellConfig> = LazyLock::new(ShellConfig::detect);
+
+struct ShellConfig {
     name: String,
     args_prefix: Vec<&'static str>,
 }
 
-impl ShellTool {
-    pub fn new() -> Self {
-        Self::detect_shell()
-    }
-
-    fn detect_shell() -> Self {
+impl ShellConfig {
+    fn detect() -> Self {
         if let Some(shell) = env::var_os("SHELL") {
             let shell_name = shell
                 .to_string_lossy()
@@ -85,9 +84,17 @@ impl ShellTool {
     }
 }
 
+pub struct ShellTool;
+
+impl ShellTool {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
 impl Default for ShellTool {
     fn default() -> Self {
-        Self::new()
+        Self
     }
 }
 
@@ -99,15 +106,15 @@ impl Tool for ShellTool {
     type Output = String;
 
     fn name(&self) -> String {
-        self.name.clone()
+        SHELL_CONFIG.name.clone()
     }
 
     async fn definition(&self, _prompt: String) -> ToolDefinition {
         ToolDefinition {
-            name: self.name.clone(),
+            name: SHELL_CONFIG.name.clone(),
             description: format!(
                 "Execute a {} command and return the output. Use this tool to run shell commands, scripts, or system operations.",
-                self.name
+                SHELL_CONFIG.name
             ),
             parameters: serde_json::json!({
                 "type": "object",
@@ -123,12 +130,12 @@ impl Tool for ShellTool {
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
-        let mut cmd_args = self.args_prefix.clone();
+        let mut cmd_args = SHELL_CONFIG.args_prefix.clone();
         cmd_args.push(&args.command);
 
         let output = timeout(
             tokio::time::Duration::from_secs(COMMAND_TIMEOUT_SECS),
-            Command::new(&self.name).args(cmd_args).output(),
+            Command::new(&SHELL_CONFIG.name).args(cmd_args).output(),
         )
         .await;
 
