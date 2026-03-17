@@ -3,6 +3,7 @@
 use anyhow::{Context, Result};
 use clap::Parser;
 use ratatui::{Terminal, TerminalOptions, Viewport, prelude::*, widgets::Paragraph};
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 mod agent;
 mod config;
@@ -30,6 +31,11 @@ struct Cli {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    tracing_subscriber::registry()
+        .with(tracing_subscriber::fmt::layer())
+        .with(tracing_subscriber::EnvFilter::from_default_env())
+        .init();
+
     let args = Cli::parse();
 
     let config = Config::load_default()?;

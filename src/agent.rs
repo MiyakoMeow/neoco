@@ -4,6 +4,7 @@ use rig::agent::{Agent, MultiTurnStreamItem, PromptHook};
 use rig::client::CompletionClient;
 use rig::completion::{CompletionModel, GetTokenUsage, Message, Usage};
 use rig::streaming::{StreamedAssistantContent, StreamingChat};
+use tracing::info;
 
 use crate::config::{Config, ProviderType};
 
@@ -84,7 +85,7 @@ where
     println!();
 
     if let Some(usage) = token_usage {
-        eprintln!(
+        info!(
             "Token usage - Input: {}, Output: {}, Total: {}",
             usage.input_tokens, usage.output_tokens, usage.total_tokens
         );
@@ -148,7 +149,7 @@ pub async fn chat(
         },
     };
 
-    eprintln!(
+    info!(
         "Using provider: {} ({})",
         provider_config.name, provider_config.base_url
     );
