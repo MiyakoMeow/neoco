@@ -2,7 +2,10 @@ use anyhow::Result;
 use rig::completion::ToolDefinition;
 use rig::tool::Tool;
 use serde::Deserialize;
-use std::process::Command;
+use tokio::process::Command;
+use tokio::time::timeout;
+
+const COMMAND_TIMEOUT_SECS: u64 = 30;
 
 #[derive(Debug, Deserialize)]
 pub struct CommandArgs {
@@ -13,6 +16,8 @@ pub struct CommandArgs {
 pub enum CommandError {
     #[error("Failed to execute command: {0}")]
     ExecuteError(#[from] std::io::Error),
+    #[error("Command timed out after {0} seconds", COMMAND_TIMEOUT_SECS)]
+    Timeout,
     #[error("Command failed with exit code {0}: {1}")]
     ExitError(i32, String),
 }
@@ -82,35 +87,58 @@ impl Tool for ShellTool {
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+        let output = timeout(
+            tokio::time::Duration::from_secs(COMMAND_TIMEOUT_SECS),
+            self.execute_command(args.command),
+        )
+        .await;
+
+        match output {
+            Ok(Ok(output)) => {
+                let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+                let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+
+                if !output.status.success() {
+                    let exit_code = output.status.code().unwrap_or(-1);
+                    return Err(CommandError::ExitError(
+                        exit_code,
+                        format!("{stdout}{stderr}"),
+                    ));
+                }
+
+                Ok(format!("{stdout}{stderr}"))
+            },
+            Ok(Err(e)) => Err(CommandError::ExecuteError(e)),
+            Err(_) => Err(CommandError::Timeout),
+        }
+    }
+}
+
+impl ShellTool {
+    async fn execute_command(
+        &self,
+        command: String,
+    ) -> Result<std::process::Output, std::io::Error> {
         #[cfg(target_os = "windows")]
-        let output = if std::env::var("PSModulePath").is_ok() {
-            Command::new("powershell")
-                .args(["-Command", &args.command])
-                .output()?
-        } else {
-            Command::new("cmd").args(["/C", &args.command]).output()?
-        };
+        {
+            if std::env::var("PSModulePath").is_ok() {
+                Command::new("powershell")
+                    .args(["-Command", &command])
+                    .output()
+                    .await
+            } else {
+                Command::new("cmd").args(["/C", &command]).output().await
+            }
+        }
 
         #[cfg(not(target_os = "windows"))]
-        let output = {
+        {
             let shell = std::env::var("SHELL")
                 .ok()
                 .and_then(|s| s.split('/').next_back().map(String::from))
                 .unwrap_or_else(|| "sh".to_string());
-            Command::new(shell).args(["-c", &args.command]).output()?
-        };
 
-        let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-
-        if !output.status.success() {
-            let exit_code = output.status.code().unwrap_or(-1);
-            return Err(CommandError::ExitError(
-                exit_code,
-                format!("{stdout}{stderr}"),
-            ));
+            Command::new(shell).args(["-c", &command]).output().await
         }
-
-        Ok(format!("{stdout}{stderr}"))
     }
 }
