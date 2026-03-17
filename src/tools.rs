@@ -2,6 +2,7 @@ use anyhow::Result;
 use rig::completion::ToolDefinition;
 use rig::tool::Tool;
 use serde::Deserialize;
+use std::env;
 use tokio::process::Command;
 use tokio::time::timeout;
 
@@ -22,26 +23,64 @@ pub enum CommandError {
     ExitError(i32, String),
 }
 
-pub struct ShellTool(String);
+pub struct ShellTool {
+    name: String,
+    args_prefix: Vec<&'static str>,
+}
 
 impl ShellTool {
     pub fn new() -> Self {
-        let name = Self::get_shell_name();
-        Self(name)
+        Self::detect_shell()
     }
 
-    fn get_shell_name() -> String {
-        #[cfg(target_os = "windows")]
-        {
-            if std::env::var("PSModulePath").is_ok() {
-                "powershell".to_string()
-            } else {
-                "cmd".to_string()
+    fn detect_shell() -> Self {
+        if let Some(shell) = env::var_os("SHELL") {
+            let shell_name = shell
+                .to_string_lossy()
+                .rsplit('/')
+                .next()
+                .unwrap_or(&shell.to_string_lossy())
+                .to_string();
+            if !shell_name.is_empty() {
+                return Self {
+                    name: shell_name,
+                    args_prefix: vec!["-c"],
+                };
             }
         }
-        #[cfg(not(target_os = "windows"))]
-        {
-            Command::new(&self.0).args(["-c", &command]).output().await
+
+        for var in ["PSModulePath", "PSExecutionPolicyPreference"] {
+            if env::var(var).is_ok() {
+                return Self {
+                    name: "powershell".to_string(),
+                    args_prefix: vec!["-Command"],
+                };
+            }
+        }
+
+        let shells = ["pwsh", "bash", "zsh", "fish", "sh", "cmd"];
+        for shell in shells {
+            if std::process::Command::new(shell)
+                .arg("--version")
+                .output()
+                .map(|o| o.status.success())
+                .unwrap_or(false)
+            {
+                let args_prefix = if shell == "cmd" {
+                    vec!["/C"]
+                } else {
+                    vec!["-c"]
+                };
+                return Self {
+                    name: shell.to_string(),
+                    args_prefix,
+                };
+            }
+        }
+
+        Self {
+            name: "sh".to_string(),
+            args_prefix: vec!["-c"],
         }
     }
 }
@@ -60,15 +99,15 @@ impl Tool for ShellTool {
     type Output = String;
 
     fn name(&self) -> String {
-        self.0.clone()
+        self.name.clone()
     }
 
     async fn definition(&self, _prompt: String) -> ToolDefinition {
-        let shell_name = &self.0;
         ToolDefinition {
-            name: shell_name.clone(),
+            name: self.name.clone(),
             description: format!(
-                "Execute a {shell_name} command and return the output. Use this tool to run shell commands, scripts, or system operations."
+                "Execute a {} command and return the output. Use this tool to run shell commands, scripts, or system operations.",
+                self.name
             ),
             parameters: serde_json::json!({
                 "type": "object",
@@ -84,9 +123,12 @@ impl Tool for ShellTool {
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+        let mut cmd_args = self.args_prefix.clone();
+        cmd_args.push(&args.command);
+
         let output = timeout(
             tokio::time::Duration::from_secs(COMMAND_TIMEOUT_SECS),
-            self.execute_command(args.command),
+            Command::new(&self.name).args(cmd_args).output(),
         )
         .await;
 
@@ -107,33 +149,6 @@ impl Tool for ShellTool {
             },
             Ok(Err(e)) => Err(CommandError::ExecuteError(e)),
             Err(_) => Err(CommandError::Timeout),
-        }
-    }
-}
-
-impl ShellTool {
-    async fn execute_command(
-        &self,
-        command: String,
-    ) -> Result<std::process::Output, std::io::Error> {
-        #[cfg(target_os = "windows")]
-        {
-            let args = if self.0 == "powershell" {
-                ["-Command", &command]
-            } else {
-                ["/C", &command]
-            };
-            Command::new(&self.0).args(args).output().await
-        }
-
-        #[cfg(not(target_os = "windows"))]
-        {
-            let shell = std::env::var("SHELL")
-                .ok()
-                .and_then(|s| s.split('/').next_back().map(String::from))
-                .unwrap_or_else(|| "sh".to_string());
-
-            Command::new(shell).args(["-c", &command]).output().await
         }
     }
 }
