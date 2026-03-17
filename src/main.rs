@@ -6,8 +6,9 @@ use ratatui::{Terminal, TerminalOptions, Viewport, prelude::*, widgets::Paragrap
 
 mod agent;
 mod config;
-use agent::send_messages;
-use config::{Config, ProviderType};
+use config::Config;
+
+use agent::chat;
 
 /// CLI arguments
 #[derive(Parser, Debug)]
@@ -51,79 +52,9 @@ async fn main() -> Result<()> {
         );
     };
 
-    let provider_config = config
-        .extract_provider(&model_string)
-        .with_context(|| format!("Unknown provider for model: {model_string}"))?;
+    let results = chat(&config, &model_string, &args.messages).await?;
 
-    let api_key = Config::get_api_key(provider_config)?;
-
-    let model_name = model_string
-        .split('/')
-        .nth(1)
-        .map_or(model_string.as_str(), |s| s.split('?').next().unwrap_or(s))
-        .to_string();
-
-    if args.messages.is_empty() {
-        anyhow::bail!("No message provided. Use -M/--message to send a message.");
-    }
-
-    match provider_config.r#type {
-        ProviderType::OpenAICompletions => {
-            use rig::client::CompletionClient;
-            use rig::providers::openai::CompletionsClient;
-            let client = CompletionsClient::builder()
-                .api_key(&api_key)
-                .base_url(&provider_config.base_url)
-                .build()
-                .context("Failed to create OpenAI Completions client")?;
-            let agent = client.agent(&model_name).build();
-            let results = send_messages(
-                &agent,
-                &args.messages,
-                &provider_config.name,
-                &provider_config.base_url,
-            )
-            .await?;
-            output_results(&results)?;
-        },
-        ProviderType::OpenAIResponses => {
-            use rig::client::CompletionClient;
-            use rig::providers::openai::Client as OpenAIClient;
-            let client = OpenAIClient::builder()
-                .api_key(&api_key)
-                .base_url(&provider_config.base_url)
-                .build()
-                .context("Failed to create OpenAI Responses client")?;
-            let agent = client.agent(&model_name).build();
-            let results = send_messages(
-                &agent,
-                &args.messages,
-                &provider_config.name,
-                &provider_config.base_url,
-            )
-            .await?;
-            output_results(&results)?;
-        },
-        ProviderType::Anthropic => {
-            use rig::client::CompletionClient;
-            use rig::providers::anthropic::Client;
-            let client = Client::builder()
-                .api_key(api_key.as_str())
-                .base_url(&provider_config.base_url)
-                .anthropic_version("2023-06-01")
-                .build()
-                .context("Failed to create Anthropic client")?;
-            let agent = client.agent(&model_name).build();
-            let results = send_messages(
-                &agent,
-                &args.messages,
-                &provider_config.name,
-                &provider_config.base_url,
-            )
-            .await?;
-            output_results(&results)?;
-        },
-    }
+    output_results(&results)?;
 
     Ok(())
 }
