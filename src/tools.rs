@@ -109,13 +109,20 @@ impl Tool for ShellTool {
         SHELL_CONFIG.name.clone()
     }
 
-    async fn definition(&self, _prompt: String) -> ToolDefinition {
+    async fn definition(&self, prompt: String) -> ToolDefinition {
+        use std::fmt::Write as _;
+
+        let mut description = format!(
+            "Execute a {} command and return the output. Use this tool to run shell commands, scripts, or system operations.",
+            SHELL_CONFIG.name
+        );
+        if !prompt.is_empty() {
+            let _ = writeln!(description);
+            let _ = writeln!(description, "Additional instructions: {prompt}");
+        }
         ToolDefinition {
             name: SHELL_CONFIG.name.clone(),
-            description: format!(
-                "Execute a {} command and return the output. Use this tool to run shell commands, scripts, or system operations.",
-                SHELL_CONFIG.name
-            ),
+            description,
             parameters: serde_json::json!({
                 "type": "object",
                 "properties": {
