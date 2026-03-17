@@ -38,7 +38,7 @@ impl ShellTool {
         {
             std::env::var("SHELL")
                 .ok()
-                .and_then(|s| s.split('/').last().map(String::from))
+                .and_then(|s| s.split('/').next_back().map(String::from))
                 .unwrap_or_else(|| "sh".to_string())
         }
     }
@@ -95,7 +95,7 @@ impl Tool for ShellTool {
         let output = {
             let shell = std::env::var("SHELL")
                 .ok()
-                .and_then(|s| s.split('/').last().map(String::from))
+                .and_then(|s| s.split('/').next_back().map(String::from))
                 .unwrap_or_else(|| "sh".to_string());
             Command::new(shell).args(["-c", &args.command]).output()?
         };
