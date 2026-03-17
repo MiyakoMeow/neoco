@@ -8,6 +8,7 @@ use tracing::info;
 
 use crate::config::{Config, ProviderType};
 use crate::output::OutputCallback;
+use crate::tools::ShellTool;
 
 enum AnyAgent {
     OpenAICompletions(Agent<rig::providers::openai::CompletionModel>),
@@ -94,6 +95,16 @@ where
                     cb(&format!("[工具调用] {content:?}"));
                 }
             },
+            Ok(MultiTurnStreamItem::StreamUserItem(content)) => {
+                use rig::streaming::StreamedUserContent;
+                match content {
+                    StreamedUserContent::ToolResult { tool_result, .. } => {
+                        if let Some(cb) = output_callback {
+                            cb(&format!("[工具结果] {:#?}\n", tool_result.content));
+                        }
+                    },
+                }
+            },
             Err(e) => {
                 anyhow::bail!("Stream error: {e}");
             },
@@ -145,7 +156,11 @@ pub async fn chat(
                 .base_url(&provider_config.base_url)
                 .build()
                 .context("Failed to create OpenAI Completions client")?;
-            let ag = client.agent(&model_name).build();
+            let ag = client
+                .agent(&model_name)
+                .tool(ShellTool::new())
+                .default_max_turns(usize::MAX / 2)
+                .build();
             AnyAgent::OpenAICompletions(ag)
         },
         ProviderType::OpenAIResponses => {
@@ -155,7 +170,11 @@ pub async fn chat(
                 .base_url(&provider_config.base_url)
                 .build()
                 .context("Failed to create OpenAI Responses client")?;
-            let ag = client.agent(&model_name).build();
+            let ag = client
+                .agent(&model_name)
+                .tool(ShellTool::new())
+                .default_max_turns(usize::MAX / 2)
+                .build();
             AnyAgent::OpenAIResponses(ag)
         },
         ProviderType::Anthropic => {
@@ -166,7 +185,11 @@ pub async fn chat(
                 .anthropic_version("2023-06-01")
                 .build()
                 .context("Failed to create Anthropic client")?;
-            let ag = client.agent(&model_name).build();
+            let ag = client
+                .agent(&model_name)
+                .tool(ShellTool::new())
+                .default_max_turns(usize::MAX / 2)
+                .build();
             AnyAgent::Anthropic(ag)
         },
     };
