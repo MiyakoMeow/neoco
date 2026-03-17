@@ -2,14 +2,15 @@
 
 use anyhow::{Context, Result};
 use clap::Parser;
-use ratatui::{Terminal, TerminalOptions, Viewport, prelude::*, widgets::Paragraph};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 mod agent;
 mod config;
+mod output;
 use config::Config;
 
 use agent::chat;
+use output::OutputHandler;
 
 /// CLI arguments
 #[derive(Parser, Debug)]
@@ -58,30 +59,28 @@ async fn main() -> Result<()> {
         );
     };
 
-    let results = chat(&config, &model_string, &args.messages).await?;
+    let output_handler = OutputHandler::new(1)?;
 
-    output_results(&results)?;
+    let callback = output_handler.as_output_callback();
+
+    let results = chat(&config, &model_string, &args.messages, Some(&callback)).await?;
+
+    output_results(output_handler.clone(), &results)?;
 
     Ok(())
 }
 
-fn output_results(results: &[(String, Option<rig::completion::Usage>)]) -> Result<()> {
+fn output_results(
+    output_handler: OutputHandler,
+    results: &[(String, Option<rig::completion::Usage>)],
+) -> Result<()> {
+    output_handler.disable_stdout();
+
     let empty_response = String::new();
     let last_response = results.last().map_or(&empty_response, |(r, _)| r);
-    let line_count = u16::try_from(last_response.lines().count()).unwrap_or(0) + 1;
-    let mut terminal = Terminal::with_options(
-        CrosstermBackend::new(std::io::stdout()),
-        TerminalOptions {
-            viewport: Viewport::Inline(line_count),
-        },
-    )?;
 
-    terminal.insert_before(0, |buf| {
-        let para = Paragraph::new(last_response.as_str());
-        para.render(buf.area, buf);
-    })?;
-
-    std::thread::sleep(std::time::Duration::from_millis(100));
+    output_handler.render(last_response)?;
+    output_handler.finalize()?;
 
     Ok(())
 }

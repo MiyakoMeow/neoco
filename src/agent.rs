@@ -7,6 +7,7 @@ use rig::streaming::{StreamedAssistantContent, StreamingChat};
 use tracing::info;
 
 use crate::config::{Config, ProviderType};
+use crate::output::OutputCallback;
 
 enum AnyAgent {
     OpenAICompletions(Agent<rig::providers::openai::CompletionModel>),
@@ -19,11 +20,18 @@ impl AnyAgent {
         &mut self,
         message: &str,
         history: &[Message],
+        output_callback: Option<&OutputCallback<'_>>,
     ) -> Result<(String, Option<Usage>)> {
         match self {
-            Self::OpenAICompletions(agent) => chat_with_agent(agent, message, history).await,
-            Self::OpenAIResponses(agent) => chat_with_agent(agent, message, history).await,
-            Self::Anthropic(agent) => chat_with_agent(agent, message, history).await,
+            Self::OpenAICompletions(agent) => {
+                chat_with_agent(agent, message, history, output_callback).await
+            },
+            Self::OpenAIResponses(agent) => {
+                chat_with_agent(agent, message, history, output_callback).await
+            },
+            Self::Anthropic(agent) => {
+                chat_with_agent(agent, message, history, output_callback).await
+            },
         }
     }
 }
@@ -32,6 +40,7 @@ async fn chat_with_agent<M, P>(
     agent: &Agent<M, P>,
     message: &str,
     history: &[Message],
+    output_callback: Option<&OutputCallback<'_>>,
 ) -> Result<(String, Option<Usage>)>
 where
     M: CompletionModel + 'static,
@@ -45,13 +54,17 @@ where
     while let Some(item) = stream.next().await {
         match item {
             Ok(MultiTurnStreamItem::StreamAssistantItem(StreamedAssistantContent::Text(text))) => {
-                print!("{}", text.text);
+                if let Some(cb) = output_callback {
+                    cb(&text.text);
+                }
                 full_response.push_str(&text.text);
             },
             Ok(MultiTurnStreamItem::StreamAssistantItem(StreamedAssistantContent::Reasoning(
                 reasoning,
             ))) => {
-                print!("[思考] {:?}", reasoning.content);
+                if let Some(cb) = output_callback {
+                    cb(&format!("[思考] {:?}", reasoning.content));
+                }
             },
             Ok(MultiTurnStreamItem::StreamAssistantItem(StreamedAssistantContent::Final(
                 response,
@@ -61,19 +74,25 @@ where
             Ok(MultiTurnStreamItem::StreamAssistantItem(
                 StreamedAssistantContent::ReasoningDelta { reasoning, .. },
             )) => {
-                print!("[思考] {reasoning}");
+                if let Some(cb) = output_callback {
+                    cb(&format!("[思考] {reasoning}"));
+                }
             },
             Ok(MultiTurnStreamItem::StreamAssistantItem(StreamedAssistantContent::ToolCall {
                 tool_call,
                 internal_call_id: _,
             })) => {
-                print!("[工具调用] {}: ", tool_call.function.name);
-                print!("{}", tool_call.function.arguments);
+                if let Some(cb) = output_callback {
+                    cb(&format!("[工具调用] {}: ", tool_call.function.name));
+                    cb(&tool_call.function.arguments.to_string());
+                }
             },
             Ok(MultiTurnStreamItem::StreamAssistantItem(
                 StreamedAssistantContent::ToolCallDelta { content, .. },
             )) => {
-                print!("[工具调用] {content:?}");
+                if let Some(cb) = output_callback {
+                    cb(&format!("[工具调用] {content:?}"));
+                }
             },
             Err(e) => {
                 anyhow::bail!("Stream error: {e}");
@@ -82,7 +101,9 @@ where
         }
     }
 
-    println!();
+    if let Some(cb) = output_callback {
+        cb("\n");
+    }
 
     if let Some(usage) = token_usage {
         info!(
@@ -98,6 +119,7 @@ pub async fn chat(
     config: &Config,
     model_string: &str,
     messages: &[String],
+    output_callback: Option<&OutputCallback<'_>>,
 ) -> Result<Vec<(String, Option<Usage>)>> {
     let provider_config = config
         .extract_provider(model_string)
@@ -158,7 +180,7 @@ pub async fn chat(
     let mut results = Vec::new();
 
     for msg in messages {
-        let (response, usage) = agent.chat(msg, &history).await?;
+        let (response, usage) = agent.chat(msg, &history, output_callback).await?;
 
         history.push(Message::user(msg));
         history.push(Message::assistant(&response));
