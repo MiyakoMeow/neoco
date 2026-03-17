@@ -7,19 +7,21 @@ use std::sync::LazyLock;
 use tokio::process::Command;
 use tokio::time::timeout;
 
-const COMMAND_TIMEOUT_SECS: u64 = 30;
+const COMMAND_TIMEOUT_SECS: u64 = 60;
 
 #[derive(Debug, Deserialize)]
 pub struct CommandArgs {
     command: String,
+    #[serde(default)]
+    timeout: Option<u64>,
 }
 
 #[derive(Debug, thiserror::Error)]
 pub enum CommandError {
     #[error("Failed to execute command: {0}")]
     ExecuteError(#[from] std::io::Error),
-    #[error("Command timed out after {0} seconds", COMMAND_TIMEOUT_SECS)]
-    Timeout,
+    #[error("Command timed out after {0} seconds")]
+    Timeout(u64),
     #[error("Command failed with exit code {0}: {1}")]
     ExitError(i32, String),
 }
@@ -129,6 +131,10 @@ impl Tool for ShellTool {
                     "command": {
                         "type": "string",
                         "description": "The command to execute"
+                    },
+                    "timeout": {
+                        "type": "number",
+                        "description": "Timeout in seconds (default: 60)"
                     }
                 },
                 "required": ["command"]
@@ -140,8 +146,9 @@ impl Tool for ShellTool {
         let mut cmd_args = SHELL_CONFIG.args_prefix.clone();
         cmd_args.push(&args.command);
 
+        let timeout_secs = args.timeout.unwrap_or(COMMAND_TIMEOUT_SECS);
         let output = timeout(
-            tokio::time::Duration::from_secs(COMMAND_TIMEOUT_SECS),
+            tokio::time::Duration::from_secs(timeout_secs),
             Command::new(&SHELL_CONFIG.name).args(cmd_args).output(),
         )
         .await;
@@ -162,7 +169,7 @@ impl Tool for ShellTool {
                 Ok(format!("{stdout}{stderr}"))
             },
             Ok(Err(e)) => Err(CommandError::ExecuteError(e)),
-            Err(_) => Err(CommandError::Timeout),
+            Err(_) => Err(CommandError::Timeout(timeout_secs)),
         }
     }
 }
