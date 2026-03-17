@@ -7,81 +7,27 @@ use rig::streaming::{StreamedAssistantContent, StreamingChat};
 
 use crate::config::{Config, ProviderType};
 
-pub async fn chat(
-    config: &Config,
-    model_string: &str,
-    messages: &[String],
-) -> Result<Vec<(String, Option<Usage>)>> {
-    let provider_config = config
-        .extract_provider(model_string)
-        .with_context(|| format!("Unknown provider for model: {model_string}"))?
-        .clone();
+enum AnyAgent {
+    OpenAICompletions(Agent<rig::providers::openai::CompletionModel>),
+    OpenAIResponses(Agent<rig::providers::openai::responses_api::ResponsesCompletionModel>),
+    Anthropic(Agent<rig::providers::anthropic::completion::CompletionModel>),
+}
 
-    let api_key = Config::get_api_key(&provider_config)?;
-
-    let model_name = match model_string.split('/').nth(1) {
-        Some(s) => s.split('?').next().unwrap_or(s).to_string(),
-        None => model_string.to_string(),
-    };
-
-    if messages.is_empty() {
-        anyhow::bail!("No message provided. Use -M/--message to send a message.");
-    }
-
-    match provider_config.r#type {
-        ProviderType::OpenAICompletions => {
-            use rig::providers::openai::CompletionsClient;
-            let client = CompletionsClient::builder()
-                .api_key(&api_key)
-                .base_url(&provider_config.base_url)
-                .build()
-                .context("Failed to create OpenAI Completions client")?;
-            let agent = client.agent(&model_name).build();
-            send_messages(
-                &agent,
-                messages,
-                &provider_config.name,
-                &provider_config.base_url,
-            )
-            .await
-        },
-        ProviderType::OpenAIResponses => {
-            use rig::providers::openai::Client as OpenAIClient;
-            let client = OpenAIClient::builder()
-                .api_key(&api_key)
-                .base_url(&provider_config.base_url)
-                .build()
-                .context("Failed to create OpenAI Responses client")?;
-            let agent = client.agent(&model_name).build();
-            send_messages(
-                &agent,
-                messages,
-                &provider_config.name,
-                &provider_config.base_url,
-            )
-            .await
-        },
-        ProviderType::Anthropic => {
-            use rig::providers::anthropic::Client;
-            let client = Client::builder()
-                .api_key(api_key.as_str())
-                .base_url(&provider_config.base_url)
-                .anthropic_version("2023-06-01")
-                .build()
-                .context("Failed to create Anthropic client")?;
-            let agent = client.agent(&model_name).build();
-            send_messages(
-                &agent,
-                messages,
-                &provider_config.name,
-                &provider_config.base_url,
-            )
-            .await
-        },
+impl AnyAgent {
+    async fn chat(
+        &mut self,
+        message: &str,
+        history: &[Message],
+    ) -> Result<(String, Option<Usage>)> {
+        match self {
+            Self::OpenAICompletions(agent) => chat_with_agent(agent, message, history).await,
+            Self::OpenAIResponses(agent) => chat_with_agent(agent, message, history).await,
+            Self::Anthropic(agent) => chat_with_agent(agent, message, history).await,
+        }
     }
 }
 
-pub async fn send_message<M, P>(
+async fn chat_with_agent<M, P>(
     agent: &Agent<M, P>,
     message: &str,
     history: &[Message],
@@ -147,23 +93,71 @@ where
     Ok((full_response, token_usage))
 }
 
-pub async fn send_messages<M, P>(
-    agent: &Agent<M, P>,
+pub async fn chat(
+    config: &Config,
+    model_string: &str,
     messages: &[String],
-    provider_name: &str,
-    provider_base_url: &str,
-) -> Result<Vec<(String, Option<Usage>)>>
-where
-    M: CompletionModel + 'static,
-    P: PromptHook<M> + 'static,
-{
-    eprintln!("Using provider: {provider_name} ({provider_base_url})");
+) -> Result<Vec<(String, Option<Usage>)>> {
+    let provider_config = config
+        .extract_provider(model_string)
+        .with_context(|| format!("Unknown provider for model: {model_string}"))?
+        .clone();
+
+    let api_key = Config::get_api_key(&provider_config)?;
+
+    let model_name = match model_string.split('/').nth(1) {
+        Some(s) => s.split('?').next().unwrap_or(s).to_string(),
+        None => model_string.to_string(),
+    };
+
+    if messages.is_empty() {
+        anyhow::bail!("No message provided. Use -M/--message to send a message.");
+    }
+
+    let mut agent = match provider_config.r#type {
+        ProviderType::OpenAICompletions => {
+            use rig::providers::openai::CompletionsClient;
+            let client = CompletionsClient::builder()
+                .api_key(&api_key)
+                .base_url(&provider_config.base_url)
+                .build()
+                .context("Failed to create OpenAI Completions client")?;
+            let ag = client.agent(&model_name).build();
+            AnyAgent::OpenAICompletions(ag)
+        },
+        ProviderType::OpenAIResponses => {
+            use rig::providers::openai::Client as OpenAIClient;
+            let client = OpenAIClient::builder()
+                .api_key(&api_key)
+                .base_url(&provider_config.base_url)
+                .build()
+                .context("Failed to create OpenAI Responses client")?;
+            let ag = client.agent(&model_name).build();
+            AnyAgent::OpenAIResponses(ag)
+        },
+        ProviderType::Anthropic => {
+            use rig::providers::anthropic::Client;
+            let client = Client::builder()
+                .api_key(api_key.as_str())
+                .base_url(&provider_config.base_url)
+                .anthropic_version("2023-06-01")
+                .build()
+                .context("Failed to create Anthropic client")?;
+            let ag = client.agent(&model_name).build();
+            AnyAgent::Anthropic(ag)
+        },
+    };
+
+    eprintln!(
+        "Using provider: {} ({})",
+        provider_config.name, provider_config.base_url
+    );
 
     let mut history: Vec<Message> = Vec::new();
     let mut results = Vec::new();
 
     for msg in messages {
-        let (response, usage) = send_message(agent, msg, &history).await?;
+        let (response, usage) = agent.chat(msg, &history).await?;
 
         history.push(Message::user(msg));
         history.push(Message::assistant(&response));
