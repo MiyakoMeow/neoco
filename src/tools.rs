@@ -41,10 +41,7 @@ impl ShellTool {
         }
         #[cfg(not(target_os = "windows"))]
         {
-            std::env::var("SHELL")
-                .ok()
-                .and_then(|s| s.split('/').next_back().map(String::from))
-                .unwrap_or_else(|| "sh".to_string())
+            Command::new(&self.0).args(["-c", &command]).output().await
         }
     }
 }
@@ -121,14 +118,12 @@ impl ShellTool {
     ) -> Result<std::process::Output, std::io::Error> {
         #[cfg(target_os = "windows")]
         {
-            if std::env::var("PSModulePath").is_ok() {
-                Command::new("powershell")
-                    .args(["-Command", &command])
-                    .output()
-                    .await
+            let args = if self.0 == "powershell" {
+                ["-Command", &command]
             } else {
-                Command::new("cmd").args(["/C", &command]).output().await
-            }
+                ["/C", &command]
+            };
+            Command::new(&self.0).args(args).output().await
         }
 
         #[cfg(not(target_os = "windows"))]
