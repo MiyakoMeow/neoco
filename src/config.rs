@@ -11,10 +11,10 @@ use std::path::Path;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum ProviderType {
-    /// OpenAI Completions API (legacy)
+    /// `OpenAI` Completions API (legacy)
     #[serde(rename = "openai")]
     OpenAICompletions,
-    /// OpenAI Responses API (newer)
+    /// `OpenAI` Responses API (newer)
     OpenAIResponses,
     /// Anthropic API
     Anthropic,
@@ -33,6 +33,12 @@ pub struct Provider {
     pub api_key_env: String,
 }
 
+/// Model group configuration
+#[derive(Debug, Deserialize)]
+struct ModelGroup {
+    models: Vec<String>,
+}
+
 /// Full configuration from neoco.toml
 #[derive(Debug, Deserialize)]
 pub struct Config {
@@ -40,10 +46,10 @@ pub struct Config {
     pub model: Option<String>,
     /// Default model group
     pub model_group: Option<String>,
-    /// Model groups: group_name -> vec![model_with_provider]
+    /// Model groups: `group_name` -> vec![`model_with_provider`]
     #[serde(rename = "model_groups")]
-    pub model_groups: HashMap<String, Vec<String>>,
-    /// Model providers: provider_name -> Provider config
+    model_groups: HashMap<String, ModelGroup>,
+    /// Model providers: `provider_name` -> Provider config
     #[serde(rename = "model_providers")]
     pub model_providers: HashMap<String, Provider>,
 }
@@ -67,7 +73,7 @@ impl Config {
     pub fn get_model_from_group(&self, group: &str) -> Option<String> {
         self.model_groups
             .get(group)
-            .and_then(|models| models.first().cloned())
+            .and_then(|mg| mg.models.first().cloned())
     }
 
     /// Extract provider name from model string (e.g., "minimax-cn/MiniMax-M2.5" -> "minimax-cn")
@@ -85,7 +91,7 @@ impl Config {
     }
 
     /// Get API key from environment for the given provider
-    pub fn get_api_key(&self, provider: &Provider) -> Result<String> {
+    pub fn get_api_key(provider: &Provider) -> Result<String> {
         env::var(&provider.api_key_env).with_context(|| {
             format!(
                 "Missing API key: set {} environment variable",

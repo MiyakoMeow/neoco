@@ -3,11 +3,10 @@
 use anyhow::{Context, Result};
 use clap::Parser;
 use ratatui::{Terminal, TerminalOptions, Viewport, prelude::*, widgets::Paragraph};
-use rig::client::CompletionClient;
-use rig::completion::Prompt;
-use rig::providers::openai::Client as OpenAIClient;
 
+mod agent;
 mod config;
+use agent::send_messages;
 use config::{Config, ProviderType};
 
 /// CLI arguments
@@ -15,9 +14,9 @@ use config::{Config, ProviderType};
 #[command(name = "neoco")]
 #[command(about = "Chat with LLM from command line")]
 struct Cli {
-    /// Message to send to the model
-    #[arg(short = 'M', long = "message", required = true)]
-    message: String,
+    /// Message to send to the model (can be used multiple times for multi-turn)
+    #[arg(short = 'M', long = "message")]
+    messages: Vec<String>,
 
     /// Model to use (format: provider/model-name, e.g., deepseek/deepseek-chat)
     #[arg(short, long)]
@@ -32,20 +31,18 @@ struct Cli {
 async fn main() -> Result<()> {
     let args = Cli::parse();
 
-    // Load configuration
     let config = Config::load_default()?;
 
-    // Determine which model to use
     let model_string = if let Some(group) = &args.model_group {
         config
             .get_model_from_group(group)
-            .with_context(|| format!("Unknown model group: {}", group))?
+            .with_context(|| format!("Unknown model group: {group}"))?
     } else if let Some(model) = &args.model {
         model.clone()
     } else if let Some(group) = &config.model_group {
         config
             .get_model_from_group(group)
-            .with_context(|| format!("Unknown model group: {}", group))?
+            .with_context(|| format!("Unknown model group: {group}"))?
     } else if let Some(model) = &config.model {
         model.clone()
     } else {
@@ -54,25 +51,25 @@ async fn main() -> Result<()> {
         );
     };
 
-    // Extract provider from model string
     let provider_config = config
         .extract_provider(&model_string)
-        .with_context(|| format!("Unknown provider for model: {}", model_string))?;
+        .with_context(|| format!("Unknown provider for model: {model_string}"))?;
 
-    // Get API key
-    let api_key = config.get_api_key(provider_config)?;
+    let api_key = Config::get_api_key(provider_config)?;
 
-    // Parse model name (remove provider prefix)
     let model_name = model_string
         .split('/')
         .nth(1)
-        .map(|s| s.split('?').next().unwrap_or(s))
-        .unwrap_or(&model_string)
+        .map_or(model_string.as_str(), |s| s.split('?').next().unwrap_or(s))
         .to_string();
 
-    // Create client based on provider type
-    let response: String = match provider_config.r#type {
+    if args.messages.is_empty() {
+        anyhow::bail!("No message provided. Use -M/--message to send a message.");
+    }
+
+    match provider_config.r#type {
         ProviderType::OpenAICompletions => {
+            use rig::client::CompletionClient;
             use rig::providers::openai::CompletionsClient;
             let client = CompletionsClient::builder()
                 .api_key(&api_key)
@@ -80,30 +77,35 @@ async fn main() -> Result<()> {
                 .build()
                 .context("Failed to create OpenAI Completions client")?;
             let agent = client.agent(&model_name).build();
-
-            eprintln!(
-                "Using provider: {} ({})",
-                provider_config.name, provider_config.base_url
-            );
-
-            agent.prompt(&args.message).await?
+            let results = send_messages(
+                &agent,
+                &args.messages,
+                &provider_config.name,
+                &provider_config.base_url,
+            )
+            .await?;
+            output_results(&results)?;
         },
         ProviderType::OpenAIResponses => {
+            use rig::client::CompletionClient;
+            use rig::providers::openai::Client as OpenAIClient;
             let client = OpenAIClient::builder()
                 .api_key(&api_key)
                 .base_url(&provider_config.base_url)
                 .build()
                 .context("Failed to create OpenAI Responses client")?;
             let agent = client.agent(&model_name).build();
-
-            eprintln!(
-                "Using provider: {} ({})",
-                provider_config.name, provider_config.base_url
-            );
-
-            agent.prompt(&args.message).await?
+            let results = send_messages(
+                &agent,
+                &args.messages,
+                &provider_config.name,
+                &provider_config.base_url,
+            )
+            .await?;
+            output_results(&results)?;
         },
         ProviderType::Anthropic => {
+            use rig::client::CompletionClient;
             use rig::providers::anthropic::Client;
             let client = Client::builder()
                 .api_key(api_key.as_str())
@@ -112,18 +114,24 @@ async fn main() -> Result<()> {
                 .build()
                 .context("Failed to create Anthropic client")?;
             let agent = client.agent(&model_name).build();
-
-            eprintln!(
-                "Using provider: {} ({})",
-                provider_config.name, provider_config.base_url
-            );
-
-            agent.prompt(&args.message).await?
+            let results = send_messages(
+                &agent,
+                &args.messages,
+                &provider_config.name,
+                &provider_config.base_url,
+            )
+            .await?;
+            output_results(&results)?;
         },
-    };
+    }
 
-    // Output using ratatui Viewport::Inline
-    let line_count = response.lines().count() as u16 + 1;
+    Ok(())
+}
+
+fn output_results(results: &[(String, Option<rig::completion::Usage>)]) -> Result<()> {
+    let empty_response = String::new();
+    let last_response = results.last().map_or(&empty_response, |(r, _)| r);
+    let line_count = u16::try_from(last_response.lines().count()).unwrap_or(0) + 1;
     let mut terminal = Terminal::with_options(
         CrosstermBackend::new(std::io::stdout()),
         TerminalOptions {
@@ -131,13 +139,11 @@ async fn main() -> Result<()> {
         },
     )?;
 
-    // Render the response directly without borders
     terminal.insert_before(0, |buf| {
-        let para = Paragraph::new(response.as_str());
+        let para = Paragraph::new(last_response.as_str());
         para.render(buf.area, buf);
     })?;
 
-    // Keep the output visible briefly then exit
     std::thread::sleep(std::time::Duration::from_millis(100));
 
     Ok(())
