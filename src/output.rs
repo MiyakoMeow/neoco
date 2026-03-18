@@ -47,8 +47,9 @@ impl OutputHandler {
         Box::new(move |text: &str| {
             #[allow(clippy::print_stdout)]
             {
-                let use_stdout_guard = use_stdout.lock().unwrap();
-                if *use_stdout_guard {
+                if let Ok(use_stdout_guard) = use_stdout.lock()
+                    && *use_stdout_guard
+                {
                     print!("{text}");
                     std::io::Write::flush(&mut std::io::stdout()).ok();
                 }
@@ -61,8 +62,9 @@ impl OutputHandler {
     /// # Panics
     /// Panics if the internal mutex is poisoned
     pub fn disable_stdout(&self) {
-        let mut use_stdout = self.use_stdout.lock().unwrap();
-        *use_stdout = false;
+        if let Ok(mut use_stdout) = self.use_stdout.lock() {
+            *use_stdout = false;
+        }
     }
 
     /// Render text to the terminal
@@ -72,10 +74,18 @@ impl OutputHandler {
     ///
     /// # Panics
     /// Panics if the internal mutex is poisoned
+    #[allow(clippy::cast_possible_truncation)]
     pub fn render(&self, text: &str) -> Result<()> {
+        // Calculate the number of lines in the text
+        let line_count = text.lines().count().min(u16::MAX as usize) as u16;
+        if line_count == 0 {
+            return Ok(());
+        }
+
         let mut terminal_guard = self.terminal.lock().unwrap();
         if let Some(ref mut terminal) = *terminal_guard {
-            terminal.insert_before(0, |buf| {
+            // Use the calculated line count for the buffer
+            terminal.insert_before(line_count, |buf| {
                 let para = Paragraph::new(text);
                 para.render(buf.area, buf);
             })?;
@@ -102,7 +112,8 @@ impl OutputHandler {
 
 impl Drop for OutputHandler {
     fn drop(&mut self) {
-        let mut terminal_guard = self.terminal.lock().unwrap();
-        *terminal_guard = None;
+        if let Ok(mut terminal_guard) = self.terminal.lock() {
+            *terminal_guard = None;
+        }
     }
 }

