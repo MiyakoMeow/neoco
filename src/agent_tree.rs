@@ -132,6 +132,7 @@ impl AgentTree {
     }
 
     /// Adds a pending message to an agent's queue.
+    /// Uses `blocking_lock` for synchronous context (called from `Tool::call`).
     #[allow(dead_code)]
     pub fn add_pending_message(&self, target_id: Ulid, message: QueuedMessage) {
         if let Some(handle) = self.handles.get(&target_id) {
