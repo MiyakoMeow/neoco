@@ -7,7 +7,7 @@ use rig::completion::Message;
 use serde::Deserialize;
 use tokio::sync::Mutex;
 use tokio::task::JoinSet;
-use tracing::warn;
+use tracing::{info, warn};
 use ulid::Ulid;
 
 use crate::agent::{AnyAgent, chat_with_agent};
@@ -20,26 +20,25 @@ const DEFAULT_MAX_TURNS: usize = 1000;
 pub enum InsertMode {
     #[default]
     Queue,
-    // TODO(#issue_number): Implement interrupt mode - stop current execution and handle message immediately
     Interrupt,
-    // TODO(#issue_number): Implement append mode - add to end of conversation history
     Append,
 }
 
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub struct QueuedMessage {
     pub content: String,
     pub mode: InsertMode,
+    #[allow(dead_code)]
     pub from_agent_id: Ulid,
 }
 
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub struct AgentHandle {
+    #[allow(dead_code)]
     pub id: Ulid,
     pub parent_id: Option<Ulid>,
     pub pending_messages: Arc<Mutex<Vec<QueuedMessage>>>,
+    pub history_messages: Arc<Mutex<Vec<QueuedMessage>>>,
     pub children: Arc<Mutex<Vec<Ulid>>>,
     pub tasks: Arc<Mutex<JoinSet<()>>>,
 }
@@ -64,6 +63,7 @@ impl AgentTree {
                 id: root_id,
                 parent_id: None,
                 pending_messages: Arc::new(Mutex::new(Vec::new())),
+                history_messages: Arc::new(Mutex::new(Vec::new())),
                 children: Arc::new(Mutex::new(Vec::new())),
                 tasks: Arc::new(Mutex::new(JoinSet::new())),
             },
@@ -97,6 +97,7 @@ impl AgentTree {
             id: child_id,
             parent_id: Some(parent_id),
             pending_messages: Arc::new(Mutex::new(Vec::new())),
+            history_messages: Arc::new(Mutex::new(Vec::new())),
             children: Arc::new(Mutex::new(Vec::new())),
             tasks: Arc::new(Mutex::new(JoinSet::new())),
         };
@@ -123,10 +124,50 @@ impl AgentTree {
     }
 
     pub async fn add_pending_message(&self, target_id: Ulid, message: QueuedMessage) {
-        if let Some(handle) = self.handles.get(&target_id) {
-            let pending = handle.pending_messages.clone();
-            let mut guard = pending.lock().await;
-            guard.push(message);
+        let Some(handle) = self.handles.get(&target_id) else {
+            return;
+        };
+
+        match message.mode {
+            InsertMode::Queue => {
+                let pending = handle.pending_messages.clone();
+                let mut guard = pending.lock().await;
+                guard.push(message);
+            },
+            InsertMode::Interrupt => {
+                let pending = handle.pending_messages.clone();
+                let mut guard = pending.lock().await;
+                guard.insert(0, message);
+                drop(guard);
+
+                let tasks = handle.tasks.clone();
+                let mut tasks_guard = tasks.lock().await;
+                info!(agent_id = %target_id, "Interrupting current task");
+                tasks_guard.abort_all();
+            },
+            InsertMode::Append => {
+                let history = handle.history_messages.clone();
+                let mut guard = history.lock().await;
+                guard.push(message);
+            },
+        }
+    }
+
+    pub async fn get_history_messages(&self, id: Ulid) -> Vec<QueuedMessage> {
+        if let Some(handle) = self.handles.get(&id) {
+            let history = handle.history_messages.clone();
+            let guard = history.lock().await;
+            guard.clone()
+        } else {
+            Vec::new()
+        }
+    }
+
+    pub async fn clear_history_messages(&self, id: Ulid) {
+        if let Some(handle) = self.handles.get(&id) {
+            let history = handle.history_messages.clone();
+            let mut guard = history.lock().await;
+            guard.clear();
         }
     }
 
@@ -136,17 +177,6 @@ impl AgentTree {
             let pending = handle.pending_messages.clone();
             let mut guard = pending.lock().await;
             std::mem::take(&mut *guard)
-        } else {
-            Vec::new()
-        }
-    }
-
-    #[allow(dead_code)]
-    pub async fn get_pending_messages(&self, id: Ulid) -> Vec<QueuedMessage> {
-        if let Some(handle) = self.handles.get(&id) {
-            let pending = handle.pending_messages.clone();
-            let guard = pending.lock().await;
-            guard.clone()
         } else {
             Vec::new()
         }

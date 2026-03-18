@@ -166,15 +166,19 @@ pub async fn chat(
 
         results.push((response, usage));
 
-        // Process pending messages from child agents
-        let pending = shared_tree
-            .lock()
-            .await
-            .drain_pending_messages(root_id)
-            .await;
+        let tree_lock = shared_tree.lock().await;
+
+        let pending = tree_lock.drain_pending_messages(root_id).await;
         for queued in pending {
             history.push(Message::user(queued.content));
         }
+
+        let history_msgs = tree_lock.get_history_messages(root_id).await;
+        for queued in history_msgs {
+            history.push(Message::user(queued.content));
+        }
+
+        tree_lock.clear_history_messages(root_id).await;
     }
 
     Ok(results)
