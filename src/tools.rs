@@ -1,8 +1,7 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use rig::completion::ToolDefinition;
 use rig::tool::Tool;
 use serde::Deserialize;
-use std::env;
 use std::sync::LazyLock;
 use tokio::process::Command;
 use tokio::time::timeout;
@@ -26,7 +25,8 @@ pub enum CommandError {
     ExitError(i32, String),
 }
 
-static SHELL_CONFIG: LazyLock<ShellConfig> = LazyLock::new(ShellConfig::detect);
+static SHELL_CONFIG: LazyLock<ShellConfig> =
+    LazyLock::new(|| ShellConfig::detect().expect("bash must be available"));
 
 struct ShellConfig {
     name: String,
@@ -34,56 +34,26 @@ struct ShellConfig {
 }
 
 impl ShellConfig {
-    fn detect() -> Self {
-        if let Some(shell) = env::var_os("SHELL") {
-            let shell_name = shell
-                .to_string_lossy()
-                .rsplit('/')
-                .next()
-                .unwrap_or(&shell.to_string_lossy())
-                .to_string();
-            if !shell_name.is_empty() {
-                return Self {
-                    name: shell_name,
-                    args_prefix: vec!["-c"],
-                };
-            }
-        }
+    fn detect() -> Result<Self> {
+        std::process::Command::new("bash")
+            .arg("--version")
+            .output()
+            .context("Failed to execute bash")?
+            .status
+            .success()
+            .then_some(())
+            .context("bash executable not found")?;
 
-        for var in ["PSModulePath", "PSExecutionPolicyPreference"] {
-            if env::var(var).is_ok() {
-                return Self {
-                    name: "powershell".to_string(),
-                    args_prefix: vec!["-Command"],
-                };
-            }
-        }
-
-        let shells = ["pwsh", "bash", "zsh", "fish", "sh", "cmd"];
-        for shell in shells {
-            if std::process::Command::new(shell)
-                .arg("--version")
-                .output()
-                .map(|o| o.status.success())
-                .unwrap_or(false)
-            {
-                let args_prefix = if shell == "cmd" {
-                    vec!["/C"]
-                } else {
-                    vec!["-c"]
-                };
-                return Self {
-                    name: shell.to_string(),
-                    args_prefix,
-                };
-            }
-        }
-
-        Self {
-            name: "sh".to_string(),
+        Ok(Self {
+            name: "bash".to_string(),
             args_prefix: vec!["-c"],
-        }
+        })
     }
+}
+
+pub fn check_bash_available() -> Result<()> {
+    ShellConfig::detect()?;
+    Ok(())
 }
 
 pub struct ShellTool;
@@ -101,7 +71,7 @@ impl Default for ShellTool {
 }
 
 impl Tool for ShellTool {
-    const NAME: &'static str = "shell";
+    const NAME: &'static str = "bash";
 
     type Error = CommandError;
     type Args = CommandArgs;

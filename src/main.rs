@@ -12,6 +12,7 @@ use config::Config;
 
 use agent::chat;
 use output::OutputHandler;
+use tools::check_bash_available;
 
 /// CLI arguments
 #[derive(Parser, Debug)]
@@ -37,6 +38,8 @@ async fn main() -> Result<()> {
         .with(tracing_subscriber::fmt::layer())
         .with(tracing_subscriber::EnvFilter::from_default_env())
         .init();
+
+    check_bash_available().context("bash is required but not available")?;
 
     let args = Cli::parse();
 
