@@ -32,7 +32,7 @@ pub fn check_bash_available() -> Result<()> {
         .status
         .success()
         .then_some(())
-        .context("bash executable not found")
+        .context("bash --version returned non-zero exit status")
 }
 
 pub struct ShellTool;
