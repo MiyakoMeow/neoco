@@ -11,15 +11,20 @@ use crate::agent::AnyAgent;
 use crate::agent_tree::{InsertMode, QueuedMessage, SharedAgentTree};
 use crate::config::{Config, ProviderType};
 
+const DEFAULT_MAX_TURNS: usize = 1000;
 const COMMAND_TIMEOUT_SECS: u64 = 60;
 
+/// Arguments for the shell command tool.
 #[derive(Debug, Deserialize)]
 pub struct CommandArgs {
+    /// The command to execute.
     command: String,
+    /// Optional timeout in seconds.
     #[serde(default)]
     timeout: Option<u64>,
 }
 
+/// Errors that can occur when executing shell commands.
 #[derive(Debug, thiserror::Error)]
 pub enum CommandError {
     #[error("Failed to execute command: {0}")]
@@ -30,6 +35,7 @@ pub enum CommandError {
     ExitError(i32, String),
 }
 
+/// Checks if bash is available on the system.
 pub fn check_bash_available() -> Result<()> {
     std::process::Command::new("bash")
         .arg("--version")
@@ -41,9 +47,11 @@ pub fn check_bash_available() -> Result<()> {
         .context("bash --version returned non-zero exit status")
 }
 
+/// Tool for executing shell commands.
 pub struct ShellTool;
 
 impl ShellTool {
+    /// Creates a new `ShellTool` instance.
     pub fn new() -> Self {
         Self
     }
@@ -129,18 +137,23 @@ impl Tool for ShellTool {
     }
 }
 
+/// Arguments for the spawn tool.
 #[derive(Debug, Deserialize)]
 pub struct SpawnArgs {
+    /// Message to send to the child agent.
     message: String,
+    /// Model group to use for the child agent.
     model_group: String,
 }
 
+/// Errors that can occur when spawning a child agent.
 #[derive(Debug, thiserror::Error)]
 pub enum SpawnError {
     #[error("Failed to create agent: {0}")]
     CreateError(#[from] anyhow::Error),
 }
 
+/// Tool for spawning child agents.
 pub struct SpawnTool {
     config: Config,
     agent_tree: SharedAgentTree,
@@ -148,6 +161,7 @@ pub struct SpawnTool {
 }
 
 impl SpawnTool {
+    /// Creates a new `SpawnTool` instance.
     pub fn new(config: Config, agent_tree: SharedAgentTree, current_agent_id: Ulid) -> Self {
         Self {
             config,
@@ -218,7 +232,7 @@ impl Tool for SpawnTool {
                 let ag = client
                     .agent(&model_name)
                     .tool(crate::tools::ShellTool::new())
-                    .default_max_turns(usize::MAX / 2)
+                    .default_max_turns(DEFAULT_MAX_TURNS)
                     .build();
                 AnyAgent::OpenAICompletions(ag)
             },
@@ -232,7 +246,7 @@ impl Tool for SpawnTool {
                 let ag = client
                     .agent(&model_name)
                     .tool(crate::tools::ShellTool::new())
-                    .default_max_turns(usize::MAX / 2)
+                    .default_max_turns(DEFAULT_MAX_TURNS)
                     .build();
                 AnyAgent::OpenAIResponses(ag)
             },
@@ -247,7 +261,7 @@ impl Tool for SpawnTool {
                 let ag = client
                     .agent(&model_name)
                     .tool(crate::tools::ShellTool::new())
-                    .default_max_turns(usize::MAX / 2)
+                    .default_max_turns(DEFAULT_MAX_TURNS)
                     .build();
                 AnyAgent::Anthropic(ag)
             },
@@ -271,15 +285,20 @@ impl Tool for SpawnTool {
     }
 }
 
+/// Arguments for the send tool.
 #[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct SendArgs {
+    /// Target agent ID.
     to_agent_id: String,
+    /// Message to send.
     message: String,
+    /// How to insert the message.
     #[serde(default)]
     insert_mode: InsertMode,
 }
 
+/// Errors that can occur when sending a message to another agent.
 #[allow(dead_code)]
 #[derive(Debug, thiserror::Error)]
 pub enum SendError {
@@ -289,6 +308,7 @@ pub enum SendError {
     NotFound,
 }
 
+/// Tool for sending messages to other agents in the tree.
 #[allow(dead_code)]
 pub struct SendTool {
     agent_tree: SharedAgentTree,
@@ -297,6 +317,7 @@ pub struct SendTool {
 
 #[allow(dead_code)]
 impl SendTool {
+    /// Creates a new `SendTool` instance.
     pub fn new(agent_tree: SharedAgentTree, current_agent_id: Ulid) -> Self {
         Self {
             agent_tree,

@@ -11,43 +11,59 @@ use ulid::Ulid;
 use crate::agent::{AnyAgent, chat_with_agent};
 use crate::config::{Config, Provider};
 
+const DEFAULT_MAX_TURNS: usize = 1000;
+
+/// Message insertion mode for inter-agent communication.
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Default)]
 #[serde(rename_all = "kebab-case")]
 pub enum InsertMode {
     #[default]
     Queue,
+    // TODO: Implement interrupt mode - stop current execution and handle message immediately
     Interrupt,
+    // TODO: Implement append mode - add to end of conversation history
     Append,
 }
 
+/// A message queued for delivery to an agent.
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct QueuedMessage {
+    /// The content of the message.
     pub content: String,
+    /// How the message should be inserted.
     pub mode: InsertMode,
+    /// The ID of the agent that sent this message.
     pub from_agent_id: Ulid,
 }
 
+/// Handle for an agent in the tree, containing its metadata and queues.
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct AgentHandle {
+    /// Unique identifier for this agent.
     pub id: Ulid,
+    /// ID of the parent agent, if any.
     pub parent_id: Option<Ulid>,
+    /// Queue of pending messages for this agent.
     pub pending_messages: Arc<Mutex<Vec<QueuedMessage>>>,
+    /// List of child agent IDs.
     pub children: Arc<Mutex<Vec<Ulid>>>,
 }
 
+/// Tree structure for managing multiple agents and their hierarchical relationships.
 #[allow(dead_code)]
 pub struct AgentTree {
     handles: HashMap<Ulid, AgentHandle>,
     agents: HashMap<Ulid, Arc<AnyAgent>>,
     root_id: Ulid,
+    /// Configuration for the agent.
     pub config: Config,
 }
 
 impl AgentTree {
-    #[allow(dead_code)]
+    /// Creates a new `AgentTree` with the given root agent.
     pub fn new(root_agent: AnyAgent, config: Config) -> Self {
         let root_id = Ulid::new();
         let mut handles = HashMap::new();
@@ -72,11 +88,13 @@ impl AgentTree {
         }
     }
 
+    /// Returns the root agent's ID.
     #[allow(dead_code)]
     pub fn root_id(&self) -> Ulid {
         self.root_id
     }
 
+    /// Adds a child agent to the specified parent.
     #[allow(dead_code)]
     pub fn add_child(&mut self, parent_id: Ulid, child_agent: AnyAgent) -> Ulid {
         let child_id = Ulid::new();
@@ -91,6 +109,9 @@ impl AgentTree {
         self.handles.insert(child_id, handle);
         self.agents.insert(child_id, Arc::new(child_agent));
 
+        // Safe to use blocking_lock here: this method is called from non-async context
+        // (Tool::call holds the tree lock but needs to update children list)
+        // while other methods use async lock. This pattern avoids deadlock.
         if let Some(parent) = self.handles.get_mut(&parent_id) {
             parent.children.blocking_lock().push(child_id);
         }
@@ -98,16 +119,19 @@ impl AgentTree {
         child_id
     }
 
+    /// Gets an agent by its ID.
     #[allow(dead_code)]
     pub fn get_agent(&self, id: Ulid) -> Option<Arc<AnyAgent>> {
         self.agents.get(&id).cloned()
     }
 
+    /// Gets the parent ID of an agent.
     #[allow(dead_code)]
     pub fn get_parent_id(&self, id: Ulid) -> Option<Ulid> {
         self.handles.get(&id).and_then(|h| h.parent_id)
     }
 
+    /// Adds a pending message to an agent's queue.
     #[allow(dead_code)]
     pub fn add_pending_message(&self, target_id: Ulid, message: QueuedMessage) {
         if let Some(handle) = self.handles.get(&target_id) {
@@ -117,6 +141,7 @@ impl AgentTree {
         }
     }
 
+    /// Drains and returns all pending messages for an agent.
     #[allow(dead_code)]
     pub async fn drain_pending_messages(&self, id: Ulid) -> Vec<QueuedMessage> {
         if let Some(handle) = self.handles.get(&id) {
@@ -128,6 +153,7 @@ impl AgentTree {
         }
     }
 
+    /// Gets all pending messages for an agent without removing them.
     #[allow(dead_code)]
     pub async fn get_pending_messages(&self, id: Ulid) -> Vec<QueuedMessage> {
         if let Some(handle) = self.handles.get(&id) {
@@ -139,6 +165,7 @@ impl AgentTree {
         }
     }
 
+    /// Runs a child agent asynchronously with the given message.
     #[allow(dead_code)]
     pub fn run_child_agent(&self, child_id: Ulid, message: String, insert_mode: InsertMode) {
         let agent = match self.agents.get(&child_id) {
@@ -147,7 +174,10 @@ impl AgentTree {
         };
 
         let parent_id = self.get_parent_id(child_id);
-        let handles = self.handles.clone();
+        // Clone only the parent's pending_messages Arc instead of the entire handles HashMap
+        let parent_pending = parent_id
+            .and_then(|pid| self.handles.get(&pid))
+            .map(|h| h.pending_messages.clone());
         let child_id_clone = child_id;
 
         tokio::spawn(async move {
@@ -180,10 +210,7 @@ impl AgentTree {
                 from_agent_id: child_id_clone,
             };
 
-            if let Some(pid) = parent_id
-                && let Some(parent) = handles.get(&pid)
-            {
-                let pending = parent.pending_messages.clone();
+            if let Some(pending) = parent_pending {
                 let mut guard = pending.lock().await;
                 guard.push(pending_msg);
             }
@@ -191,14 +218,17 @@ impl AgentTree {
     }
 }
 
+/// Type alias for a thread-safe, shared reference to an `AgentTree`.
 #[allow(dead_code)]
 pub type SharedAgentTree = Arc<Mutex<AgentTree>>;
 
+/// Creates a new shared `AgentTree` from an existing tree.
 #[allow(dead_code)]
 pub fn new_shared(tree: AgentTree) -> SharedAgentTree {
     Arc::new(Mutex::new(tree))
 }
 
+/// Creates an agent with spawn and send tools integrated.
 pub async fn create_agent_with_tools(
     config: &Config,
     provider: &Provider,
@@ -222,7 +252,7 @@ pub async fn create_agent_with_tools(
                     client
                         .agent(model_name)
                         .tool(crate::tools::ShellTool::new())
-                        .default_max_turns(usize::MAX / 2)
+                        .default_max_turns(DEFAULT_MAX_TURNS)
                         .build(),
                 ),
                 config.clone(),
@@ -238,7 +268,7 @@ pub async fn create_agent_with_tools(
                     root_id,
                 ))
                 .tool(crate::tools::SendTool::new(shared_tree.clone(), root_id))
-                .default_max_turns(usize::MAX / 2)
+                .default_max_turns(DEFAULT_MAX_TURNS)
                 .build();
             Ok((AnyAgent::OpenAICompletions(ag), shared_tree, root_id))
         },
@@ -254,7 +284,7 @@ pub async fn create_agent_with_tools(
                     client
                         .agent(model_name)
                         .tool(crate::tools::ShellTool::new())
-                        .default_max_turns(usize::MAX / 2)
+                        .default_max_turns(DEFAULT_MAX_TURNS)
                         .build(),
                 ),
                 config.clone(),
@@ -270,7 +300,7 @@ pub async fn create_agent_with_tools(
                     root_id,
                 ))
                 .tool(crate::tools::SendTool::new(shared_tree.clone(), root_id))
-                .default_max_turns(usize::MAX / 2)
+                .default_max_turns(DEFAULT_MAX_TURNS)
                 .build();
             Ok((AnyAgent::OpenAIResponses(ag), shared_tree, root_id))
         },
@@ -287,7 +317,7 @@ pub async fn create_agent_with_tools(
                     client
                         .agent(model_name)
                         .tool(crate::tools::ShellTool::new())
-                        .default_max_turns(usize::MAX / 2)
+                        .default_max_turns(DEFAULT_MAX_TURNS)
                         .build(),
                 ),
                 config.clone(),
@@ -303,7 +333,7 @@ pub async fn create_agent_with_tools(
                     root_id,
                 ))
                 .tool(crate::tools::SendTool::new(shared_tree.clone(), root_id))
-                .default_max_turns(usize::MAX / 2)
+                .default_max_turns(DEFAULT_MAX_TURNS)
                 .build();
             Ok((AnyAgent::Anthropic(ag), shared_tree, root_id))
         },
