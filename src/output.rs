@@ -40,7 +40,7 @@ impl OutputHandler {
         let use_stdout = &self.use_stdout;
 
         Box::new(move |text: &str| {
-            #[allow(clippy::print_stdout)]
+            #[expect(clippy::print_stdout)]
             {
                 let use_stdout_guard = use_stdout.lock().unwrap();
                 if *use_stdout_guard {

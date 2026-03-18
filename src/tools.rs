@@ -364,7 +364,6 @@ impl Tool for SpawnTool {
 }
 
 /// Arguments for the send tool.
-#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct SendArgs {
     /// Target agent ID.
@@ -377,7 +376,6 @@ pub struct SendArgs {
 }
 
 /// Errors that can occur when sending a message to another agent.
-#[allow(dead_code)]
 #[derive(Debug, thiserror::Error)]
 pub enum SendError {
     #[error("Invalid agent ID: {0}")]
@@ -387,13 +385,11 @@ pub enum SendError {
 }
 
 /// Tool for sending messages to other agents in the tree.
-#[allow(dead_code)]
 pub struct SendTool {
     agent_tree: SharedAgentTree,
     current_agent_id: Ulid,
 }
 
-#[allow(dead_code)]
 impl SendTool {
     /// Creates a new `SendTool` instance.
     pub fn new(agent_tree: SharedAgentTree, current_agent_id: Ulid) -> Self {

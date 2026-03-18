@@ -28,13 +28,13 @@ pub enum InsertMode {
 pub struct QueuedMessage {
     pub content: String,
     pub mode: InsertMode,
-    #[allow(dead_code)]
+    #[expect(dead_code)]
     pub from_agent_id: Ulid,
 }
 
 #[derive(Debug, Clone)]
 pub struct AgentHandle {
-    #[allow(dead_code)]
+    #[expect(dead_code)]
     pub id: Ulid,
     pub parent_id: Option<Ulid>,
     pub pending_messages: Arc<Mutex<Vec<QueuedMessage>>>,
@@ -43,11 +43,11 @@ pub struct AgentHandle {
     pub tasks: Arc<Mutex<JoinSet<()>>>,
 }
 
-#[allow(dead_code)]
 pub struct AgentTree {
     handles: HashMap<Ulid, AgentHandle>,
     agents: HashMap<Ulid, Arc<AnyAgent>>,
     root_id: Ulid,
+    #[expect(dead_code)]
     pub config: Config,
 }
 
@@ -78,12 +78,10 @@ impl AgentTree {
         }
     }
 
-    #[allow(dead_code)]
     pub fn root_id(&self) -> Ulid {
         self.root_id
     }
 
-    #[allow(dead_code)]
     pub fn update_agent(&mut self, id: Ulid, agent: AnyAgent) {
         if let Some(existing) = self.agents.get_mut(&id) {
             *existing = Arc::new(agent);
@@ -113,12 +111,10 @@ impl AgentTree {
         child_id
     }
 
-    #[allow(dead_code)]
     pub fn get_agent(&self, id: Ulid) -> Option<Arc<AnyAgent>> {
         self.agents.get(&id).cloned()
     }
 
-    #[allow(dead_code)]
     pub fn get_parent_id(&self, id: Ulid) -> Option<Ulid> {
         self.handles.get(&id).and_then(|h| h.parent_id)
     }
@@ -171,7 +167,6 @@ impl AgentTree {
         }
     }
 
-    #[allow(dead_code)]
     pub async fn drain_pending_messages(&self, id: Ulid) -> Vec<QueuedMessage> {
         if let Some(handle) = self.handles.get(&id) {
             let pending = handle.pending_messages.clone();
@@ -182,7 +177,6 @@ impl AgentTree {
         }
     }
 
-    #[allow(dead_code)]
     pub fn run_child_agent(&self, child_id: Ulid, message: String, insert_mode: InsertMode) {
         let agent = match self.agents.get(&child_id) {
             Some(a) => a.clone(),
@@ -251,10 +245,8 @@ impl AgentTree {
     }
 }
 
-#[allow(dead_code)]
 pub type SharedAgentTree = Arc<Mutex<AgentTree>>;
 
-#[allow(dead_code)]
 pub fn new_shared(tree: AgentTree) -> SharedAgentTree {
     Arc::new(Mutex::new(tree))
 }
