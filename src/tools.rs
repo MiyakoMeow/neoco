@@ -256,7 +256,7 @@ impl Tool for SpawnTool {
                 let client = Client::builder()
                     .api_key(api_key.as_str())
                     .base_url(&provider_config.base_url)
-                    .anthropic_version("2023-06-01")
+                    .anthropic_version(&provider_config.anthropic_version)
                     .build()
                     .context("Failed to create Anthropic client")?;
                 let ag = client
@@ -328,7 +328,7 @@ impl Tool for SpawnTool {
                 let client = Client::builder()
                     .api_key(api_key.as_str())
                     .base_url(&provider_config.base_url)
-                    .anthropic_version("2023-06-01")
+                    .anthropic_version(&provider_config.anthropic_version)
                     .build()
                     .context("Failed to create Anthropic client")?;
                 let ag = client

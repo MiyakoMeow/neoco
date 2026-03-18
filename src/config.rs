@@ -31,6 +31,13 @@ pub struct Provider {
     pub base_url: String,
     /// Environment variable name for API key
     pub api_key_env: String,
+    /// Anthropic API version (only used for Anthropic provider)
+    #[serde(default = "default_anthropic_version")]
+    pub anthropic_version: String,
+}
+
+fn default_anthropic_version() -> String {
+    "2023-06-01".to_string()
 }
 
 /// Model group configuration
@@ -115,6 +122,7 @@ mod tests {
                 name: "MiniMax".to_string(),
                 base_url: "https://api.minimaxi.com/v1".to_string(),
                 api_key_env: "MINIMAX_API_KEY".to_string(),
+                anthropic_version: "2023-06-01".to_string(),
             },
         );
 
