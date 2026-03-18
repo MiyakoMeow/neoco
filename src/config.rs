@@ -34,13 +34,13 @@ pub struct Provider {
 }
 
 /// Model group configuration
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 struct ModelGroup {
     models: Vec<String>,
 }
 
 /// Full configuration from neoco.toml
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct Config {
     /// Default model (e.g., "minimax-cn/MiniMax-M2.5?temperature=0.1")
     pub model: Option<String>,

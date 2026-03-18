@@ -6,18 +6,19 @@ use rig::completion::{CompletionModel, GetTokenUsage, Message, Usage};
 use rig::streaming::{StreamedAssistantContent, StreamingChat};
 use tracing::info;
 
+use crate::agent_tree::{AgentTree, SharedAgentTree, new_shared};
 use crate::config::{Config, ProviderType};
 use crate::output::OutputCallback;
-use crate::tools::ShellTool;
+use crate::tools::{SendTool, ShellTool, SpawnTool};
 
-enum AnyAgent {
+pub enum AnyAgent {
     OpenAICompletions(Agent<rig::providers::openai::CompletionModel>),
     OpenAIResponses(Agent<rig::providers::openai::responses_api::ResponsesCompletionModel>),
     Anthropic(Agent<rig::providers::anthropic::completion::CompletionModel>),
 }
 
 impl AnyAgent {
-    async fn chat(
+    pub async fn chat(
         &mut self,
         message: &str,
         history: &[Message],
@@ -37,7 +38,7 @@ impl AnyAgent {
     }
 }
 
-async fn chat_with_agent<M, P>(
+pub async fn chat_with_agent<M, P>(
     agent: &Agent<M, P>,
     message: &str,
     history: &[Message],
@@ -156,9 +157,23 @@ pub async fn chat(
                 .base_url(&provider_config.base_url)
                 .build()
                 .context("Failed to create OpenAI Completions client")?;
+            let tree = AgentTree::new(
+                AnyAgent::OpenAICompletions(
+                    client
+                        .agent(&model_name)
+                        .tool(ShellTool::new())
+                        .default_max_turns(usize::MAX / 2)
+                        .build(),
+                ),
+                config.clone(),
+            );
+            let shared_tree: SharedAgentTree = new_shared(tree);
+            let root_id = shared_tree.lock().await.root_id();
             let ag = client
                 .agent(&model_name)
                 .tool(ShellTool::new())
+                .tool(SpawnTool::new(config.clone(), shared_tree.clone(), root_id))
+                .tool(SendTool::new(shared_tree, root_id))
                 .default_max_turns(usize::MAX / 2)
                 .build();
             AnyAgent::OpenAICompletions(ag)
@@ -170,9 +185,23 @@ pub async fn chat(
                 .base_url(&provider_config.base_url)
                 .build()
                 .context("Failed to create OpenAI Responses client")?;
+            let tree = AgentTree::new(
+                AnyAgent::OpenAIResponses(
+                    client
+                        .agent(&model_name)
+                        .tool(ShellTool::new())
+                        .default_max_turns(usize::MAX / 2)
+                        .build(),
+                ),
+                config.clone(),
+            );
+            let shared_tree: SharedAgentTree = new_shared(tree);
+            let root_id = shared_tree.lock().await.root_id();
             let ag = client
                 .agent(&model_name)
                 .tool(ShellTool::new())
+                .tool(SpawnTool::new(config.clone(), shared_tree.clone(), root_id))
+                .tool(SendTool::new(shared_tree, root_id))
                 .default_max_turns(usize::MAX / 2)
                 .build();
             AnyAgent::OpenAIResponses(ag)
@@ -185,9 +214,23 @@ pub async fn chat(
                 .anthropic_version("2023-06-01")
                 .build()
                 .context("Failed to create Anthropic client")?;
+            let tree = AgentTree::new(
+                AnyAgent::Anthropic(
+                    client
+                        .agent(&model_name)
+                        .tool(ShellTool::new())
+                        .default_max_turns(usize::MAX / 2)
+                        .build(),
+                ),
+                config.clone(),
+            );
+            let shared_tree: SharedAgentTree = new_shared(tree);
+            let root_id = shared_tree.lock().await.root_id();
             let ag = client
                 .agent(&model_name)
                 .tool(ShellTool::new())
+                .tool(SpawnTool::new(config.clone(), shared_tree.clone(), root_id))
+                .tool(SendTool::new(shared_tree, root_id))
                 .default_max_turns(usize::MAX / 2)
                 .build();
             AnyAgent::Anthropic(ag)

@@ -1,9 +1,15 @@
 use anyhow::{Context, Result};
+use rig::client::CompletionClient;
 use rig::completion::ToolDefinition;
 use rig::tool::Tool;
 use serde::Deserialize;
 use tokio::process::Command;
 use tokio::time::timeout;
+use ulid::Ulid;
+
+use crate::agent::AnyAgent;
+use crate::agent_tree::{InsertMode, QueuedMessage, SharedAgentTree};
+use crate::config::{Config, ProviderType};
 
 const COMMAND_TIMEOUT_SECS: u64 = 60;
 
@@ -120,5 +126,238 @@ impl Tool for ShellTool {
             Ok(Err(e)) => Err(CommandError::ExecuteError(e)),
             Err(_) => Err(CommandError::Timeout(timeout_secs)),
         }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SpawnArgs {
+    message: String,
+    model_group: String,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum SpawnError {
+    #[error("Failed to create agent: {0}")]
+    CreateError(#[from] anyhow::Error),
+}
+
+pub struct SpawnTool {
+    config: Config,
+    agent_tree: SharedAgentTree,
+    current_agent_id: Ulid,
+}
+
+impl SpawnTool {
+    pub fn new(config: Config, agent_tree: SharedAgentTree, current_agent_id: Ulid) -> Self {
+        Self {
+            config,
+            agent_tree,
+            current_agent_id,
+        }
+    }
+}
+
+impl Tool for SpawnTool {
+    const NAME: &'static str = "spawn";
+
+    type Error = SpawnError;
+    type Args = SpawnArgs;
+    type Output = String;
+
+    fn name(&self) -> String {
+        "spawn".to_string()
+    }
+
+    async fn definition(&self, _prompt: String) -> ToolDefinition {
+        ToolDefinition {
+            name: "spawn".to_string(),
+            description: "Spawn a child agent to handle a subtask. The child agent runs in parallel and its response will be added to the parent's message queue.".to_string(),
+            parameters: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "message": {
+                        "type": "string",
+                        "description": "Message to send to the child agent"
+                    },
+                    "model_group": {
+                        "type": "string",
+                        "description": "Model group to use for the child agent"
+                    }
+                },
+                "required": ["message", "model_group"]
+            }),
+        }
+    }
+
+    async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+        let model_string = self
+            .config
+            .get_model_from_group(&args.model_group)
+            .ok_or_else(|| anyhow::anyhow!("Unknown model group: {}", args.model_group))?;
+
+        let provider_config = self
+            .config
+            .extract_provider(&model_string)
+            .ok_or_else(|| anyhow::anyhow!("Unknown provider for model: {model_string}"))?;
+
+        let api_key = Config::get_api_key(provider_config)?;
+
+        let model_name = match model_string.split('/').nth(1) {
+            Some(s) => s.split('?').next().unwrap_or(s).to_string(),
+            None => model_string.clone(),
+        };
+
+        let child_agent: AnyAgent = match provider_config.r#type {
+            ProviderType::OpenAICompletions => {
+                use rig::providers::openai::CompletionsClient;
+                let client = CompletionsClient::builder()
+                    .api_key(&api_key)
+                    .base_url(&provider_config.base_url)
+                    .build()
+                    .context("Failed to create OpenAI Completions client")?;
+                let ag = client
+                    .agent(&model_name)
+                    .tool(crate::tools::ShellTool::new())
+                    .default_max_turns(usize::MAX / 2)
+                    .build();
+                AnyAgent::OpenAICompletions(ag)
+            },
+            ProviderType::OpenAIResponses => {
+                use rig::providers::openai::Client as OpenAIClient;
+                let client = OpenAIClient::builder()
+                    .api_key(&api_key)
+                    .base_url(&provider_config.base_url)
+                    .build()
+                    .context("Failed to create OpenAI Responses client")?;
+                let ag = client
+                    .agent(&model_name)
+                    .tool(crate::tools::ShellTool::new())
+                    .default_max_turns(usize::MAX / 2)
+                    .build();
+                AnyAgent::OpenAIResponses(ag)
+            },
+            ProviderType::Anthropic => {
+                use rig::providers::anthropic::Client;
+                let client = Client::builder()
+                    .api_key(api_key.as_str())
+                    .base_url(&provider_config.base_url)
+                    .anthropic_version("2023-06-01")
+                    .build()
+                    .context("Failed to create Anthropic client")?;
+                let ag = client
+                    .agent(&model_name)
+                    .tool(crate::tools::ShellTool::new())
+                    .default_max_turns(usize::MAX / 2)
+                    .build();
+                AnyAgent::Anthropic(ag)
+            },
+        };
+
+        let parent_id = self.current_agent_id;
+        let message = args.message.clone();
+
+        let child_id = {
+            let mut tree = self.agent_tree.lock().await;
+            tree.add_child(parent_id, child_agent)
+        };
+
+        {
+            let tree = self.agent_tree.clone();
+            let tree_lock = tree.lock().await;
+            tree_lock.run_child_agent(child_id, message, InsertMode::Queue);
+        }
+
+        Ok(format!("child_{child_id}"))
+    }
+}
+
+#[allow(dead_code)]
+#[derive(Debug, Deserialize)]
+pub struct SendArgs {
+    to_agent_id: String,
+    message: String,
+    #[serde(default)]
+    insert_mode: InsertMode,
+}
+
+#[allow(dead_code)]
+#[derive(Debug, thiserror::Error)]
+pub enum SendError {
+    #[error("Invalid agent ID: {0}")]
+    InvalidId(String),
+    #[error("Target agent not found")]
+    NotFound,
+}
+
+#[allow(dead_code)]
+pub struct SendTool {
+    agent_tree: SharedAgentTree,
+    current_agent_id: Ulid,
+}
+
+#[allow(dead_code)]
+impl SendTool {
+    pub fn new(agent_tree: SharedAgentTree, current_agent_id: Ulid) -> Self {
+        Self {
+            agent_tree,
+            current_agent_id,
+        }
+    }
+}
+
+impl Tool for SendTool {
+    const NAME: &'static str = "send";
+
+    type Error = SendError;
+    type Args = SendArgs;
+    type Output = String;
+
+    fn name(&self) -> String {
+        "send".to_string()
+    }
+
+    async fn definition(&self, _prompt: String) -> ToolDefinition {
+        ToolDefinition {
+            name: "send".to_string(),
+            description: "Send a message to another agent in the agent tree.".to_string(),
+            parameters: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "to_agent_id": {
+                        "type": "string",
+                        "description": "Target agent ID (e.g., child_01HYX7K8Z9ABCDEFGHJKMNPRQV)"
+                    },
+                    "message": {
+                        "type": "string",
+                        "description": "Message to send"
+                    },
+                    "insert_mode": {
+                        "type": "string",
+                        "enum": ["queue", "interrupt", "append"],
+                        "description": "How to insert the message: queue (default), interrupt, append"
+                    }
+                },
+                "required": ["to_agent_id", "message"]
+            }),
+        }
+    }
+
+    async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+        let target_id_str = args.to_agent_id.trim_start_matches("child_");
+        let target_id: Ulid = target_id_str
+            .parse()
+            .map_err(|_| SendError::InvalidId(args.to_agent_id.clone()))?;
+
+        let pending_msg = QueuedMessage {
+            content: args.message,
+            mode: args.insert_mode,
+            from_agent_id: self.current_agent_id,
+        };
+
+        let tree = self.agent_tree.clone();
+        let tree_lock = tree.lock().await;
+        tree_lock.add_pending_message(target_id, pending_msg);
+
+        Ok("Message sent".to_string())
     }
 }
