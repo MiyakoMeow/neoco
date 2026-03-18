@@ -191,7 +191,8 @@ fn test_sandbox_complex_commands() {
     // Complex valid commands
     assert!(sandbox.validate_command("cat file1.txt file2.txt").is_ok());
     assert!(sandbox.validate_command("grep pattern file1.txt").is_ok());
-    assert!(sandbox.validate_command("ls -la | grep txt").is_ok());
+    // Pipeline is now blocked for security (shell control operator)
+    assert!(sandbox.validate_command("ls -la | grep txt").is_err());
 
     // Commands with path traversal in args
     assert!(sandbox.validate_command("cat ../file1.txt").is_err());

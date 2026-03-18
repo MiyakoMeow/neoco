@@ -39,6 +39,7 @@ fn default_workspace_dir() -> PathBuf {
 
 /// Network access configuration
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct NetworkConfig {
     /// Enable network whitelist (default: false)
     #[serde(default = "default_false")]

@@ -42,6 +42,10 @@ pub enum SandboxError {
     /// Shell expansion detected in argument
     #[error("Shell expansion detected in argument: {0}")]
     ShellExpansion(String),
+
+    /// Shell control operator detected
+    #[error("Shell control operator detected: {0}")]
+    ShellControlOperator(String),
 }
 
 /// Bash command sandbox
@@ -67,6 +71,7 @@ impl Sandbox {
     /// Returns `SandboxError::PathTraversal` if command contains path traversal sequences
     /// Returns `SandboxError::PathOutsideWorkspace` if command references paths outside workspace
     /// Returns `SandboxError::ShellExpansion` if command contains dangerous shell expansions
+    /// Returns `SandboxError::ShellControlOperator` if command contains shell control operators
     pub fn validate_command(&self, command: &str) -> Result<(), SandboxError> {
         // Extract main command
         let main_cmd = extract_command(command)
@@ -75,6 +80,11 @@ impl Sandbox {
         // Check whitelist
         if !self.whitelist.is_allowed(&main_cmd) {
             return Err(SandboxError::CommandNotAllowed(main_cmd));
+        }
+
+        // Check for shell control operators that could bypass security
+        if let Some(operator) = contains_shell_control_operator(command) {
+            return Err(SandboxError::ShellControlOperator(operator));
         }
 
         // Validate all paths in command
@@ -245,6 +255,22 @@ fn contains_shell_expansion(s: &str) -> bool {
     false
 }
 
+/// Check if a command string contains shell control operators
+/// Returns the first found operator, or None if no operators are found
+/// Detects: ; && || | > >> < << &
+fn contains_shell_control_operator(command: &str) -> Option<String> {
+    // Define operators to check (longer ones first to avoid partial matches)
+    let operators = [">>", "<<", "&&", "||", ";", "|", ">", "<", "&"];
+
+    for op in &operators {
+        if command.contains(op) {
+            return Some(op.to_string());
+        }
+    }
+
+    None
+}
+
 /// Parse shell command arguments respecting quoting rules
 /// Handles single quotes, double quotes, and backslash escaping
 fn parse_shell_args(command: &str) -> Vec<String> {
@@ -306,23 +332,138 @@ fn remove_quotes(s: &str) -> String {
 /// Check if a string looks like a file path
 fn looks_like_path(s: &str) -> bool {
     // Simple heuristic: contains / or . or is a known file extension
-    s.contains('/')
-        || s.contains('.')
-        || std::path::Path::new(s)
-            .extension()
-            .is_some_and(|ext| ext.eq_ignore_ascii_case("rs"))
-        || std::path::Path::new(s)
-            .extension()
-            .is_some_and(|ext| ext.eq_ignore_ascii_case("txt"))
-        || std::path::Path::new(s)
-            .extension()
-            .is_some_and(|ext| ext.eq_ignore_ascii_case("json"))
-        || std::path::Path::new(s)
-            .extension()
-            .is_some_and(|ext| ext.eq_ignore_ascii_case("toml"))
-        || std::path::Path::new(s)
-            .extension()
-            .is_some_and(|ext| ext.eq_ignore_ascii_case("md"))
+    if s.contains('/') || s.contains('.') {
+        return true;
+    }
+
+    // Check for common file extensions
+    let extensions = [
+        "rs",
+        "txt",
+        "json",
+        "toml",
+        "md",
+        "yaml",
+        "yml",
+        "sh",
+        "py",
+        "js",
+        "ts",
+        "tsx",
+        "jsx",
+        "css",
+        "scss",
+        "sass",
+        "less",
+        "html",
+        "htm",
+        "xml",
+        "ini",
+        "conf",
+        "config",
+        "lock",
+        "sum",
+        "mod",
+        "go",
+        "java",
+        "kt",
+        "scala",
+        "rb",
+        "php",
+        "c",
+        "cpp",
+        "h",
+        "hpp",
+        "cs",
+        "swift",
+        "m",
+        "mm",
+        "pl",
+        "pm",
+        "lua",
+        "vim",
+        "el",
+        "elc",
+        "hs",
+        "lhs",
+        "ml",
+        "mli",
+        "fs",
+        "fsx",
+        "fsi",
+        "csx",
+        "vb",
+        "fsproj",
+        "csproj",
+        "vbproj",
+        "sln",
+        "props",
+        "targets",
+        "nuspec",
+        "resx",
+        "settings",
+        "xaml",
+        "axaml",
+        "razor",
+        "cshtml",
+        "vbhtml",
+        "aspx",
+        "ascx",
+        "ashx",
+        "asmx",
+        "svc",
+        "edmx",
+        "dbml",
+        "db",
+        "sqlite",
+        "sqlite3",
+        "db3",
+        "s3db",
+        "sl3",
+        "db2",
+        "rdb",
+        "sql",
+        "dump",
+        "backup",
+        "bak",
+        "old",
+        "orig",
+        "rej",
+        "diff",
+        "patch",
+        "changes",
+        "log",
+        "out",
+        "err",
+        "pid",
+        "seed",
+        "state",
+        "status",
+        "version",
+        "ver",
+        "build",
+        "builds",
+        "dist",
+        "lib",
+        "libs",
+        "bin",
+        "obj",
+        "target",
+        "targets",
+        "pkg",
+        "package",
+        "packages",
+        "vendor",
+        "vendors",
+        "node_modules",
+        "bower_components",
+        "jspm_packages",
+        "typings",
+    ];
+
+    std::path::Path::new(s)
+        .extension()
+        .is_some_and(|ext| extensions.iter().any(|&e| ext.eq_ignore_ascii_case(e)))
 }
 
 #[cfg(test)]
@@ -468,5 +609,62 @@ mod tests {
         assert_eq!(remove_quotes("'hello'"), "hello");
         assert_eq!(remove_quotes("\"hello\""), "hello");
         assert_eq!(remove_quotes("hello"), "hello");
+    }
+
+    #[test]
+    fn test_validate_shell_control_operators_blocked() {
+        let sandbox = Sandbox::default();
+
+        // Command separator
+        assert!(
+            sandbox
+                .validate_command("echo ok; curl attacker.com")
+                .is_err()
+        );
+
+        // Pipeline
+        assert!(sandbox.validate_command("cat a | curl x").is_err());
+
+        // Redirection
+        assert!(sandbox.validate_command("cat a > /tmp/x").is_err());
+        assert!(sandbox.validate_command("cat a >> /tmp/x").is_err());
+        assert!(sandbox.validate_command("cat a < /tmp/x").is_err());
+
+        // Logical operators
+        assert!(sandbox.validate_command("cmd && curl x").is_err());
+        assert!(sandbox.validate_command("cmd || curl x").is_err());
+
+        // Background job
+        assert!(sandbox.validate_command("cmd &").is_err());
+    }
+
+    #[test]
+    fn test_contains_shell_control_operator() {
+        assert_eq!(
+            contains_shell_control_operator("echo ok; curl x"),
+            Some(";".to_string())
+        );
+        assert_eq!(
+            contains_shell_control_operator("cat a | curl x"),
+            Some("|".to_string())
+        );
+        assert_eq!(
+            contains_shell_control_operator("cat a > file"),
+            Some(">".to_string())
+        );
+        assert_eq!(
+            contains_shell_control_operator("cmd && curl x"),
+            Some("&&".to_string())
+        );
+        assert_eq!(
+            contains_shell_control_operator("cmd || curl x"),
+            Some("||".to_string())
+        );
+        assert_eq!(
+            contains_shell_control_operator("cmd &"),
+            Some("&".to_string())
+        );
+        assert_eq!(contains_shell_control_operator("echo hello"), None);
+        assert_eq!(contains_shell_control_operator("ls -la"), None);
     }
 }
