@@ -80,22 +80,24 @@ impl Sandbox {
 
     /// Validate that all paths in a command are within allowed directories
     fn validate_paths_in_command(&self, command: &str) -> Result<(), SandboxError> {
-        // Simple parsing: look for potential file paths
-        // This is a basic implementation - in production, consider using a proper shell parser
-        for word in command.split_whitespace() {
+        // Parse command arguments respecting shell quoting rules
+        let args = parse_shell_args(command);
+
+        for arg in &args {
             // Skip options (start with -)
-            if word.starts_with('-') {
+            if arg.starts_with('-') {
                 continue;
             }
 
             // Skip command name itself
-            if self.whitelist.is_allowed(word) {
+            if self.whitelist.is_allowed(arg) {
                 continue;
             }
 
-            // Check if it looks like a file path
-            if looks_like_path(word) {
-                self.validate_path(word)?;
+            // Remove surrounding quotes and check if it's a file path
+            let cleaned = remove_quotes(arg);
+            if looks_like_path(&cleaned) {
+                self.validate_path(&cleaned)?;
             }
         }
 
@@ -141,28 +143,42 @@ impl Sandbox {
 
     /// Validate a resolved (absolute) path
     fn validate_resolved_path(&self, resolved: &Path, original: &str) -> Result<(), SandboxError> {
-        // Try to canonicalize (follows symlinks)
-        let canonical = resolved
-            .canonicalize()
-            .unwrap_or_else(|_| resolved.to_path_buf());
-
-        // Check workspace directory
+        // Check workspace directory (use non-canonicalized path first)
         let workspace_canonical = self
             .config
             .workspace_dir
             .canonicalize()
             .unwrap_or_else(|_| self.config.workspace_dir.clone());
 
+        // If path doesn't exist yet, check its parent directory
+        if !resolved.exists() {
+            // For new files, check parent directory is in workspace
+            if let Some(parent) = resolved.parent() {
+                let parent_canonical = parent
+                    .canonicalize()
+                    .unwrap_or_else(|_| parent.to_path_buf());
+                if !parent_canonical.starts_with(&workspace_canonical) {
+                    return Err(SandboxError::PathOutsideWorkspace(original.to_string()));
+                }
+            }
+            return Ok(());
+        }
+
+        // Try to canonicalize (follows symlinks)
+        let canonical = resolved
+            .canonicalize()
+            .map_err(|_| SandboxError::InvalidPath(format!("Cannot resolve path: {original}")))?;
+
         if !canonical.starts_with(&workspace_canonical) {
             return Err(SandboxError::PathOutsideWorkspace(original.to_string()));
         }
 
-        // Check for symlink escape
-        if canonical != *resolved {
-            // Path was resolved through symlink - verify it's still in workspace
-            if !canonical.starts_with(&workspace_canonical) {
-                return Err(SandboxError::SymlinkEscape(original.to_string()));
-            }
+        // Check for symlink escape (resolved != canonical means it went through symlink)
+        let resolved_canonical = resolved
+            .canonicalize()
+            .unwrap_or_else(|_| resolved.to_path_buf());
+        if resolved_canonical != canonical && !canonical.starts_with(&workspace_canonical) {
+            return Err(SandboxError::SymlinkEscape(original.to_string()));
         }
 
         Ok(())
@@ -181,13 +197,66 @@ impl Default for Sandbox {
     }
 }
 
-/// Check if a string looks like a file path
-fn looks_like_path(s: &str) -> bool {
-    // Skip quoted strings (likely patterns, not paths)
-    if (s.starts_with('"') && s.ends_with('"')) || (s.starts_with('\'') && s.ends_with('\'')) {
-        return false;
+/// Parse shell command arguments respecting quoting rules
+/// Handles single quotes, double quotes, and backslash escaping
+fn parse_shell_args(command: &str) -> Vec<String> {
+    let mut args = Vec::new();
+    let mut current = String::new();
+    let chars = command.chars();
+    let mut in_single_quote = false;
+    let mut in_double_quote = false;
+    let mut escaped = false;
+
+    for ch in chars {
+        if escaped {
+            current.push(ch);
+            escaped = false;
+            continue;
+        }
+
+        match ch {
+            '\\' if !in_single_quote => {
+                escaped = true;
+            },
+            '\'' if !in_double_quote => {
+                in_single_quote = !in_single_quote;
+                current.push(ch); // Keep quote in the token
+            },
+            '"' if !in_single_quote => {
+                in_double_quote = !in_double_quote;
+                current.push(ch); // Keep quote in the token
+            },
+            ' ' | '\t' if !in_single_quote && !in_double_quote => {
+                if !current.is_empty() {
+                    args.push(current.clone());
+                    current.clear();
+                }
+            },
+            _ => {
+                current.push(ch);
+            },
+        }
     }
 
+    if !current.is_empty() {
+        args.push(current);
+    }
+
+    // Skip the command name itself (first argument)
+    args.into_iter().skip(1).collect()
+}
+
+/// Remove surrounding quotes from a string
+fn remove_quotes(s: &str) -> String {
+    if (s.starts_with('"') && s.ends_with('"')) || (s.starts_with('\'') && s.ends_with('\'')) {
+        s[1..s.len() - 1].to_string()
+    } else {
+        s.to_string()
+    }
+}
+
+/// Check if a string looks like a file path
+fn looks_like_path(s: &str) -> bool {
     // Simple heuristic: contains / or . or is a known file extension
     s.contains('/')
         || s.contains('.')
@@ -242,6 +311,28 @@ mod tests {
     }
 
     #[test]
+    fn test_validate_quoted_paths() {
+        let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
+
+        let config = SandboxConfig {
+            workspace_dir: temp_dir.path().to_path_buf(),
+            ..Default::default()
+        };
+        let sandbox = Sandbox::new(config);
+
+        // Create test file
+        fs::write(temp_dir.path().join("test.txt"), "hello").expect("Failed to write file");
+
+        // Valid quoted paths inside workspace
+        assert!(sandbox.validate_command("cat 'test.txt'").is_ok());
+        assert!(sandbox.validate_command("cat \"test.txt\"").is_ok());
+
+        // Invalid quoted paths outside workspace
+        assert!(sandbox.validate_command("cat '/etc/passwd'").is_err());
+        assert!(sandbox.validate_command("cat \"/etc/passwd\"").is_err());
+    }
+
+    #[test]
     fn test_validate_relative_path_inside_workspace() {
         let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
 
@@ -275,5 +366,23 @@ mod tests {
                 .is_ok()
         );
         assert!(sandbox.validate_path("/etc/passwd").is_err());
+    }
+
+    #[test]
+    fn test_parse_shell_args() {
+        assert_eq!(parse_shell_args("cat 'file.txt'"), vec!["'file.txt'"]);
+        assert_eq!(parse_shell_args("cat \"file.txt\""), vec!["\"file.txt\""]);
+        assert_eq!(parse_shell_args("echo hello world"), vec!["hello", "world"]);
+        assert_eq!(
+            parse_shell_args("cat 'file with spaces.txt'"),
+            vec!["'file with spaces.txt'"]
+        );
+    }
+
+    #[test]
+    fn test_remove_quotes() {
+        assert_eq!(remove_quotes("'hello'"), "hello");
+        assert_eq!(remove_quotes("\"hello\""), "hello");
+        assert_eq!(remove_quotes("hello"), "hello");
     }
 }

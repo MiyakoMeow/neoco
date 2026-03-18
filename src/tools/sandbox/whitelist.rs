@@ -9,8 +9,7 @@ pub const DEFAULT_WHITELIST: &[&str] = &[
     // System info
     "pwd", "uname", "date", "id", "whoami", "hostname", "which", "type", // Compression
     "tar", "gzip", "gunzip", "zip", "unzip", "bzip2", "bunzip2", // Development tools
-    "git", "cargo", "rustc", "npm", "yarn", "node", "python", "pip", "go", "javac", "java",
-    // Utilities
+    "git", "cargo", "rustc", // Utilities
     "tee", "basename", "dirname", "readlink", "realpath", "test", "[",
 ];
 

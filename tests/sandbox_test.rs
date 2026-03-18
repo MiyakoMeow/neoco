@@ -164,7 +164,7 @@ fn test_network_command_detection() {
     // Commands that typically need network
     assert!(whitelist.is_command_allowed("git clone https://github.com/..."));
     assert!(whitelist.is_command_allowed("curl https://api.example.com"));
-    assert!(whitelist.is_command_allowed("npm install"));
+    assert!(whitelist.is_command_allowed("go build"));
     assert!(whitelist.is_command_allowed("cargo build"));
 
     // Commands that don't need network

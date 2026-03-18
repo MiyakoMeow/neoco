@@ -3,6 +3,7 @@ use std::path::PathBuf;
 
 /// Sandbox configuration for bash tool
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SandboxConfig {
     /// Workspace directory - all file operations must be within this directory
     #[serde(default = "default_workspace_dir")]

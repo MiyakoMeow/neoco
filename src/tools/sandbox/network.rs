@@ -86,12 +86,10 @@ impl NetworkWhitelist {
         let main_cmd = command.split_whitespace().next().unwrap_or("");
 
         // Commands that commonly need network access
-        let network_commands: HashSet<&str> = [
-            "curl", "wget", "git", "npm", "yarn", "cargo", "pip", "python", "node",
-        ]
-        .iter()
-        .copied()
-        .collect();
+        let network_commands: HashSet<&str> = ["curl", "wget", "git", "cargo", "go"]
+            .iter()
+            .copied()
+            .collect();
 
         network_commands.contains(main_cmd)
     }
@@ -131,6 +129,12 @@ fn glob_to_regex(pattern: &str) -> String {
 }
 
 /// Extract host from URL
+///
+/// Handles various URL formats including:
+/// - Standard URLs: `https://example.com/path`
+/// - URLs with userinfo: `https://user:pass@example.com/path`
+/// - URLs with ports: `https://example.com:8080/path`
+/// - IPv6 addresses: `https://[::1]:8080/path`
 fn extract_host_from_url(url: &str) -> Option<String> {
     // Remove protocol prefix
     let without_protocol = url
@@ -139,11 +143,28 @@ fn extract_host_from_url(url: &str) -> Option<String> {
         .or_else(|| url.strip_prefix("ftp://"))
         .unwrap_or(url);
 
-    // Extract host (everything before first / or :)
-    without_protocol
-        .split('/')
-        .next()
-        .and_then(|host_port| host_port.split(':').next().map(String::from))
+    // Extract authority part (everything before first /)
+    let authority = without_protocol.split('/').next()?;
+
+    // Handle userinfo@host format
+    let without_userinfo = authority.split('@').next_back()?;
+
+    // Handle IPv6 addresses: [::1]:8080 or [::1]
+    if without_userinfo.starts_with('[') {
+        // Find closing bracket
+        let bracket_end = without_userinfo.find(']')?;
+        let ipv6_host = &without_userinfo[1..bracket_end];
+        return Some(ipv6_host.to_string());
+    }
+
+    // For IPv4/hostname, remove port if present
+    let host = without_userinfo.split(':').next()?;
+
+    if host.is_empty() {
+        None
+    } else {
+        Some(host.to_string())
+    }
 }
 
 #[cfg(test)]
@@ -202,7 +223,7 @@ mod tests {
 
         assert!(whitelist.is_command_allowed("git clone ..."));
         assert!(whitelist.is_command_allowed("curl https://..."));
-        assert!(whitelist.is_command_allowed("npm install"));
+        assert!(whitelist.is_command_allowed("go build"));
         assert!(!whitelist.is_command_allowed("ls -la"));
         assert!(!whitelist.is_command_allowed("cat file.txt"));
     }
