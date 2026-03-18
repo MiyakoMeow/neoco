@@ -298,7 +298,7 @@ impl Tool for SpawnTool {
                         agent_tree.clone(),
                         child_id,
                     ))
-                    .tool(crate::tools::SendTool::new(agent_tree.clone(), parent_id))
+                    .tool(crate::tools::SendTool::new(agent_tree.clone(), child_id))
                     .default_max_turns(DEFAULT_MAX_TURNS)
                     .build();
                 AnyAgent::OpenAICompletions(ag)
@@ -318,7 +318,7 @@ impl Tool for SpawnTool {
                         agent_tree.clone(),
                         child_id,
                     ))
-                    .tool(crate::tools::SendTool::new(agent_tree.clone(), parent_id))
+                    .tool(crate::tools::SendTool::new(agent_tree.clone(), child_id))
                     .default_max_turns(DEFAULT_MAX_TURNS)
                     .build();
                 AnyAgent::OpenAIResponses(ag)
@@ -339,24 +339,19 @@ impl Tool for SpawnTool {
                         agent_tree.clone(),
                         child_id,
                     ))
-                    .tool(crate::tools::SendTool::new(agent_tree.clone(), parent_id))
+                    .tool(crate::tools::SendTool::new(agent_tree.clone(), child_id))
                     .default_max_turns(DEFAULT_MAX_TURNS)
                     .build();
                 AnyAgent::Anthropic(ag)
             },
         };
 
-        // Update the agent in the tree with the full version
+        // Update the agent in the tree with the full version and run in single lock scope
+        // to avoid race condition where other code could see the placeholder agent
         {
             let mut tree = agent_tree.lock().await;
             tree.update_agent(child_id, full_child_agent);
-        }
-
-        // Run the child agent
-        {
-            let tree = agent_tree.clone();
-            let tree_lock = tree.lock().await;
-            tree_lock.run_child_agent(child_id, message, InsertMode::Queue);
+            tree.run_child_agent(child_id, message, InsertMode::Queue);
         }
 
         Ok(format!("child_{child_id}"))
