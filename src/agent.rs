@@ -1,47 +1,50 @@
 use anyhow::{Context, Result};
 use futures::StreamExt;
 use rig::agent::{Agent, MultiTurnStreamItem, PromptHook};
-use rig::client::CompletionClient;
 use rig::completion::{CompletionModel, GetTokenUsage, Message, Usage};
 use rig::streaming::{StreamedAssistantContent, StreamingChat};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use tracing::info;
 
-use crate::config::{Config, ProviderType};
+use crate::agent_tree::create_agent_with_tools;
+use crate::config::Config;
 use crate::output::OutputCallback;
-use crate::tools::ShellTool;
 
-enum AnyAgent {
+pub enum AnyAgent {
     OpenAICompletions(Agent<rig::providers::openai::CompletionModel>),
     OpenAIResponses(Agent<rig::providers::openai::responses_api::ResponsesCompletionModel>),
     Anthropic(Agent<rig::providers::anthropic::completion::CompletionModel>),
 }
 
 impl AnyAgent {
-    async fn chat(
+    pub async fn chat(
         &mut self,
         message: &str,
         history: &[Message],
         output_callback: Option<&OutputCallback<'_>>,
     ) -> Result<(String, Option<Usage>)> {
+        let default_cancelled = Arc::new(AtomicBool::new(false));
         match self {
             Self::OpenAICompletions(agent) => {
-                chat_with_agent(agent, message, history, output_callback).await
+                chat_with_agent(agent, message, history, output_callback, &default_cancelled).await
             },
             Self::OpenAIResponses(agent) => {
-                chat_with_agent(agent, message, history, output_callback).await
+                chat_with_agent(agent, message, history, output_callback, &default_cancelled).await
             },
             Self::Anthropic(agent) => {
-                chat_with_agent(agent, message, history, output_callback).await
+                chat_with_agent(agent, message, history, output_callback, &default_cancelled).await
             },
         }
     }
 }
 
-async fn chat_with_agent<M, P>(
+pub async fn chat_with_agent<M, P>(
     agent: &Agent<M, P>,
     message: &str,
     history: &[Message],
     output_callback: Option<&OutputCallback<'_>>,
+    cancel_flag: &Arc<AtomicBool>,
 ) -> Result<(String, Option<Usage>)>
 where
     M: CompletionModel + 'static,
@@ -53,6 +56,10 @@ where
     let mut token_usage: Option<Usage> = None;
 
     while let Some(item) = stream.next().await {
+        if cancel_flag.load(Ordering::SeqCst) {
+            anyhow::bail!("Operation cancelled");
+        }
+
         match item {
             Ok(MultiTurnStreamItem::StreamAssistantItem(StreamedAssistantContent::Text(text))) => {
                 if let Some(cb) = output_callback {
@@ -148,51 +155,8 @@ pub async fn chat(
         anyhow::bail!("No message provided. Use -M/--message to send a message.");
     }
 
-    let mut agent = match provider_config.r#type {
-        ProviderType::OpenAICompletions => {
-            use rig::providers::openai::CompletionsClient;
-            let client = CompletionsClient::builder()
-                .api_key(&api_key)
-                .base_url(&provider_config.base_url)
-                .build()
-                .context("Failed to create OpenAI Completions client")?;
-            let ag = client
-                .agent(&model_name)
-                .tool(ShellTool::new())
-                .default_max_turns(usize::MAX / 2)
-                .build();
-            AnyAgent::OpenAICompletions(ag)
-        },
-        ProviderType::OpenAIResponses => {
-            use rig::providers::openai::Client as OpenAIClient;
-            let client = OpenAIClient::builder()
-                .api_key(&api_key)
-                .base_url(&provider_config.base_url)
-                .build()
-                .context("Failed to create OpenAI Responses client")?;
-            let ag = client
-                .agent(&model_name)
-                .tool(ShellTool::new())
-                .default_max_turns(usize::MAX / 2)
-                .build();
-            AnyAgent::OpenAIResponses(ag)
-        },
-        ProviderType::Anthropic => {
-            use rig::providers::anthropic::Client;
-            let client = Client::builder()
-                .api_key(api_key.as_str())
-                .base_url(&provider_config.base_url)
-                .anthropic_version("2023-06-01")
-                .build()
-                .context("Failed to create Anthropic client")?;
-            let ag = client
-                .agent(&model_name)
-                .tool(ShellTool::new())
-                .default_max_turns(usize::MAX / 2)
-                .build();
-            AnyAgent::Anthropic(ag)
-        },
-    };
+    let (mut agent, shared_tree, root_id) =
+        create_agent_with_tools(config, &provider_config, &api_key, &model_name).await?;
 
     info!(
         "Using provider: {} ({})",
@@ -209,6 +173,35 @@ pub async fn chat(
         history.push(Message::assistant(&response));
 
         results.push((response, usage));
+
+        let pending = {
+            let tree_lock = shared_tree.lock().await;
+            tree_lock.drain_pending_messages(root_id).await
+        };
+        for queued in pending {
+            if queued.from_agent_id == root_id {
+                history.push(Message::user(queued.content));
+            } else {
+                history.push(Message::assistant(&queued.content));
+            }
+        }
+
+        let history_msgs = {
+            let tree_lock = shared_tree.lock().await;
+            tree_lock.get_history_messages(root_id).await
+        };
+        for queued in history_msgs {
+            if queued.from_agent_id == root_id {
+                history.push(Message::user(queued.content));
+            } else {
+                history.push(Message::assistant(&queued.content));
+            }
+        }
+
+        {
+            let tree_lock = shared_tree.lock().await;
+            tree_lock.clear_history_messages(root_id).await;
+        }
     }
 
     Ok(results)

@@ -31,16 +31,56 @@ pub struct Provider {
     pub base_url: String,
     /// Environment variable name for API key
     pub api_key_env: String,
+    /// Anthropic API version (only used for Anthropic provider)
+    #[serde(default = "default_anthropic_version")]
+    pub anthropic_version: String,
+}
+
+fn default_anthropic_version() -> String {
+    "2023-06-01".to_string()
+}
+
+/// Agent spawning limits
+#[derive(Debug, Clone, Deserialize)]
+pub struct AgentLimits {
+    #[serde(default = "default_max_tree_depth")]
+    pub tree_depth: usize,
+    #[serde(default = "default_max_children_per_parent")]
+    pub children_per_parent: usize,
+    #[serde(default = "default_max_concurrent_spawns")]
+    pub concurrent_spawns: usize,
+}
+
+fn default_max_tree_depth() -> usize {
+    10
+}
+
+fn default_max_children_per_parent() -> usize {
+    5
+}
+
+fn default_max_concurrent_spawns() -> usize {
+    50
+}
+
+impl Default for AgentLimits {
+    fn default() -> Self {
+        Self {
+            tree_depth: default_max_tree_depth(),
+            children_per_parent: default_max_children_per_parent(),
+            concurrent_spawns: default_max_concurrent_spawns(),
+        }
+    }
 }
 
 /// Model group configuration
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 struct ModelGroup {
     models: Vec<String>,
 }
 
 /// Full configuration from neoco.toml
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct Config {
     /// Default model (e.g., "minimax-cn/MiniMax-M2.5?temperature=0.1")
     pub model: Option<String>,
@@ -52,6 +92,9 @@ pub struct Config {
     /// Model providers: `provider_name` -> Provider config
     #[serde(rename = "model_providers")]
     pub model_providers: HashMap<String, Provider>,
+    /// Agent spawning limits
+    #[serde(default)]
+    pub agent_limits: AgentLimits,
 }
 
 impl Config {
@@ -115,6 +158,7 @@ mod tests {
                 name: "MiniMax".to_string(),
                 base_url: "https://api.minimaxi.com/v1".to_string(),
                 api_key_env: "MINIMAX_API_KEY".to_string(),
+                anthropic_version: "2023-06-01".to_string(),
             },
         );
 
@@ -123,6 +167,7 @@ mod tests {
             model_group: Some("balanced".to_string()),
             model_groups: HashMap::new(),
             model_providers: providers,
+            agent_limits: AgentLimits::default(),
         };
 
         let provider = config.extract_provider("minimax-cn/MiniMax-M2.5");
