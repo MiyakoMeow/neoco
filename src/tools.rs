@@ -2,7 +2,6 @@ use anyhow::{Context, Result};
 use rig::completion::ToolDefinition;
 use rig::tool::Tool;
 use serde::Deserialize;
-use std::sync::LazyLock;
 use tokio::process::Command;
 use tokio::time::timeout;
 
@@ -25,35 +24,15 @@ pub enum CommandError {
     ExitError(i32, String),
 }
 
-static SHELL_CONFIG: LazyLock<ShellConfig> =
-    LazyLock::new(|| ShellConfig::detect().expect("bash must be available"));
-
-struct ShellConfig {
-    name: String,
-    args_prefix: Vec<&'static str>,
-}
-
-impl ShellConfig {
-    fn detect() -> Result<Self> {
-        std::process::Command::new("bash")
-            .arg("--version")
-            .output()
-            .context("Failed to execute bash")?
-            .status
-            .success()
-            .then_some(())
-            .context("bash executable not found")?;
-
-        Ok(Self {
-            name: "bash".to_string(),
-            args_prefix: vec!["-c"],
-        })
-    }
-}
-
 pub fn check_bash_available() -> Result<()> {
-    ShellConfig::detect()?;
-    Ok(())
+    std::process::Command::new("bash")
+        .arg("--version")
+        .output()
+        .context("Failed to execute bash")?
+        .status
+        .success()
+        .then_some(())
+        .context("bash executable not found")
 }
 
 pub struct ShellTool;
@@ -78,22 +57,19 @@ impl Tool for ShellTool {
     type Output = String;
 
     fn name(&self) -> String {
-        SHELL_CONFIG.name.clone()
+        "bash".to_string()
     }
 
     async fn definition(&self, prompt: String) -> ToolDefinition {
         use std::fmt::Write as _;
 
-        let mut description = format!(
-            "Execute a {} command and return the output. Use this tool to run shell commands, scripts, or system operations.",
-            SHELL_CONFIG.name
-        );
+        let mut description = "Execute a bash command and return the output. Use this tool to run shell commands, scripts, or system operations.".to_string();
         if !prompt.is_empty() {
             let _ = writeln!(description);
             let _ = writeln!(description, "Additional instructions: {prompt}");
         }
         ToolDefinition {
-            name: SHELL_CONFIG.name.clone(),
+            name: "bash".to_string(),
             description,
             parameters: serde_json::json!({
                 "type": "object",
@@ -113,13 +89,13 @@ impl Tool for ShellTool {
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
-        let mut cmd_args = SHELL_CONFIG.args_prefix.clone();
+        let mut cmd_args = vec!["-c"];
         cmd_args.push(&args.command);
 
         let timeout_secs = args.timeout.unwrap_or(COMMAND_TIMEOUT_SECS);
         let output = timeout(
             tokio::time::Duration::from_secs(timeout_secs),
-            Command::new(&SHELL_CONFIG.name).args(cmd_args).output(),
+            Command::new("bash").args(cmd_args).output(),
         )
         .await;
 
