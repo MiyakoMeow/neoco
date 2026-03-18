@@ -20,6 +20,11 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros", "process"] }
 futures = "0.3"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+wasmtime = "42"
+wasmtime-wasi = "42"
+
+[dev-dependencies]
+tempfile = "3"
 
 [profile.release]
 lto = "thin"

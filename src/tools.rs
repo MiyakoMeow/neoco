@@ -1,27 +1,30 @@
+//! Shell tool with sandbox integration
+
 use anyhow::{Context, Result};
 use rig::completion::ToolDefinition;
 use rig::tool::Tool;
 use serde::Deserialize;
-use tokio::process::Command;
-use tokio::time::timeout;
+use std::env;
 
-const COMMAND_TIMEOUT_SECS: u64 = 60;
+use crate::sandbox::{BashSandbox, SandboxError};
 
 #[derive(Debug, Deserialize)]
 pub struct CommandArgs {
     command: String,
-    #[serde(default)]
-    timeout: Option<u64>,
 }
 
 #[derive(Debug, thiserror::Error)]
 pub enum CommandError {
     #[error("Failed to execute command: {0}")]
     ExecuteError(#[from] std::io::Error),
-    #[error("Command timed out after {0} seconds")]
-    Timeout(u64),
-    #[error("Command failed with exit code {0}: {1}")]
-    ExitError(i32, String),
+    #[error("Sandbox error: {0}")]
+    SandboxError(String),
+}
+
+impl From<SandboxError> for CommandError {
+    fn from(e: SandboxError) -> Self {
+        CommandError::SandboxError(e.to_string())
+    }
 }
 
 pub fn check_bash_available() -> Result<()> {
@@ -35,17 +38,25 @@ pub fn check_bash_available() -> Result<()> {
         .context("bash --version returned non-zero exit status")
 }
 
-pub struct ShellTool;
+pub struct ShellTool {
+    /// Sandbox for command execution
+    sandbox: BashSandbox,
+}
 
 impl ShellTool {
-    pub fn new() -> Self {
-        Self
+    pub fn new() -> Result<Self> {
+        // Get current working directory as workspace
+        let workspace = env::current_dir().context("Failed to get current directory")?;
+
+        let sandbox = BashSandbox::new(&workspace).context("Failed to create bash sandbox")?;
+
+        Ok(Self { sandbox })
     }
 }
 
 impl Default for ShellTool {
     fn default() -> Self {
-        Self
+        Self::new().expect("Failed to create ShellTool")
     }
 }
 
@@ -63,7 +74,12 @@ impl Tool for ShellTool {
     async fn definition(&self, prompt: String) -> ToolDefinition {
         use std::fmt::Write as _;
 
-        let mut description = "Execute a bash command and return the output. Use this tool to run shell commands, scripts, or system operations.".to_string();
+        let workspace_str = self.sandbox.workspace().display().to_string();
+        let mut description = format!(
+            "Execute a bash command and return the output. \
+            File system access is restricted to the current directory: {workspace_str}. \
+            Path traversal (../) and dangerous shell patterns are blocked."
+        );
         if !prompt.is_empty() {
             let _ = writeln!(description);
             let _ = writeln!(description, "Additional instructions: {prompt}");
@@ -89,36 +105,21 @@ impl Tool for ShellTool {
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
-        let mut cmd_args = vec!["-c"];
-        cmd_args.push(&args.command);
+        // First, validate and sanitize through sandbox
+        self.sandbox
+            .execute(&args.command)
+            .await
+            .map_err(CommandError::from)
+    }
+}
 
-        let timeout_secs = args.timeout.unwrap_or(COMMAND_TIMEOUT_SECS);
-        let output = timeout(
-            tokio::time::Duration::from_secs(timeout_secs),
-            Command::new("bash")
-                .kill_on_drop(true)
-                .args(cmd_args)
-                .output(),
-        )
-        .await;
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-        match output {
-            Ok(Ok(output)) => {
-                let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-                let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-
-                if !output.status.success() {
-                    let exit_code = output.status.code().unwrap_or(-1);
-                    return Err(CommandError::ExitError(
-                        exit_code,
-                        format!("{stdout}{stderr}"),
-                    ));
-                }
-
-                Ok(format!("{stdout}{stderr}"))
-            },
-            Ok(Err(e)) => Err(CommandError::ExecuteError(e)),
-            Err(_) => Err(CommandError::Timeout(timeout_secs)),
-        }
+    #[test]
+    fn test_shell_tool_creation() {
+        let tool = ShellTool::new();
+        assert!(tool.is_ok());
     }
 }

@@ -158,7 +158,7 @@ pub async fn chat(
                 .context("Failed to create OpenAI Completions client")?;
             let ag = client
                 .agent(&model_name)
-                .tool(ShellTool::new())
+                .tool(ShellTool::new().context("Failed to create shell tool")?)
                 .default_max_turns(usize::MAX / 2)
                 .build();
             AnyAgent::OpenAICompletions(ag)
@@ -172,7 +172,7 @@ pub async fn chat(
                 .context("Failed to create OpenAI Responses client")?;
             let ag = client
                 .agent(&model_name)
-                .tool(ShellTool::new())
+                .tool(ShellTool::new().context("Failed to create shell tool")?)
                 .default_max_turns(usize::MAX / 2)
                 .build();
             AnyAgent::OpenAIResponses(ag)
@@ -187,7 +187,7 @@ pub async fn chat(
                 .context("Failed to create Anthropic client")?;
             let ag = client
                 .agent(&model_name)
-                .tool(ShellTool::new())
+                .tool(ShellTool::new().context("Failed to create shell tool")?)
                 .default_max_turns(usize::MAX / 2)
                 .build();
             AnyAgent::Anthropic(ag)
