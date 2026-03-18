@@ -1,15 +1,13 @@
 use anyhow::{Context, Result};
 use futures::StreamExt;
 use rig::agent::{Agent, MultiTurnStreamItem, PromptHook};
-use rig::client::CompletionClient;
 use rig::completion::{CompletionModel, GetTokenUsage, Message, Usage};
 use rig::streaming::{StreamedAssistantContent, StreamingChat};
 use tracing::info;
 
-use crate::agent_tree::{AgentTree, SharedAgentTree, new_shared};
-use crate::config::{Config, ProviderType};
+use crate::agent_tree::create_agent_with_tools;
+use crate::config::Config;
 use crate::output::OutputCallback;
-use crate::tools::{SendTool, ShellTool, SpawnTool};
 
 pub enum AnyAgent {
     OpenAICompletions(Agent<rig::providers::openai::CompletionModel>),
@@ -149,93 +147,8 @@ pub async fn chat(
         anyhow::bail!("No message provided. Use -M/--message to send a message.");
     }
 
-    let mut agent = match provider_config.r#type {
-        ProviderType::OpenAICompletions => {
-            use rig::providers::openai::CompletionsClient;
-            let client = CompletionsClient::builder()
-                .api_key(&api_key)
-                .base_url(&provider_config.base_url)
-                .build()
-                .context("Failed to create OpenAI Completions client")?;
-            let tree = AgentTree::new(
-                AnyAgent::OpenAICompletions(
-                    client
-                        .agent(&model_name)
-                        .tool(ShellTool::new())
-                        .default_max_turns(usize::MAX / 2)
-                        .build(),
-                ),
-                config.clone(),
-            );
-            let shared_tree: SharedAgentTree = new_shared(tree);
-            let root_id = shared_tree.lock().await.root_id();
-            let ag = client
-                .agent(&model_name)
-                .tool(ShellTool::new())
-                .tool(SpawnTool::new(config.clone(), shared_tree.clone(), root_id))
-                .tool(SendTool::new(shared_tree, root_id))
-                .default_max_turns(usize::MAX / 2)
-                .build();
-            AnyAgent::OpenAICompletions(ag)
-        },
-        ProviderType::OpenAIResponses => {
-            use rig::providers::openai::Client as OpenAIClient;
-            let client = OpenAIClient::builder()
-                .api_key(&api_key)
-                .base_url(&provider_config.base_url)
-                .build()
-                .context("Failed to create OpenAI Responses client")?;
-            let tree = AgentTree::new(
-                AnyAgent::OpenAIResponses(
-                    client
-                        .agent(&model_name)
-                        .tool(ShellTool::new())
-                        .default_max_turns(usize::MAX / 2)
-                        .build(),
-                ),
-                config.clone(),
-            );
-            let shared_tree: SharedAgentTree = new_shared(tree);
-            let root_id = shared_tree.lock().await.root_id();
-            let ag = client
-                .agent(&model_name)
-                .tool(ShellTool::new())
-                .tool(SpawnTool::new(config.clone(), shared_tree.clone(), root_id))
-                .tool(SendTool::new(shared_tree, root_id))
-                .default_max_turns(usize::MAX / 2)
-                .build();
-            AnyAgent::OpenAIResponses(ag)
-        },
-        ProviderType::Anthropic => {
-            use rig::providers::anthropic::Client;
-            let client = Client::builder()
-                .api_key(api_key.as_str())
-                .base_url(&provider_config.base_url)
-                .anthropic_version("2023-06-01")
-                .build()
-                .context("Failed to create Anthropic client")?;
-            let tree = AgentTree::new(
-                AnyAgent::Anthropic(
-                    client
-                        .agent(&model_name)
-                        .tool(ShellTool::new())
-                        .default_max_turns(usize::MAX / 2)
-                        .build(),
-                ),
-                config.clone(),
-            );
-            let shared_tree: SharedAgentTree = new_shared(tree);
-            let root_id = shared_tree.lock().await.root_id();
-            let ag = client
-                .agent(&model_name)
-                .tool(ShellTool::new())
-                .tool(SpawnTool::new(config.clone(), shared_tree.clone(), root_id))
-                .tool(SendTool::new(shared_tree, root_id))
-                .default_max_turns(usize::MAX / 2)
-                .build();
-            AnyAgent::Anthropic(ag)
-        },
-    };
+    let (mut agent, _, _) =
+        create_agent_with_tools(config, &provider_config, &api_key, &model_name).await?;
 
     info!(
         "Using provider: {} ({})",

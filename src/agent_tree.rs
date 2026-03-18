@@ -1,13 +1,15 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use anyhow::{Context, Result};
+use rig::client::CompletionClient;
 use rig::completion::Message;
 use serde::Deserialize;
 use tokio::sync::Mutex;
 use ulid::Ulid;
 
 use crate::agent::{AnyAgent, chat_with_agent};
-use crate::config::Config;
+use crate::config::{Config, Provider};
 
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Default)]
@@ -195,4 +197,115 @@ pub type SharedAgentTree = Arc<Mutex<AgentTree>>;
 #[allow(dead_code)]
 pub fn new_shared(tree: AgentTree) -> SharedAgentTree {
     Arc::new(Mutex::new(tree))
+}
+
+pub async fn create_agent_with_tools(
+    config: &Config,
+    provider: &Provider,
+    api_key: &str,
+    model_name: &str,
+) -> Result<(AnyAgent, SharedAgentTree, Ulid)> {
+    let tree: AgentTree;
+    let shared_tree: SharedAgentTree;
+    let root_id: Ulid;
+
+    match provider.r#type {
+        crate::config::ProviderType::OpenAICompletions => {
+            use rig::providers::openai::CompletionsClient;
+            let client = CompletionsClient::builder()
+                .api_key(api_key)
+                .base_url(&provider.base_url)
+                .build()
+                .context("Failed to create OpenAI Completions client")?;
+            tree = AgentTree::new(
+                AnyAgent::OpenAICompletions(
+                    client
+                        .agent(model_name)
+                        .tool(crate::tools::ShellTool::new())
+                        .default_max_turns(usize::MAX / 2)
+                        .build(),
+                ),
+                config.clone(),
+            );
+            shared_tree = new_shared(tree);
+            root_id = shared_tree.lock().await.root_id();
+            let ag = client
+                .agent(model_name)
+                .tool(crate::tools::ShellTool::new())
+                .tool(crate::tools::SpawnTool::new(
+                    config.clone(),
+                    shared_tree.clone(),
+                    root_id,
+                ))
+                .tool(crate::tools::SendTool::new(shared_tree.clone(), root_id))
+                .default_max_turns(usize::MAX / 2)
+                .build();
+            Ok((AnyAgent::OpenAICompletions(ag), shared_tree, root_id))
+        },
+        crate::config::ProviderType::OpenAIResponses => {
+            use rig::providers::openai::Client as OpenAIClient;
+            let client = OpenAIClient::builder()
+                .api_key(api_key)
+                .base_url(&provider.base_url)
+                .build()
+                .context("Failed to create OpenAI Responses client")?;
+            tree = AgentTree::new(
+                AnyAgent::OpenAIResponses(
+                    client
+                        .agent(model_name)
+                        .tool(crate::tools::ShellTool::new())
+                        .default_max_turns(usize::MAX / 2)
+                        .build(),
+                ),
+                config.clone(),
+            );
+            shared_tree = new_shared(tree);
+            root_id = shared_tree.lock().await.root_id();
+            let ag = client
+                .agent(model_name)
+                .tool(crate::tools::ShellTool::new())
+                .tool(crate::tools::SpawnTool::new(
+                    config.clone(),
+                    shared_tree.clone(),
+                    root_id,
+                ))
+                .tool(crate::tools::SendTool::new(shared_tree.clone(), root_id))
+                .default_max_turns(usize::MAX / 2)
+                .build();
+            Ok((AnyAgent::OpenAIResponses(ag), shared_tree, root_id))
+        },
+        crate::config::ProviderType::Anthropic => {
+            use rig::providers::anthropic::Client;
+            let client = Client::builder()
+                .api_key(api_key)
+                .base_url(&provider.base_url)
+                .anthropic_version("2023-06-01")
+                .build()
+                .context("Failed to create Anthropic client")?;
+            tree = AgentTree::new(
+                AnyAgent::Anthropic(
+                    client
+                        .agent(model_name)
+                        .tool(crate::tools::ShellTool::new())
+                        .default_max_turns(usize::MAX / 2)
+                        .build(),
+                ),
+                config.clone(),
+            );
+            shared_tree = new_shared(tree);
+            root_id = shared_tree.lock().await.root_id();
+            let ag = client
+                .agent(model_name)
+                .tool(crate::tools::ShellTool::new())
+                .tool(crate::tools::SpawnTool::new(
+                    config.clone(),
+                    shared_tree.clone(),
+                    root_id,
+                ))
+                .tool(crate::tools::SendTool::new(shared_tree.clone(), root_id))
+                .default_max_turns(usize::MAX / 2)
+                .build();
+            Ok((AnyAgent::Anthropic(ag), shared_tree, root_id))
+        },
+    }
 }
