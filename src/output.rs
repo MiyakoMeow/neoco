@@ -18,15 +18,6 @@ pub struct OutputHandler {
     use_stdout: Mutex<bool>,
 }
 
-impl Clone for OutputHandler {
-    fn clone(&self) -> Self {
-        Self {
-            terminal: Mutex::new(None),
-            use_stdout: Mutex::new(*self.use_stdout.lock().unwrap()),
-        }
-    }
-}
-
 impl OutputHandler {
     /// Create a new [`OutputHandler`] with the specified line count
     ///
@@ -99,7 +90,7 @@ impl OutputHandler {
     ///
     /// # Panics
     /// Panics if the internal mutex is poisoned
-    pub fn finalize(self) -> Result<()> {
+    pub fn finalize(&self) -> Result<()> {
         let mut terminal_guard = self.terminal.lock().unwrap();
         if let Some(ref mut terminal) = *terminal_guard {
             terminal.flush()?;

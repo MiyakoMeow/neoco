@@ -13,7 +13,7 @@ pub mod whitelist;
 use std::path::Path;
 use thiserror::Error;
 
-pub use config::{NetworkConfig, SandboxConfig};
+pub use config::SandboxConfig;
 pub use whitelist::{Whitelist, extract_command};
 
 /// Sandbox validation errors

@@ -74,6 +74,7 @@ impl ShellTool {
 
     /// Create with custom sandbox configuration
     #[must_use]
+    #[allow(dead_code)]
     pub fn with_config(config: SandboxConfig) -> Self {
         Self {
             sandbox: Sandbox::new(config),

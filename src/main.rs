@@ -7,7 +7,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 mod agent;
 mod config;
 mod output;
-pub mod tools;
+mod tools;
 use config::Config;
 
 use agent::chat;
@@ -69,13 +69,13 @@ async fn main() -> Result<()> {
 
     let results = chat(&config, &model_string, &args.messages, Some(&callback)).await?;
 
-    output_results(output_handler.clone(), &results)?;
+    output_results(&output_handler, &results)?;
 
     Ok(())
 }
 
 fn output_results(
-    output_handler: OutputHandler,
+    output_handler: &OutputHandler,
     results: &[(String, Option<rig::completion::Usage>)],
 ) -> Result<()> {
     output_handler.disable_stdout();

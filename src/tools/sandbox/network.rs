@@ -3,11 +3,14 @@
 //! This module provides optional network access controls.
 //! Disabled by default - only active when explicitly enabled.
 
+#![allow(dead_code)]
+
 use std::collections::HashSet;
 use thiserror::Error;
 
 /// Network access validation errors
 #[derive(Debug, Error)]
+#[allow(dead_code)]
 pub enum NetworkError {
     /// Network access disabled
     #[error("Network access disabled")]

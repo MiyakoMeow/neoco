@@ -45,6 +45,7 @@ impl Whitelist {
 
     /// Get the list of allowed commands
     #[must_use]
+    #[allow(dead_code)]
     pub fn allowed_commands(&self) -> Vec<String> {
         self.commands.iter().cloned().collect()
     }
