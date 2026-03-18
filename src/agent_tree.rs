@@ -102,32 +102,7 @@ impl AgentTree {
         }
     }
 
-    /// Adds a child agent to the specified parent.
-    /// NOTE: This method must be called outside of an async lock context,
-    /// or use the async version `add_child_async` instead.
-    #[allow(dead_code)]
-    pub fn add_child(&mut self, parent_id: Ulid, child_agent: AnyAgent) -> Ulid {
-        let child_id = Ulid::new();
-
-        let handle = AgentHandle {
-            id: child_id,
-            parent_id: Some(parent_id),
-            pending_messages: Arc::new(Mutex::new(Vec::new())),
-            children: Arc::new(Mutex::new(Vec::new())),
-        };
-
-        self.handles.insert(child_id, handle);
-        self.agents.insert(child_id, Arc::new(child_agent));
-
-        if let Some(parent) = self.handles.get_mut(&parent_id) {
-            parent.children.blocking_lock().push(child_id);
-        }
-
-        child_id
-    }
-
-    /// Adds a child agent asynchronously (for use in async contexts).
-    #[allow(dead_code)]
+    /// Adds a child agent asynchronously.
     pub async fn add_child_async(&mut self, parent_id: Ulid, child_agent: AnyAgent) -> Ulid {
         let child_id = Ulid::new();
 
@@ -161,20 +136,8 @@ impl AgentTree {
         self.handles.get(&id).and_then(|h| h.parent_id)
     }
 
-    /// Adds a pending message to an agent's queue.
-    /// Uses `blocking_lock` for synchronous context.
-    #[allow(dead_code)]
-    pub fn add_pending_message(&self, target_id: Ulid, message: QueuedMessage) {
-        if let Some(handle) = self.handles.get(&target_id) {
-            let pending = handle.pending_messages.clone();
-            let mut guard = pending.blocking_lock();
-            guard.push(message);
-        }
-    }
-
-    /// Adds a pending message asynchronously (for use in async contexts).
-    #[allow(dead_code)]
-    pub async fn add_pending_message_async(&self, target_id: Ulid, message: QueuedMessage) {
+    /// Adds a pending message to an agent's queue asynchronously.
+    pub async fn add_pending_message(&self, target_id: Ulid, message: QueuedMessage) {
         if let Some(handle) = self.handles.get(&target_id) {
             let pending = handle.pending_messages.clone();
             let mut guard = pending.lock().await;

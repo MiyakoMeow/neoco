@@ -273,10 +273,10 @@ impl Tool for SpawnTool {
         let agent_tree = self.agent_tree.clone();
 
         // Add child to tree first to get the child_id
-        // Note: We need to release lock before running child agent to avoid deadlock
+        // Use async version to avoid blocking in async context
         let child_id = {
             let mut tree = agent_tree.lock().await;
-            tree.add_child(parent_id, child_agent)
+            tree.add_child_async(parent_id, child_agent).await
         };
 
         // Create full agent with all tools (outside of lock)
@@ -461,7 +461,8 @@ impl Tool for SendTool {
             from_agent_id: self.current_agent_id,
         };
 
-        tree_lock.add_pending_message(target_id, pending_msg);
+        // Use async version to avoid blocking in async context
+        tree_lock.add_pending_message(target_id, pending_msg).await;
 
         Ok("Message sent".to_string())
     }
