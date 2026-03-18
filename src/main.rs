@@ -39,9 +39,9 @@ async fn main() -> Result<()> {
         .with(tracing_subscriber::EnvFilter::from_default_env())
         .init();
 
-    check_bash_available().context("bash is required but not available")?;
-
     let args = Cli::parse();
+
+    check_bash_available().context("bash is required but not available")?;
 
     let config = Config::load_default()?;
 

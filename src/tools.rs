@@ -95,7 +95,10 @@ impl Tool for ShellTool {
         let timeout_secs = args.timeout.unwrap_or(COMMAND_TIMEOUT_SECS);
         let output = timeout(
             tokio::time::Duration::from_secs(timeout_secs),
-            Command::new("bash").args(cmd_args).output(),
+            Command::new("bash")
+                .kill_on_drop(true)
+                .args(cmd_args)
+                .output(),
         )
         .await;
 
