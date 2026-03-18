@@ -1,3 +1,7 @@
+//! Output handling module for neoco
+//!
+//! Provides terminal output handling with ratatui integration.
+
 use anyhow::Result;
 use ratatui::{
     Terminal, TerminalOptions, Viewport, backend::CrosstermBackend, prelude::Widget,
@@ -5,23 +9,20 @@ use ratatui::{
 };
 use std::sync::Mutex;
 
+/// Callback type for output operations
 pub type OutputCallback<'a> = Box<dyn Fn(&str) + Send + Sync + 'a>;
 
+/// Handler for terminal output operations
 pub struct OutputHandler {
     terminal: Mutex<Option<Terminal<CrosstermBackend<std::io::Stdout>>>>,
     use_stdout: Mutex<bool>,
 }
 
-impl Clone for OutputHandler {
-    fn clone(&self) -> Self {
-        Self {
-            terminal: Mutex::new(None),
-            use_stdout: Mutex::new(*self.use_stdout.lock().unwrap()),
-        }
-    }
-}
-
 impl OutputHandler {
+    /// Create a new [`OutputHandler`] with the specified line count
+    ///
+    /// # Errors
+    /// Returns an error if the terminal cannot be initialized
     pub fn new(line_count: u16) -> Result<Self> {
         let terminal = Terminal::with_options(
             CrosstermBackend::new(std::io::stdout()),
@@ -36,14 +37,19 @@ impl OutputHandler {
         })
     }
 
+    /// Get an output callback for streaming output
+    ///
+    /// # Panics
+    /// Panics if the internal mutex is poisoned
     pub fn as_output_callback(&self) -> OutputCallback<'_> {
         let use_stdout = &self.use_stdout;
 
         Box::new(move |text: &str| {
             #[allow(clippy::print_stdout)]
             {
-                let use_stdout_guard = use_stdout.lock().unwrap();
-                if *use_stdout_guard {
+                if let Ok(use_stdout_guard) = use_stdout.lock()
+                    && *use_stdout_guard
+                {
                     print!("{text}");
                     std::io::Write::flush(&mut std::io::stdout()).ok();
                 }
@@ -51,15 +57,35 @@ impl OutputHandler {
         })
     }
 
+    /// Disable stdout output
+    ///
+    /// # Panics
+    /// Panics if the internal mutex is poisoned
     pub fn disable_stdout(&self) {
-        let mut use_stdout = self.use_stdout.lock().unwrap();
-        *use_stdout = false;
+        if let Ok(mut use_stdout) = self.use_stdout.lock() {
+            *use_stdout = false;
+        }
     }
 
+    /// Render text to the terminal
+    ///
+    /// # Errors
+    /// Returns an error if the terminal render operation fails
+    ///
+    /// # Panics
+    /// Panics if the internal mutex is poisoned
+    #[allow(clippy::cast_possible_truncation)]
     pub fn render(&self, text: &str) -> Result<()> {
+        // Calculate the number of lines in the text
+        let line_count = text.lines().count().min(u16::MAX as usize) as u16;
+        if line_count == 0 {
+            return Ok(());
+        }
+
         let mut terminal_guard = self.terminal.lock().unwrap();
         if let Some(ref mut terminal) = *terminal_guard {
-            terminal.insert_before(0, |buf| {
+            // Use the calculated line count for the buffer
+            terminal.insert_before(line_count, |buf| {
                 let para = Paragraph::new(text);
                 para.render(buf.area, buf);
             })?;
@@ -67,7 +93,14 @@ impl OutputHandler {
         Ok(())
     }
 
-    pub fn finalize(self) -> Result<()> {
+    /// Finalize output and cleanup
+    ///
+    /// # Errors
+    /// Returns an error if the terminal flush operation fails
+    ///
+    /// # Panics
+    /// Panics if the internal mutex is poisoned
+    pub fn finalize(&self) -> Result<()> {
         let mut terminal_guard = self.terminal.lock().unwrap();
         if let Some(ref mut terminal) = *terminal_guard {
             terminal.flush()?;
@@ -79,7 +112,8 @@ impl OutputHandler {
 
 impl Drop for OutputHandler {
     fn drop(&mut self) {
-        let mut terminal_guard = self.terminal.lock().unwrap();
-        *terminal_guard = None;
+        if let Ok(mut terminal_guard) = self.terminal.lock() {
+            *terminal_guard = None;
+        }
     }
 }

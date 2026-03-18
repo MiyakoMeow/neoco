@@ -126,6 +126,15 @@ where
     Ok((full_response, token_usage))
 }
 
+/// Chat with LLM using the specified model and configuration
+///
+/// # Errors
+/// Returns an error if:
+/// - The provider for the model is unknown
+/// - The API key is missing or invalid
+/// - No messages are provided
+/// - The LLM client fails to initialize
+/// - The streaming request fails
 pub async fn chat(
     config: &Config,
     model_string: &str,
