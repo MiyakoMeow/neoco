@@ -22,9 +22,13 @@ pub struct Whitelist {
 
 impl Whitelist {
     /// Create whitelist with default commands plus extras
+    #[must_use]
     pub fn new(extra_commands: Vec<String>) -> Self {
-        let mut commands: HashSet<String> =
-            DEFAULT_WHITELIST.iter().map(|&s| s.to_string()).collect();
+        let mut commands: HashSet<String> = DEFAULT_WHITELIST
+            .iter()
+            .copied()
+            .map(std::string::ToString::to_string)
+            .collect();
 
         for cmd in extra_commands {
             commands.insert(cmd);
@@ -34,11 +38,13 @@ impl Whitelist {
     }
 
     /// Check if a command is allowed
+    #[must_use]
     pub fn is_allowed(&self, command: &str) -> bool {
         self.commands.contains(command)
     }
 
     /// Get the list of allowed commands
+    #[must_use]
     pub fn allowed_commands(&self) -> Vec<String> {
         self.commands.iter().cloned().collect()
     }
@@ -52,12 +58,12 @@ impl Default for Whitelist {
 
 /// Extract the main command from a command string
 /// Handles cases like "git status" -> "git", "cargo build" -> "cargo"
+#[must_use]
 pub fn extract_command(command_str: &str) -> Option<String> {
     command_str
-        .trim()
         .split_whitespace()
         .next()
-        .map(|s| s.to_string())
+        .map(std::string::ToString::to_string)
 }
 
 #[cfg(test)]

@@ -9,18 +9,21 @@ use thiserror::Error;
 /// Network access validation errors
 #[derive(Debug, Error)]
 pub enum NetworkError {
+    /// Network access disabled
     #[error("Network access disabled")]
     AccessDisabled,
 
+    /// Host not in whitelist
     #[error("Host not in whitelist: {0}")]
     HostNotAllowed(String),
 
+    /// Invalid URL
     #[error("Invalid URL: {0}")]
     InvalidUrl(String),
 }
 
 /// Network whitelist validator
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct NetworkWhitelist {
     enabled: bool,
     allowed_hosts: Vec<regex::Regex>,
@@ -30,6 +33,9 @@ impl NetworkWhitelist {
     /// Create new network whitelist
     ///
     /// When enabled is false, all network access is allowed (default behavior)
+    ///
+    /// # Errors
+    /// Returns `regex::Error` if any of the patterns are invalid
     pub fn new(enabled: bool, patterns: Vec<String>) -> Result<Self, regex::Error> {
         let allowed_hosts = if enabled {
             patterns
@@ -47,6 +53,10 @@ impl NetworkWhitelist {
     }
 
     /// Check if network access is allowed for a given host
+    ///
+    /// # Errors
+    /// Returns `NetworkError::AccessDisabled` if network whitelist is disabled
+    /// Returns `NetworkError::HostNotAllowed` if host is not in whitelist
     pub fn is_host_allowed(&self, host: &str) -> Result<(), NetworkError> {
         if !self.enabled {
             // Whitelist not enabled - allow all
@@ -63,6 +73,7 @@ impl NetworkWhitelist {
     }
 
     /// Check if a command is allowed network access
+    #[must_use]
     pub fn is_command_allowed(&self, command: &str) -> bool {
         if !self.enabled {
             return true;
@@ -76,13 +87,17 @@ impl NetworkWhitelist {
             "curl", "wget", "git", "npm", "yarn", "cargo", "pip", "python", "node",
         ]
         .iter()
-        .cloned()
+        .copied()
         .collect();
 
         network_commands.contains(main_cmd)
     }
 
     /// Validate a URL against the whitelist
+    ///
+    /// # Errors
+    /// Returns `NetworkError::InvalidUrl` if the URL is malformed
+    /// Returns `NetworkError::HostNotAllowed` if the host is not in whitelist
     pub fn validate_url(&self, url: &str) -> Result<(), NetworkError> {
         if !self.enabled {
             return Ok(());
@@ -93,15 +108,6 @@ impl NetworkWhitelist {
             extract_host_from_url(url).ok_or_else(|| NetworkError::InvalidUrl(url.to_string()))?;
 
         self.is_host_allowed(&host)
-    }
-}
-
-impl Default for NetworkWhitelist {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            allowed_hosts: vec![],
-        }
     }
 }
 

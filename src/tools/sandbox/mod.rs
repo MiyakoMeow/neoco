@@ -1,8 +1,16 @@
+//! Sandbox module for secure command execution
+//!
+//! This module provides filesystem sandboxing and command whitelisting
+//! to safely execute shell commands with restricted access.
+
+/// Configuration structures for sandbox
 pub mod config;
+/// Network access control
 pub mod network;
+/// Command whitelist definitions
 pub mod whitelist;
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use thiserror::Error;
 
 pub use config::{NetworkConfig, SandboxConfig};
@@ -11,18 +19,23 @@ pub use whitelist::{Whitelist, extract_command};
 /// Sandbox validation errors
 #[derive(Debug, Error)]
 pub enum SandboxError {
+    /// Command not in whitelist
     #[error("Command not in whitelist: {0}")]
     CommandNotAllowed(String),
 
+    /// Path outside workspace
     #[error("Path outside workspace: {0}")]
     PathOutsideWorkspace(String),
 
+    /// Invalid path
     #[error("Invalid path: {0}")]
     InvalidPath(String),
 
+    /// Path traversal detected
     #[error("Path traversal detected: {0}")]
     PathTraversal(String),
 
+    /// Symlink escape detected
     #[error("Symlink escape detected: {0}")]
     SymlinkEscape(String),
 }
@@ -36,12 +49,19 @@ pub struct Sandbox {
 
 impl Sandbox {
     /// Create new sandbox with configuration
+    #[must_use]
     pub fn new(config: SandboxConfig) -> Self {
         let whitelist = Whitelist::new(config.extra_whitelist.clone());
         Self { config, whitelist }
     }
 
     /// Validate a command string before execution
+    ///
+    /// # Errors
+    /// Returns `SandboxError::CommandNotAllowed` if command is not in whitelist
+    /// Returns `SandboxError::InvalidPath` if command is empty or contains null bytes
+    /// Returns `SandboxError::PathTraversal` if command contains path traversal sequences
+    /// Returns `SandboxError::PathOutsideWorkspace` if command references paths outside workspace
     pub fn validate_command(&self, command: &str) -> Result<(), SandboxError> {
         // Extract main command
         let main_cmd = extract_command(command)
@@ -83,6 +103,12 @@ impl Sandbox {
     }
 
     /// Validate a single path
+    ///
+    /// # Errors
+    /// Returns `SandboxError::InvalidPath` if path contains null bytes
+    /// Returns `SandboxError::PathTraversal` if path contains path traversal sequences
+    /// Returns `SandboxError::PathOutsideWorkspace` if path resolves outside workspace
+    /// Returns `SandboxError::SymlinkEscape` if path resolves to a location outside workspace via symlink
     pub fn validate_path(&self, path_str: &str) -> Result<(), SandboxError> {
         // Reject paths with null bytes
         if path_str.contains('\0') {
@@ -143,6 +169,7 @@ impl Sandbox {
     }
 
     /// Get the workspace directory
+    #[must_use]
     pub fn workspace_dir(&self) -> &Path {
         &self.config.workspace_dir
     }
@@ -164,11 +191,21 @@ fn looks_like_path(s: &str) -> bool {
     // Simple heuristic: contains / or . or is a known file extension
     s.contains('/')
         || s.contains('.')
-        || s.ends_with(".rs")
-        || s.ends_with(".txt")
-        || s.ends_with(".json")
-        || s.ends_with(".toml")
-        || s.ends_with(".md")
+        || std::path::Path::new(s)
+            .extension()
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("rs"))
+        || std::path::Path::new(s)
+            .extension()
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("txt"))
+        || std::path::Path::new(s)
+            .extension()
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("json"))
+        || std::path::Path::new(s)
+            .extension()
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("toml"))
+        || std::path::Path::new(s)
+            .extension()
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("md"))
 }
 
 #[cfg(test)]

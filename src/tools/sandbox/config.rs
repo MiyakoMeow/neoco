@@ -37,7 +37,7 @@ fn default_workspace_dir() -> PathBuf {
 }
 
 /// Network access configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct NetworkConfig {
     /// Enable network whitelist (default: false)
     #[serde(default = "default_false")]
@@ -46,15 +46,6 @@ pub struct NetworkConfig {
     /// Allowed hosts/patterns (e.g., "github.com", "*.example.com")
     #[serde(default)]
     pub allowed_hosts: Vec<String>,
-}
-
-impl Default for NetworkConfig {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            allowed_hosts: vec![],
-        }
-    }
 }
 
 fn default_false() -> bool {

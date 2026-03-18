@@ -1,6 +1,7 @@
+//! Integration tests for sandbox module
+
 use neoco::tools::sandbox::network::NetworkWhitelist;
 use neoco::tools::sandbox::{Sandbox, SandboxConfig, Whitelist};
-use std::path::PathBuf;
 use tempfile::TempDir;
 
 #[test]
