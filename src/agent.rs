@@ -147,7 +147,7 @@ pub async fn chat(
         anyhow::bail!("No message provided. Use -M/--message to send a message.");
     }
 
-    let (mut agent, _, _) =
+    let (mut agent, shared_tree, root_id) =
         create_agent_with_tools(config, &provider_config, &api_key, &model_name).await?;
 
     info!(
@@ -165,6 +165,16 @@ pub async fn chat(
         history.push(Message::assistant(&response));
 
         results.push((response, usage));
+
+        // Process pending messages from child agents
+        let pending = shared_tree
+            .lock()
+            .await
+            .drain_pending_messages(root_id)
+            .await;
+        for queued in pending {
+            history.push(Message::user(queued.content));
+        }
     }
 
     Ok(results)

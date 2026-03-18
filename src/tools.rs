@@ -221,6 +221,7 @@ impl Tool for SpawnTool {
             None => model_string.clone(),
         };
 
+        // Create child agent with ShellTool only first (to build the tree structure)
         let child_agent: AnyAgent = match provider_config.r#type {
             ProviderType::OpenAICompletions => {
                 use rig::providers::openai::CompletionsClient;
@@ -269,14 +270,91 @@ impl Tool for SpawnTool {
 
         let parent_id = self.current_agent_id;
         let message = args.message.clone();
+        let agent_tree = self.agent_tree.clone();
 
+        // Add child to tree first to get the child_id
+        // Note: We need to release lock before running child agent to avoid deadlock
         let child_id = {
-            let mut tree = self.agent_tree.lock().await;
+            let mut tree = agent_tree.lock().await;
             tree.add_child(parent_id, child_agent)
         };
 
+        // Create full agent with all tools (outside of lock)
+        // Now create the agent with full tools (SpawnTool + SendTool)
+        // Child agents can spawn further children and send messages
+        let full_child_agent: AnyAgent = match provider_config.r#type {
+            ProviderType::OpenAICompletions => {
+                use rig::providers::openai::CompletionsClient;
+                let client = CompletionsClient::builder()
+                    .api_key(&api_key)
+                    .base_url(&provider_config.base_url)
+                    .build()
+                    .context("Failed to create OpenAI Completions client")?;
+                let ag = client
+                    .agent(&model_name)
+                    .tool(crate::tools::ShellTool::new())
+                    .tool(crate::tools::SpawnTool::new(
+                        self.config.clone(),
+                        agent_tree.clone(),
+                        child_id,
+                    ))
+                    .tool(crate::tools::SendTool::new(agent_tree.clone(), parent_id))
+                    .default_max_turns(DEFAULT_MAX_TURNS)
+                    .build();
+                AnyAgent::OpenAICompletions(ag)
+            },
+            ProviderType::OpenAIResponses => {
+                use rig::providers::openai::Client as OpenAIClient;
+                let client = OpenAIClient::builder()
+                    .api_key(&api_key)
+                    .base_url(&provider_config.base_url)
+                    .build()
+                    .context("Failed to create OpenAI Responses client")?;
+                let ag = client
+                    .agent(&model_name)
+                    .tool(crate::tools::ShellTool::new())
+                    .tool(crate::tools::SpawnTool::new(
+                        self.config.clone(),
+                        agent_tree.clone(),
+                        child_id,
+                    ))
+                    .tool(crate::tools::SendTool::new(agent_tree.clone(), parent_id))
+                    .default_max_turns(DEFAULT_MAX_TURNS)
+                    .build();
+                AnyAgent::OpenAIResponses(ag)
+            },
+            ProviderType::Anthropic => {
+                use rig::providers::anthropic::Client;
+                let client = Client::builder()
+                    .api_key(api_key.as_str())
+                    .base_url(&provider_config.base_url)
+                    .anthropic_version("2023-06-01")
+                    .build()
+                    .context("Failed to create Anthropic client")?;
+                let ag = client
+                    .agent(&model_name)
+                    .tool(crate::tools::ShellTool::new())
+                    .tool(crate::tools::SpawnTool::new(
+                        self.config.clone(),
+                        agent_tree.clone(),
+                        child_id,
+                    ))
+                    .tool(crate::tools::SendTool::new(agent_tree.clone(), parent_id))
+                    .default_max_turns(DEFAULT_MAX_TURNS)
+                    .build();
+                AnyAgent::Anthropic(ag)
+            },
+        };
+
+        // Update the agent in the tree with the full version
         {
-            let tree = self.agent_tree.clone();
+            let mut tree = agent_tree.lock().await;
+            tree.update_agent(child_id, full_child_agent);
+        }
+
+        // Run the child agent
+        {
+            let tree = agent_tree.clone();
             let tree_lock = tree.lock().await;
             tree_lock.run_child_agent(child_id, message, InsertMode::Queue);
         }
@@ -369,14 +447,20 @@ impl Tool for SendTool {
             .parse()
             .map_err(|_| SendError::InvalidId(args.to_agent_id.clone()))?;
 
+        let tree = self.agent_tree.clone();
+        let tree_lock = tree.lock().await;
+
+        // Verify target agent exists
+        if tree_lock.get_agent(target_id).is_none() {
+            return Err(SendError::NotFound);
+        }
+
         let pending_msg = QueuedMessage {
             content: args.message,
             mode: args.insert_mode,
             from_agent_id: self.current_agent_id,
         };
 
-        let tree = self.agent_tree.clone();
-        let tree_lock = tree.lock().await;
         tree_lock.add_pending_message(target_id, pending_msg);
 
         Ok("Message sent".to_string())

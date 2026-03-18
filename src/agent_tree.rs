@@ -94,7 +94,17 @@ impl AgentTree {
         self.root_id
     }
 
+    /// Updates an agent in the tree.
+    #[allow(dead_code)]
+    pub fn update_agent(&mut self, id: Ulid, agent: AnyAgent) {
+        if let Some(existing) = self.agents.get_mut(&id) {
+            *existing = Arc::new(agent);
+        }
+    }
+
     /// Adds a child agent to the specified parent.
+    /// NOTE: This method must be called outside of an async lock context,
+    /// or use the async version `add_child_async` instead.
     #[allow(dead_code)]
     pub fn add_child(&mut self, parent_id: Ulid, child_agent: AnyAgent) -> Ulid {
         let child_id = Ulid::new();
@@ -109,11 +119,31 @@ impl AgentTree {
         self.handles.insert(child_id, handle);
         self.agents.insert(child_id, Arc::new(child_agent));
 
-        // Safe to use blocking_lock here: this method is called from non-async context
-        // (Tool::call holds the tree lock but needs to update children list)
-        // while other methods use async lock. This pattern avoids deadlock.
         if let Some(parent) = self.handles.get_mut(&parent_id) {
             parent.children.blocking_lock().push(child_id);
+        }
+
+        child_id
+    }
+
+    /// Adds a child agent asynchronously (for use in async contexts).
+    #[allow(dead_code)]
+    pub async fn add_child_async(&mut self, parent_id: Ulid, child_agent: AnyAgent) -> Ulid {
+        let child_id = Ulid::new();
+
+        let handle = AgentHandle {
+            id: child_id,
+            parent_id: Some(parent_id),
+            pending_messages: Arc::new(Mutex::new(Vec::new())),
+            children: Arc::new(Mutex::new(Vec::new())),
+        };
+
+        self.handles.insert(child_id, handle);
+        self.agents.insert(child_id, Arc::new(child_agent));
+
+        if let Some(parent) = self.handles.get_mut(&parent_id) {
+            let mut children = parent.children.lock().await;
+            children.push(child_id);
         }
 
         child_id
@@ -132,12 +162,22 @@ impl AgentTree {
     }
 
     /// Adds a pending message to an agent's queue.
-    /// Uses `blocking_lock` for synchronous context (called from `Tool::call`).
+    /// Uses `blocking_lock` for synchronous context.
     #[allow(dead_code)]
     pub fn add_pending_message(&self, target_id: Ulid, message: QueuedMessage) {
         if let Some(handle) = self.handles.get(&target_id) {
             let pending = handle.pending_messages.clone();
             let mut guard = pending.blocking_lock();
+            guard.push(message);
+        }
+    }
+
+    /// Adds a pending message asynchronously (for use in async contexts).
+    #[allow(dead_code)]
+    pub async fn add_pending_message_async(&self, target_id: Ulid, message: QueuedMessage) {
+        if let Some(handle) = self.handles.get(&target_id) {
+            let pending = handle.pending_messages.clone();
+            let mut guard = pending.lock().await;
             guard.push(message);
         }
     }
@@ -236,10 +276,6 @@ pub async fn create_agent_with_tools(
     api_key: &str,
     model_name: &str,
 ) -> Result<(AnyAgent, SharedAgentTree, Ulid)> {
-    let tree: AgentTree;
-    let shared_tree: SharedAgentTree;
-    let root_id: Ulid;
-
     match provider.r#type {
         crate::config::ProviderType::OpenAICompletions => {
             use rig::providers::openai::CompletionsClient;
@@ -248,30 +284,36 @@ pub async fn create_agent_with_tools(
                 .base_url(&provider.base_url)
                 .build()
                 .context("Failed to create OpenAI Completions client")?;
-            tree = AgentTree::new(
-                AnyAgent::OpenAICompletions(
-                    client
-                        .agent(model_name)
-                        .tool(crate::tools::ShellTool::new())
-                        .default_max_turns(DEFAULT_MAX_TURNS)
-                        .build(),
-                ),
-                config.clone(),
+
+            // Create placeholder agent to build tree
+            let placeholder = AnyAgent::OpenAICompletions(
+                client
+                    .agent(model_name)
+                    .tool(crate::tools::ShellTool::new())
+                    .default_max_turns(DEFAULT_MAX_TURNS)
+                    .build(),
             );
-            shared_tree = new_shared(tree);
-            root_id = shared_tree.lock().await.root_id();
-            let ag = client
-                .agent(model_name)
-                .tool(crate::tools::ShellTool::new())
-                .tool(crate::tools::SpawnTool::new(
-                    config.clone(),
-                    shared_tree.clone(),
-                    root_id,
-                ))
-                .tool(crate::tools::SendTool::new(shared_tree.clone(), root_id))
-                .default_max_turns(DEFAULT_MAX_TURNS)
-                .build();
-            Ok((AnyAgent::OpenAICompletions(ag), shared_tree, root_id))
+
+            let tree = AgentTree::new(placeholder, config.clone());
+            let shared_tree = new_shared(tree);
+            let root_id = shared_tree.lock().await.root_id();
+
+            // Create agent with all tools using the same client instance
+            let agent = AnyAgent::OpenAICompletions(
+                client
+                    .agent(model_name)
+                    .tool(crate::tools::ShellTool::new())
+                    .tool(crate::tools::SpawnTool::new(
+                        config.clone(),
+                        shared_tree.clone(),
+                        root_id,
+                    ))
+                    .tool(crate::tools::SendTool::new(shared_tree.clone(), root_id))
+                    .default_max_turns(DEFAULT_MAX_TURNS)
+                    .build(),
+            );
+
+            Ok((agent, shared_tree, root_id))
         },
         crate::config::ProviderType::OpenAIResponses => {
             use rig::providers::openai::Client as OpenAIClient;
@@ -280,30 +322,36 @@ pub async fn create_agent_with_tools(
                 .base_url(&provider.base_url)
                 .build()
                 .context("Failed to create OpenAI Responses client")?;
-            tree = AgentTree::new(
-                AnyAgent::OpenAIResponses(
-                    client
-                        .agent(model_name)
-                        .tool(crate::tools::ShellTool::new())
-                        .default_max_turns(DEFAULT_MAX_TURNS)
-                        .build(),
-                ),
-                config.clone(),
+
+            // Create placeholder agent to build tree
+            let placeholder = AnyAgent::OpenAIResponses(
+                client
+                    .agent(model_name)
+                    .tool(crate::tools::ShellTool::new())
+                    .default_max_turns(DEFAULT_MAX_TURNS)
+                    .build(),
             );
-            shared_tree = new_shared(tree);
-            root_id = shared_tree.lock().await.root_id();
-            let ag = client
-                .agent(model_name)
-                .tool(crate::tools::ShellTool::new())
-                .tool(crate::tools::SpawnTool::new(
-                    config.clone(),
-                    shared_tree.clone(),
-                    root_id,
-                ))
-                .tool(crate::tools::SendTool::new(shared_tree.clone(), root_id))
-                .default_max_turns(DEFAULT_MAX_TURNS)
-                .build();
-            Ok((AnyAgent::OpenAIResponses(ag), shared_tree, root_id))
+
+            let tree = AgentTree::new(placeholder, config.clone());
+            let shared_tree = new_shared(tree);
+            let root_id = shared_tree.lock().await.root_id();
+
+            // Create agent with all tools using the same client instance
+            let agent = AnyAgent::OpenAIResponses(
+                client
+                    .agent(model_name)
+                    .tool(crate::tools::ShellTool::new())
+                    .tool(crate::tools::SpawnTool::new(
+                        config.clone(),
+                        shared_tree.clone(),
+                        root_id,
+                    ))
+                    .tool(crate::tools::SendTool::new(shared_tree.clone(), root_id))
+                    .default_max_turns(DEFAULT_MAX_TURNS)
+                    .build(),
+            );
+
+            Ok((agent, shared_tree, root_id))
         },
         crate::config::ProviderType::Anthropic => {
             use rig::providers::anthropic::Client;
@@ -313,30 +361,36 @@ pub async fn create_agent_with_tools(
                 .anthropic_version("2023-06-01")
                 .build()
                 .context("Failed to create Anthropic client")?;
-            tree = AgentTree::new(
-                AnyAgent::Anthropic(
-                    client
-                        .agent(model_name)
-                        .tool(crate::tools::ShellTool::new())
-                        .default_max_turns(DEFAULT_MAX_TURNS)
-                        .build(),
-                ),
-                config.clone(),
+
+            // Create placeholder agent to build tree
+            let placeholder = AnyAgent::Anthropic(
+                client
+                    .agent(model_name)
+                    .tool(crate::tools::ShellTool::new())
+                    .default_max_turns(DEFAULT_MAX_TURNS)
+                    .build(),
             );
-            shared_tree = new_shared(tree);
-            root_id = shared_tree.lock().await.root_id();
-            let ag = client
-                .agent(model_name)
-                .tool(crate::tools::ShellTool::new())
-                .tool(crate::tools::SpawnTool::new(
-                    config.clone(),
-                    shared_tree.clone(),
-                    root_id,
-                ))
-                .tool(crate::tools::SendTool::new(shared_tree.clone(), root_id))
-                .default_max_turns(DEFAULT_MAX_TURNS)
-                .build();
-            Ok((AnyAgent::Anthropic(ag), shared_tree, root_id))
+
+            let tree = AgentTree::new(placeholder, config.clone());
+            let shared_tree = new_shared(tree);
+            let root_id = shared_tree.lock().await.root_id();
+
+            // Create agent with all tools using the same client instance
+            let agent = AnyAgent::Anthropic(
+                client
+                    .agent(model_name)
+                    .tool(crate::tools::ShellTool::new())
+                    .tool(crate::tools::SpawnTool::new(
+                        config.clone(),
+                        shared_tree.clone(),
+                        root_id,
+                    ))
+                    .tool(crate::tools::SendTool::new(shared_tree.clone(), root_id))
+                    .default_max_turns(DEFAULT_MAX_TURNS)
+                    .build(),
+            );
+
+            Ok((agent, shared_tree, root_id))
         },
     }
 }
