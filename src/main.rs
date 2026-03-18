@@ -7,7 +7,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 mod agent;
 mod config;
 mod output;
-mod tools;
+pub mod tools;
 use config::Config;
 
 use agent::chat;
