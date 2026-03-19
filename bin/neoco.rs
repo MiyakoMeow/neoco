@@ -59,22 +59,7 @@ async fn main() -> Result<()> {
 
     let callback = output_handler.as_output_callback();
 
-    let results = chat(&config, &model_string, &args.messages, Some(&callback)).await?;
-
-    output_results(output_handler.clone(), &results);
+    chat(&config, &model_string, &args.messages, Some(&callback)).await?;
 
     Ok(())
-}
-
-fn output_results(
-    output_handler: OutputHandler,
-    results: &[(String, Option<rig::completion::Usage>)],
-) {
-    output_handler.disable_stdout();
-
-    let empty_response = String::new();
-    let last_response = results.last().map_or(&empty_response, |(r, _)| r);
-
-    output_handler.render(last_response);
-    output_handler.finalize();
 }
