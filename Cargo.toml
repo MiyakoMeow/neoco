@@ -8,7 +8,6 @@ authors = ["MiyakoMeow"]
 
 [dependencies]
 rig-core = "0.32"
-ratatui = "0.30"
 crossterm = "0.29"
 clap = { version = "4", features = ["derive"] }
 toml = "1"
@@ -39,3 +38,5 @@ bare_urls = "warn"
 pedantic = "warn"
 print_stdout = "warn"
 print_stderr = "warn"
+must_use_candidate = "warn"
+mod_module_files = "warn"

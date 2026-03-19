@@ -1,4 +1,4 @@
-//! Neoco CLI - Simple chat with LLM using rig-core and ratatui
+//! Neoco CLI - Simple chat with LLM using rig-core
 
 use anyhow::{Context, Result};
 use clap::Parser;
@@ -63,13 +63,13 @@ async fn main() -> Result<()> {
         );
     };
 
-    let output_handler = OutputHandler::new(1)?;
+    let output_handler = OutputHandler::new(1);
 
     let callback = output_handler.as_output_callback();
 
     let results = chat(&config, &model_string, &args.messages, Some(&callback)).await?;
 
-    output_results(output_handler.clone(), &results)?;
+    output_results(output_handler.clone(), &results);
 
     Ok(())
 }
@@ -77,14 +77,12 @@ async fn main() -> Result<()> {
 fn output_results(
     output_handler: OutputHandler,
     results: &[(String, Option<rig::completion::Usage>)],
-) -> Result<()> {
+) {
     output_handler.disable_stdout();
 
     let empty_response = String::new();
     let last_response = results.last().map_or(&empty_response, |(r, _)| r);
 
-    output_handler.render(last_response)?;
-    output_handler.finalize()?;
-
-    Ok(())
+    output_handler.render(last_response);
+    output_handler.finalize();
 }
