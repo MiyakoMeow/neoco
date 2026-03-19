@@ -7,6 +7,28 @@ use tokio::time::timeout;
 
 const COMMAND_TIMEOUT_SECS: u64 = 60;
 
+fn get_bash_path() -> Option<String> {
+    let candidates = [
+        "NEOCO_GIT_BASH_PATH",
+        "CLAUDE_CODE_GIT_BASH_PATH",
+        "OPENCODE_GIT_BASH_PATH",
+    ];
+
+    for env_name in &candidates {
+        if let Ok(path) = std::env::var(env_name)
+            && !path.is_empty()
+            && std::process::Command::new(&path)
+                .arg("--version")
+                .output()
+                .is_ok_and(|o| o.status.success())
+        {
+            return Some(path);
+        }
+    }
+    None
+}
+
+/// Arguments for shell command execution
 #[derive(Debug, Deserialize)]
 pub struct CommandArgs {
     command: String,
@@ -25,14 +47,24 @@ pub enum CommandError {
 }
 
 pub fn check_bash_available() -> Result<()> {
+    if let Some(path) = get_bash_path() {
+        return std::process::Command::new(&path)
+            .arg("--version")
+            .output()
+            .context(format!("Failed to execute bash at: {path}"))?
+            .status
+            .success()
+            .then_some(())
+            .context(format!("bash --version failed at: {path}"));
+    }
     std::process::Command::new("bash")
         .arg("--version")
         .output()
-        .context("Failed to execute bash")?
+        .context("Failed to execute default bash")?
         .status
         .success()
         .then_some(())
-        .context("bash --version returned non-zero exit status")
+        .context("default bash --version returned non-zero exit status")
 }
 
 pub struct ShellTool;
@@ -93,9 +125,10 @@ impl Tool for ShellTool {
         cmd_args.push(&args.command);
 
         let timeout_secs = args.timeout.unwrap_or(COMMAND_TIMEOUT_SECS);
+        let bash_path = get_bash_path().unwrap_or_else(|| "bash".to_string());
         let output = timeout(
             tokio::time::Duration::from_secs(timeout_secs),
-            Command::new("bash")
+            Command::new(&bash_path)
                 .kill_on_drop(true)
                 .args(cmd_args)
                 .output(),
