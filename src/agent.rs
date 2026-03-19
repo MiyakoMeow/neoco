@@ -15,6 +15,34 @@ use crate::tools::ShellTool;
 
 type Result<T> = std::result::Result<T, ChatError>;
 
+/// Extract structured data from tool result content.
+///
+/// Tool results from the LLM are wrapped in a specific JSON structure:
+/// ```json
+/// [
+///   {
+///     "type": "tool_result",
+///     "content": "{\"text\": \"{...escaped JSON...}\"}"
+///   }
+/// ]
+/// ```
+///
+/// This function:
+/// 1. Expects the content to be an array
+/// 2. Takes the first element
+/// 3. Extracts the "text" field as a string
+/// 4. Parses that string as JSON
+///
+/// Returns `None` if the content cannot be parsed or doesn't match the expected format.
+fn extract_structured_data(content_value: &serde_json::Value) -> Option<serde_json::Value> {
+    content_value
+        .as_array()
+        .and_then(|arr| arr.first())
+        .and_then(|v| v.get("text"))
+        .and_then(|v| v.as_str())
+        .and_then(|s| serde_json::from_str::<serde_json::Value>(s).ok())
+}
+
 enum AnyAgent {
     OpenAICompletions(Agent<rig::providers::openai::CompletionModel>),
     OpenAIResponses(Agent<rig::providers::openai::responses_api::ResponsesCompletionModel>),
@@ -73,7 +101,6 @@ where
                         },
                     )) => {
                         yield Ok(ChatEvent::ToolCall {
-                            name: tool_call.function.name,
                             arguments: tool_call.function.arguments.to_string(),
                         });
                     },
@@ -85,8 +112,19 @@ where
                     Ok(MultiTurnStreamItem::StreamUserItem(content)) => {
                         use rig::streaming::StreamedUserContent;
                         let StreamedUserContent::ToolResult { tool_result, .. } = content;
-                        let content_str = serde_json::to_string(&tool_result.content)?;
-                        yield Ok(ChatEvent::ToolResult { content: content_str });
+
+                        let content_value = serde_json::to_value(&tool_result.content).ok();
+                        let structured = content_value.as_ref().and_then(extract_structured_data);
+                        let content_str = content_value
+                            .as_ref()
+                            .and_then(|v| v.as_str())
+                            .unwrap_or(&serde_json::to_string(&tool_result.content)?)
+                            .to_string();
+
+                        yield Ok(ChatEvent::ToolResult {
+                            content: content_str,
+                            structured,
+                        });
                     },
                     Err(e) => {
                         yield Err(ChatError::Stream(e.to_string()));
@@ -254,4 +292,57 @@ where
     }
 
     Ok(results)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_extract_structured_data_valid() {
+        let json = r#"[{"text":"{\"key\":\"value\"}"}]"#;
+        let value: serde_json::Value = serde_json::from_str(json).unwrap();
+        let result = extract_structured_data(&value);
+        assert!(result.is_some());
+        let extracted = result.unwrap();
+        assert_eq!(extracted["key"], "value");
+    }
+
+    #[test]
+    fn test_extract_structured_data_nested_json() {
+        let json = r#"[{"text":"{\"stdout\":\"output\",\"stderr\":\"error\",\"exit_code\":0}"}]"#;
+        let value: serde_json::Value = serde_json::from_str(json).unwrap();
+        let result = extract_structured_data(&value);
+        assert!(result.is_some());
+        let extracted = result.unwrap();
+        assert_eq!(extracted["stdout"], "output");
+        assert_eq!(extracted["stderr"], "error");
+        assert_eq!(extracted["exit_code"], 0);
+    }
+
+    #[test]
+    fn test_extract_structured_data_not_array() {
+        let value = serde_json::json!({"key": "value"});
+        assert!(extract_structured_data(&value).is_none());
+    }
+
+    #[test]
+    fn test_extract_structured_data_empty_array() {
+        let value = serde_json::json!([]);
+        assert!(extract_structured_data(&value).is_none());
+    }
+
+    #[test]
+    fn test_extract_structured_data_no_text_field() {
+        let json = r#"[{"content":"{}"}]"#;
+        let value: serde_json::Value = serde_json::from_str(json).unwrap();
+        assert!(extract_structured_data(&value).is_none());
+    }
+
+    #[test]
+    fn test_extract_structured_data_invalid_inner_json() {
+        let json = r#"[{"text":"not valid json"}]"#;
+        let value: serde_json::Value = serde_json::from_str(json).unwrap();
+        assert!(extract_structured_data(&value).is_none());
+    }
 }

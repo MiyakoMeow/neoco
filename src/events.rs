@@ -15,8 +15,6 @@ pub enum ChatEvent {
     ReasoningDelta(String),
     /// Tool call request from the model.
     ToolCall {
-        /// Name of the tool being called.
-        name: String,
         /// Arguments passed to the tool.
         arguments: String,
     },
@@ -24,8 +22,10 @@ pub enum ChatEvent {
     ToolCallDelta(String),
     /// Result from a tool execution.
     ToolResult {
-        /// Content of the tool result.
+        /// Serialized content of the tool result.
         content: String,
+        /// Optional structured data (for tools that return structured results).
+        structured: Option<serde_json::Value>,
     },
     /// Token usage statistics from the model.
     Usage(Usage),
