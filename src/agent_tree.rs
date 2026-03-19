@@ -3,6 +3,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use anyhow::{Context, Result};
+use futures::FutureExt;
 use rig::client::CompletionClient;
 use rig::completion::Message;
 use serde::Deserialize;
@@ -165,6 +166,7 @@ impl AgentTree {
                 let mut tasks_guard = tasks.lock().await;
                 info!(agent_id = %target_id, "Interrupting current task");
                 tasks_guard.abort_all();
+                while tasks_guard.join_next().now_or_never().flatten().is_some() {}
                 handle.cancelled.store(true, Ordering::SeqCst);
             },
             InsertMode::Append => {
@@ -205,12 +207,57 @@ impl AgentTree {
 
     #[expect(dead_code)]
     pub async fn interrupt_agent(&self, id: Ulid) {
-        if let Some(handle) = self.handles.get(&id) {
+        let Some(handle) = self.handles.get(&id) else {
+            return;
+        };
+
+        handle.cancelled.store(true, Ordering::SeqCst);
+        let tasks = handle.tasks.clone();
+        let mut tasks_guard = tasks.lock().await;
+        tasks_guard.abort_all();
+        while tasks_guard.join_next().now_or_never().flatten().is_some() {}
+    }
+
+    #[expect(dead_code)]
+    pub async fn shutdown_agent(&self, id: Ulid) {
+        let Some(handle) = self.handles.get(&id) else {
+            return;
+        };
+
+        handle.cancelled.store(true, Ordering::SeqCst);
+        let tasks = handle.tasks.clone();
+        let mut tasks_guard = tasks.lock().await;
+        tasks_guard.abort_all();
+
+        while let Some(result) = tasks_guard.join_next().await {
+            let _ = result;
+        }
+    }
+
+    #[expect(dead_code)]
+    pub async fn remove_agent(&mut self, id: Ulid) {
+        if id == self.root_id {
+            return;
+        }
+
+        let handle = self.handles.remove(&id);
+        if let Some(handle) = handle {
             handle.cancelled.store(true, Ordering::SeqCst);
+
             let tasks = handle.tasks.clone();
             let mut tasks_guard = tasks.lock().await;
             tasks_guard.abort_all();
+            while tasks_guard.join_next().now_or_never().flatten().is_some() {}
+
+            if let Some(parent_id) = handle.parent_id
+                && let Some(parent) = self.handles.get_mut(&parent_id)
+            {
+                let mut children = parent.children.lock().await;
+                children.retain(|c| *c != id);
+            }
         }
+
+        self.agents.remove(&id);
     }
 
     pub async fn run_child_agent(&self, child_id: Ulid, message: String, insert_mode: InsertMode) {
@@ -288,76 +335,61 @@ struct AgentBuildContext<'a> {
     model_name: &'a str,
     shared_tree: &'a SharedAgentTree,
     root_id: Ulid,
-    config: &'a Config,
+    config: Arc<Config>,
 }
 
 fn build_agent_for_provider(ctx: &AgentBuildContext<'_>) -> Result<AnyAgent> {
-    match ctx.provider.r#type {
-        ProviderType::OpenAICompletions => {
-            use rig::providers::openai::CompletionsClient;
-            let client = CompletionsClient::builder()
-                .api_key(ctx.api_key)
-                .base_url(&ctx.provider.base_url)
-                .build()
-                .context("Failed to create OpenAI Completions client")?;
+    let provider = ctx.provider;
+    let api_key = ctx.api_key;
+    let model_name = ctx.model_name;
 
-            let agent = client
-                .agent(ctx.model_name)
+    macro_rules! attach_tools {
+        ($agent:expr, $id:expr) => {
+            $agent
                 .tool(ShellTool::new())
                 .tool(SpawnTool::new(
                     ctx.config.clone(),
                     ctx.shared_tree.clone(),
-                    ctx.root_id,
+                    $id,
                 ))
-                .tool(SendTool::new(ctx.shared_tree.clone(), ctx.root_id))
+                .tool(SendTool::new(ctx.shared_tree.clone(), $id))
                 .default_max_turns(DEFAULT_MAX_TURNS)
-                .build();
+        };
+    }
 
+    match provider.r#type {
+        ProviderType::OpenAICompletions => {
+            use rig::providers::openai::CompletionsClient;
+            let client = CompletionsClient::builder()
+                .api_key(api_key)
+                .base_url(&provider.base_url)
+                .build()
+                .context("Failed to create OpenAI Completions client")?;
+
+            let agent = attach_tools!(client.agent(model_name), ctx.root_id).build();
             Ok(AnyAgent::OpenAICompletions(agent))
         },
         ProviderType::OpenAIResponses => {
             use rig::providers::openai::Client as OpenAIClient;
             let client = OpenAIClient::builder()
-                .api_key(ctx.api_key)
-                .base_url(&ctx.provider.base_url)
+                .api_key(api_key)
+                .base_url(&provider.base_url)
                 .build()
                 .context("Failed to create OpenAI Responses client")?;
 
-            let agent = client
-                .agent(ctx.model_name)
-                .tool(ShellTool::new())
-                .tool(SpawnTool::new(
-                    ctx.config.clone(),
-                    ctx.shared_tree.clone(),
-                    ctx.root_id,
-                ))
-                .tool(SendTool::new(ctx.shared_tree.clone(), ctx.root_id))
-                .default_max_turns(DEFAULT_MAX_TURNS)
-                .build();
-
+            let agent = attach_tools!(client.agent(model_name), ctx.root_id).build();
             Ok(AnyAgent::OpenAIResponses(agent))
         },
         ProviderType::Anthropic => {
             use rig::providers::anthropic::Client;
             let client = Client::builder()
-                .api_key(ctx.api_key)
-                .base_url(&ctx.provider.base_url)
-                .anthropic_version(&ctx.provider.anthropic_version)
+                .api_key(api_key)
+                .base_url(&provider.base_url)
+                .anthropic_version(&provider.anthropic_version)
                 .build()
                 .context("Failed to create Anthropic client")?;
 
-            let agent = client
-                .agent(ctx.model_name)
-                .tool(ShellTool::new())
-                .tool(SpawnTool::new(
-                    ctx.config.clone(),
-                    ctx.shared_tree.clone(),
-                    ctx.root_id,
-                ))
-                .tool(SendTool::new(ctx.shared_tree.clone(), ctx.root_id))
-                .default_max_turns(DEFAULT_MAX_TURNS)
-                .build();
-
+            let agent = attach_tools!(client.agent(model_name), ctx.root_id).build();
             Ok(AnyAgent::Anthropic(agent))
         },
     }
@@ -369,6 +401,7 @@ pub async fn create_agent_with_tools(
     api_key: &str,
     model_name: &str,
 ) -> Result<(AnyAgent, SharedAgentTree, Ulid)> {
+    let config_arc = Arc::new(config.clone());
     let tree = AgentTree::new(config.clone());
     let shared_tree = new_shared(tree);
     let root_id = shared_tree.lock().await.root_id();
@@ -379,7 +412,7 @@ pub async fn create_agent_with_tools(
         model_name,
         shared_tree: &shared_tree,
         root_id,
-        config,
+        config: config_arc,
     };
 
     let agent = build_agent_for_provider(&ctx)?;

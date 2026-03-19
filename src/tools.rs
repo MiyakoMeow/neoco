@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use anyhow::{Context, Result};
 use rig::client::CompletionClient;
 use rig::completion::ToolDefinition;
@@ -22,6 +24,19 @@ pub struct CommandArgs {
     /// Optional timeout in seconds.
     #[serde(default)]
     timeout: Option<u64>,
+}
+
+/// Unified error type for all tool operations.
+#[derive(Debug, thiserror::Error)]
+pub enum ToolError {
+    #[error("Shell command failed: {0}")]
+    Command(#[from] CommandError),
+    #[error("Agent spawn failed: {0}")]
+    Spawn(#[from] SpawnError),
+    #[error("Message send failed: {0}")]
+    Send(#[from] SendError),
+    #[error("General error: {0}")]
+    General(#[from] anyhow::Error),
 }
 
 /// Errors that can occur when executing shell commands.
@@ -66,7 +81,7 @@ impl Default for ShellTool {
 impl Tool for ShellTool {
     const NAME: &'static str = "bash";
 
-    type Error = CommandError;
+    type Error = ToolError;
     type Args = CommandArgs;
     type Output = String;
 
@@ -123,16 +138,16 @@ impl Tool for ShellTool {
 
                 if !output.status.success() {
                     let exit_code = output.status.code().unwrap_or(-1);
-                    return Err(CommandError::ExitError(
+                    return Err(ToolError::Command(CommandError::ExitError(
                         exit_code,
                         format!("{stdout}{stderr}"),
-                    ));
+                    )));
                 }
 
                 Ok(format!("{stdout}{stderr}"))
             },
-            Ok(Err(e)) => Err(CommandError::ExecuteError(e)),
-            Err(_) => Err(CommandError::Timeout(timeout_secs)),
+            Ok(Err(e)) => Err(ToolError::Command(CommandError::ExecuteError(e))),
+            Err(_) => Err(ToolError::Command(CommandError::Timeout(timeout_secs))),
         }
     }
 }
@@ -155,14 +170,14 @@ pub enum SpawnError {
 
 /// Tool for spawning child agents.
 pub struct SpawnTool {
-    config: Config,
+    config: Arc<Config>,
     agent_tree: SharedAgentTree,
     current_agent_id: Ulid,
 }
 
 impl SpawnTool {
     /// Creates a new `SpawnTool` instance.
-    pub fn new(config: Config, agent_tree: SharedAgentTree, current_agent_id: Ulid) -> Self {
+    pub fn new(config: Arc<Config>, agent_tree: SharedAgentTree, current_agent_id: Ulid) -> Self {
         Self {
             config,
             agent_tree,
@@ -174,7 +189,7 @@ impl SpawnTool {
 impl Tool for SpawnTool {
     const NAME: &'static str = "spawn";
 
-    type Error = SpawnError;
+    type Error = ToolError;
     type Args = SpawnArgs;
     type Output = String;
 
@@ -224,11 +239,11 @@ impl Tool for SpawnTool {
         let tree = self.agent_tree.clone();
         let depth = tree.lock().await.get_agent_depth(self.current_agent_id);
         if depth >= self.config.agent_limits.tree_depth {
-            return Err(SpawnError::CreateError(anyhow::anyhow!(
+            return Err(ToolError::Spawn(SpawnError::CreateError(anyhow::anyhow!(
                 "Max tree depth {} exceeded (current: {})",
                 self.config.agent_limits.tree_depth,
                 depth
-            )));
+            ))));
         }
 
         let children_count = tree
@@ -237,20 +252,20 @@ impl Tool for SpawnTool {
             .get_children_count(self.current_agent_id)
             .await;
         if children_count >= self.config.agent_limits.children_per_parent {
-            return Err(SpawnError::CreateError(anyhow::anyhow!(
+            return Err(ToolError::Spawn(SpawnError::CreateError(anyhow::anyhow!(
                 "Max children per parent {} exceeded (current: {})",
                 self.config.agent_limits.children_per_parent,
                 children_count
-            )));
+            ))));
         }
 
         let active_count = tree.lock().await.get_active_spawn_count().await;
         if active_count >= self.config.agent_limits.concurrent_spawns {
-            return Err(SpawnError::CreateError(anyhow::anyhow!(
+            return Err(ToolError::Spawn(SpawnError::CreateError(anyhow::anyhow!(
                 "Max concurrent spawns {} exceeded (current: {})",
                 self.config.agent_limits.concurrent_spawns,
                 active_count
-            )));
+            ))));
         }
 
         let child_id = Ulid::new();
@@ -264,14 +279,14 @@ impl Tool for SpawnTool {
                     .base_url(&provider_config.base_url)
                     .build()
                     .context("Failed to create OpenAI Completions client")?;
-                let ag = client
+                let agent = client
                     .agent(&model_name)
                     .tool(ShellTool::new())
                     .tool(SpawnTool::new(self.config.clone(), tree.clone(), child_id))
                     .tool(SendTool::new(tree.clone(), child_id))
                     .default_max_turns(DEFAULT_MAX_TURNS)
                     .build();
-                AnyAgent::OpenAICompletions(ag)
+                AnyAgent::OpenAICompletions(agent)
             },
             ProviderType::OpenAIResponses => {
                 use rig::providers::openai::Client as OpenAIClient;
@@ -280,14 +295,14 @@ impl Tool for SpawnTool {
                     .base_url(&provider_config.base_url)
                     .build()
                     .context("Failed to create OpenAI Responses client")?;
-                let ag = client
+                let agent = client
                     .agent(&model_name)
                     .tool(ShellTool::new())
                     .tool(SpawnTool::new(self.config.clone(), tree.clone(), child_id))
                     .tool(SendTool::new(tree.clone(), child_id))
                     .default_max_turns(DEFAULT_MAX_TURNS)
                     .build();
-                AnyAgent::OpenAIResponses(ag)
+                AnyAgent::OpenAIResponses(agent)
             },
             ProviderType::Anthropic => {
                 use rig::providers::anthropic::Client;
@@ -297,14 +312,14 @@ impl Tool for SpawnTool {
                     .anthropic_version(&provider_config.anthropic_version)
                     .build()
                     .context("Failed to create Anthropic client")?;
-                let ag = client
+                let agent = client
                     .agent(&model_name)
                     .tool(ShellTool::new())
                     .tool(SpawnTool::new(self.config.clone(), tree.clone(), child_id))
                     .tool(SendTool::new(tree.clone(), child_id))
                     .default_max_turns(DEFAULT_MAX_TURNS)
                     .build();
-                AnyAgent::Anthropic(ag)
+                AnyAgent::Anthropic(agent)
             },
         };
 
@@ -362,7 +377,7 @@ impl SendTool {
 impl Tool for SendTool {
     const NAME: &'static str = "send";
 
-    type Error = SendError;
+    type Error = ToolError;
     type Args = SendArgs;
     type Output = String;
 
@@ -407,7 +422,7 @@ impl Tool for SendTool {
 
         // Verify target agent exists
         if tree_lock.get_agent(target_id).is_none() {
-            return Err(SendError::NotFound);
+            return Err(ToolError::Send(SendError::NotFound));
         }
 
         let pending_msg = QueuedMessage {
