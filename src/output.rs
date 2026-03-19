@@ -1,5 +1,7 @@
 use std::sync::Mutex;
 
+use crate::events::ChatEvent;
+
 pub type OutputCallback<'a> = Box<dyn Fn(&str) + Send + Sync + 'a>;
 
 /// Handler for output rendering.
@@ -16,7 +18,7 @@ impl Clone for OutputHandler {
 }
 
 impl OutputHandler {
-    /// Create a new `OutputHandler`.
+    #[doc = "Create a new `OutputHandler`."]
     #[must_use]
     pub fn new(_line_count: u16) -> Self {
         Self {
@@ -24,7 +26,7 @@ impl OutputHandler {
         }
     }
 
-    /// Get output callback for streaming output.
+    #[doc = "Get output callback for streaming output."]
     ///
     /// # Panics
     ///
@@ -44,7 +46,7 @@ impl OutputHandler {
         })
     }
 
-    /// Disable stdout output.
+    #[doc = "Disable stdout output."]
     ///
     /// # Panics
     ///
@@ -54,16 +56,52 @@ impl OutputHandler {
         *use_stdout = false;
     }
 
-    /// Render text to stdout.
+    #[doc = "Render text to stdout."]
     #[allow(clippy::unused_self, clippy::print_stdout)]
     pub fn render(&self, text: &str) {
         print!("{text}");
         let _ = std::io::Write::flush(&mut std::io::stdout());
     }
 
-    /// Finalize output.
+    #[doc = "Finalize output."]
     #[allow(clippy::unused_self)]
     pub fn finalize(self) {
         std::thread::sleep(std::time::Duration::from_millis(100));
     }
+}
+
+impl EventHandler for OutputHandler {
+    fn handle(&self, event: ChatEvent) {
+        let use_stdout_guard = self.use_stdout.lock().unwrap();
+        if !*use_stdout_guard {
+            return;
+        }
+        drop(use_stdout_guard);
+
+        match event {
+            ChatEvent::Text(text) => self.render(&text),
+            ChatEvent::Reasoning(content) => self.render(&format!("[思考] {content:?}")),
+            ChatEvent::ReasoningDelta(reasoning) => self.render(&format!("[思考] {reasoning}")),
+            ChatEvent::ToolCall { name, arguments } => {
+                self.render(&format!("[工具调用] {name}: "));
+                self.render(&arguments);
+            },
+            ChatEvent::ToolCallDelta(content) => {
+                self.render(&format!("[工具调用] {content:?}"));
+            },
+            ChatEvent::ToolResult { content } => {
+                self.render(&format!("[工具结果] {content:#?}\n"));
+            },
+            ChatEvent::Usage { .. } => {},
+            ChatEvent::Done => {
+                self.render("\n");
+            },
+        }
+    }
+}
+
+#[doc = "Trait for handling chat events."]
+pub trait EventHandler {
+    #[doc = "Handle a chat event."]
+    fn handle(&self, event: ChatEvent);
 }

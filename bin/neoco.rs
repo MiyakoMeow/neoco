@@ -57,9 +57,7 @@ async fn main() -> Result<()> {
 
     let output_handler = OutputHandler::new(1);
 
-    let callback = output_handler.as_output_callback();
-
-    chat(&config, &model_string, &args.messages, Some(&callback)).await?;
+    chat(&config, &model_string, &args.messages, &output_handler).await?;
 
     Ok(())
 }
