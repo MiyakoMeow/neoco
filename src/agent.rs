@@ -17,25 +17,48 @@ pub enum AnyAgent {
     Anthropic(Agent<rig::providers::anthropic::completion::CompletionModel>),
 }
 
+pub trait AgentChat {
+    async fn chat(
+        &self,
+        message: &str,
+        history: &[Message],
+        output_callback: Option<&OutputCallback<'_>>,
+        cancel_flag: &Arc<AtomicBool>,
+    ) -> Result<(String, Option<Usage>)>;
+}
+
+impl AgentChat for AnyAgent {
+    async fn chat(
+        &self,
+        message: &str,
+        history: &[Message],
+        output_callback: Option<&OutputCallback<'_>>,
+        cancel_flag: &Arc<AtomicBool>,
+    ) -> Result<(String, Option<Usage>)> {
+        match self {
+            Self::OpenAICompletions(agent) => {
+                chat_with_agent(agent, message, history, output_callback, cancel_flag).await
+            },
+            Self::OpenAIResponses(agent) => {
+                chat_with_agent(agent, message, history, output_callback, cancel_flag).await
+            },
+            Self::Anthropic(agent) => {
+                chat_with_agent(agent, message, history, output_callback, cancel_flag).await
+            },
+        }
+    }
+}
+
 impl AnyAgent {
-    pub async fn chat(
-        &mut self,
+    pub async fn chat_simple(
+        &self,
         message: &str,
         history: &[Message],
         output_callback: Option<&OutputCallback<'_>>,
     ) -> Result<(String, Option<Usage>)> {
         let default_cancelled = Arc::new(AtomicBool::new(false));
-        match self {
-            Self::OpenAICompletions(agent) => {
-                chat_with_agent(agent, message, history, output_callback, &default_cancelled).await
-            },
-            Self::OpenAIResponses(agent) => {
-                chat_with_agent(agent, message, history, output_callback, &default_cancelled).await
-            },
-            Self::Anthropic(agent) => {
-                chat_with_agent(agent, message, history, output_callback, &default_cancelled).await
-            },
-        }
+        self.chat(message, history, output_callback, &default_cancelled)
+            .await
     }
 }
 
@@ -155,7 +178,7 @@ pub async fn chat(
         anyhow::bail!("No message provided. Use -M/--message to send a message.");
     }
 
-    let (mut agent, shared_tree, root_id) =
+    let (agent, shared_tree, root_id) =
         create_agent_with_tools(config, &provider_config, &api_key, &model_name).await?;
 
     info!(
@@ -167,7 +190,7 @@ pub async fn chat(
     let mut results = Vec::new();
 
     for msg in messages {
-        let (response, usage) = agent.chat(msg, &history, output_callback).await?;
+        let (response, usage) = agent.chat_simple(msg, &history, output_callback).await?;
 
         history.push(Message::user(msg));
         history.push(Message::assistant(&response));

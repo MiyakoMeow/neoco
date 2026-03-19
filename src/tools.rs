@@ -11,7 +11,7 @@ use ulid::Ulid;
 
 use crate::agent::AnyAgent;
 use crate::agent_tree::{InsertMode, QueuedMessage, SharedAgentTree};
-use crate::config::{Config, ProviderType};
+use crate::config::{Config, Provider, ProviderType};
 
 const DEFAULT_MAX_TURNS: usize = 1000;
 const COMMAND_TIMEOUT_SECS: u64 = 60;
@@ -152,6 +152,76 @@ impl Tool for ShellTool {
     }
 }
 
+/// Configuration for building an agent with tools.
+pub struct AgentBuildConfig<'a> {
+    pub provider: &'a Provider,
+    pub api_key: &'a str,
+    pub model_name: &'a str,
+    pub config: Arc<Config>,
+    pub shared_tree: SharedAgentTree,
+    pub agent_id: Ulid,
+}
+
+/// Builds an agent with the standard set of tools attached.
+pub fn build_agent_with_tools(config: AgentBuildConfig<'_>) -> Result<AnyAgent> {
+    let AgentBuildConfig {
+        provider,
+        api_key,
+        model_name,
+        config,
+        shared_tree,
+        agent_id,
+    } = config;
+
+    macro_rules! attach_tools {
+        ($agent:expr) => {
+            $agent
+                .tool(ShellTool::new())
+                .tool(SpawnTool::new(
+                    config.clone(),
+                    shared_tree.clone(),
+                    agent_id,
+                ))
+                .tool(SendTool::new(shared_tree.clone(), agent_id))
+                .default_max_turns(DEFAULT_MAX_TURNS)
+        };
+    }
+
+    match provider.r#type {
+        ProviderType::OpenAICompletions => {
+            use rig::providers::openai::CompletionsClient;
+            let client = CompletionsClient::builder()
+                .api_key(api_key)
+                .base_url(&provider.base_url)
+                .build()
+                .context("Failed to create OpenAI Completions client")?;
+            let agent = attach_tools!(client.agent(model_name)).build();
+            Ok(AnyAgent::OpenAICompletions(agent))
+        },
+        ProviderType::OpenAIResponses => {
+            use rig::providers::openai::Client as OpenAIClient;
+            let client = OpenAIClient::builder()
+                .api_key(api_key)
+                .base_url(&provider.base_url)
+                .build()
+                .context("Failed to create OpenAI Responses client")?;
+            let agent = attach_tools!(client.agent(model_name)).build();
+            Ok(AnyAgent::OpenAIResponses(agent))
+        },
+        ProviderType::Anthropic => {
+            use rig::providers::anthropic::Client;
+            let client = Client::builder()
+                .api_key(api_key)
+                .base_url(&provider.base_url)
+                .anthropic_version(&provider.anthropic_version)
+                .build()
+                .context("Failed to create Anthropic client")?;
+            let agent = attach_tools!(client.agent(model_name)).build();
+            Ok(AnyAgent::Anthropic(agent))
+        },
+    }
+}
+
 /// Arguments for the spawn tool.
 #[derive(Debug, Deserialize)]
 pub struct SpawnArgs {
@@ -259,7 +329,7 @@ impl Tool for SpawnTool {
             ))));
         }
 
-        let active_count = tree.lock().await.get_active_spawn_count().await;
+        let active_count = tree.lock().await.get_active_spawn_count();
         if active_count >= self.config.agent_limits.concurrent_spawns {
             return Err(ToolError::Spawn(SpawnError::CreateError(anyhow::anyhow!(
                 "Max concurrent spawns {} exceeded (current: {})",
@@ -271,57 +341,16 @@ impl Tool for SpawnTool {
         let child_id = Ulid::new();
         let parent_id = self.current_agent_id;
 
-        let full_child_agent: AnyAgent = match provider_config.r#type {
-            ProviderType::OpenAICompletions => {
-                use rig::providers::openai::CompletionsClient;
-                let client = CompletionsClient::builder()
-                    .api_key(&api_key)
-                    .base_url(&provider_config.base_url)
-                    .build()
-                    .context("Failed to create OpenAI Completions client")?;
-                let agent = client
-                    .agent(&model_name)
-                    .tool(ShellTool::new())
-                    .tool(SpawnTool::new(self.config.clone(), tree.clone(), child_id))
-                    .tool(SendTool::new(tree.clone(), child_id))
-                    .default_max_turns(DEFAULT_MAX_TURNS)
-                    .build();
-                AnyAgent::OpenAICompletions(agent)
-            },
-            ProviderType::OpenAIResponses => {
-                use rig::providers::openai::Client as OpenAIClient;
-                let client = OpenAIClient::builder()
-                    .api_key(&api_key)
-                    .base_url(&provider_config.base_url)
-                    .build()
-                    .context("Failed to create OpenAI Responses client")?;
-                let agent = client
-                    .agent(&model_name)
-                    .tool(ShellTool::new())
-                    .tool(SpawnTool::new(self.config.clone(), tree.clone(), child_id))
-                    .tool(SendTool::new(tree.clone(), child_id))
-                    .default_max_turns(DEFAULT_MAX_TURNS)
-                    .build();
-                AnyAgent::OpenAIResponses(agent)
-            },
-            ProviderType::Anthropic => {
-                use rig::providers::anthropic::Client;
-                let client = Client::builder()
-                    .api_key(api_key.as_str())
-                    .base_url(&provider_config.base_url)
-                    .anthropic_version(&provider_config.anthropic_version)
-                    .build()
-                    .context("Failed to create Anthropic client")?;
-                let agent = client
-                    .agent(&model_name)
-                    .tool(ShellTool::new())
-                    .tool(SpawnTool::new(self.config.clone(), tree.clone(), child_id))
-                    .tool(SendTool::new(tree.clone(), child_id))
-                    .default_max_turns(DEFAULT_MAX_TURNS)
-                    .build();
-                AnyAgent::Anthropic(agent)
-            },
+        let build_config = AgentBuildConfig {
+            provider: provider_config,
+            api_key: &api_key,
+            model_name: &model_name,
+            config: self.config.clone(),
+            shared_tree: tree.clone(),
+            agent_id: child_id,
         };
+        let full_child_agent =
+            build_agent_with_tools(build_config).map_err(SpawnError::CreateError)?;
 
         {
             let mut tree_lock = tree.lock().await;
