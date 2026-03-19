@@ -4,7 +4,6 @@ use rig::agent::{Agent, MultiTurnStreamItem, PromptHook};
 use rig::client::CompletionClient;
 use rig::completion::{CompletionModel, GetTokenUsage, Message, Usage};
 use rig::streaming::{StreamedAssistantContent, StreamingChat};
-use std::pin::Pin;
 use tracing::info;
 
 use crate::config::{Config, ProviderType};
@@ -51,7 +50,7 @@ where
                         StreamedAssistantContent::Reasoning(reasoning),
                     )) => {
                         let content = serde_json::to_string(&reasoning.content)
-                            .unwrap_or_default();
+                            .context("JSON serialization failed for reasoning content")?;
                         yield Ok(ChatEvent::Reasoning(content));
                     },
                     Ok(MultiTurnStreamItem::StreamAssistantItem(
@@ -84,7 +83,7 @@ where
                         use rig::streaming::StreamedUserContent;
                         let StreamedUserContent::ToolResult { tool_result, .. } = content;
                         let content_str = serde_json::to_string(&tool_result.content)
-                            .unwrap_or_default();
+                            .context("JSON serialization failed for tool result content")?;
                         yield Ok(ChatEvent::ToolResult { content: content_str });
                     },
                     Err(e) => {
@@ -99,11 +98,7 @@ where
                     "Token usage - Input: {}, Output: {}, Total: {}",
                     usage.input_tokens, usage.output_tokens, usage.total_tokens
                 );
-                yield Ok(ChatEvent::Usage {
-                    input_tokens: usage.input_tokens,
-                    output_tokens: usage.output_tokens,
-                    total_tokens: usage.total_tokens,
-                });
+                yield Ok(ChatEvent::Usage(Box::new(usage)));
             }
 
             yield Ok(ChatEvent::Done);
@@ -121,6 +116,9 @@ impl AnyAgent {
     where
         H: EventHandler + ?Sized,
     {
+        use futures::Stream;
+        use std::pin::Pin;
+
         let history_vec = history.to_vec();
         let stream: Pin<Box<dyn Stream<Item = Result<ChatEvent>> + Send>> = match self {
             Self::OpenAICompletions(agent) => {
@@ -133,7 +131,7 @@ impl AnyAgent {
         };
 
         let mut full_response = String::new();
-        let token_usage: Option<Usage> = None;
+        let mut token_usage: Option<Usage> = None;
 
         tokio::pin!(stream);
         while let Some(event_result) = stream.next().await {
@@ -142,7 +140,9 @@ impl AnyAgent {
                     if let ChatEvent::Text(ref text) = event {
                         full_response.push_str(text);
                     }
-                    if !matches!(event, ChatEvent::Usage { .. }) {
+                    if let ChatEvent::Usage(usage) = event {
+                        token_usage = Some(*usage);
+                    } else {
                         handler.handle(event);
                     }
                 },

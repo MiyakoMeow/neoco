@@ -18,7 +18,7 @@ impl Clone for OutputHandler {
 }
 
 impl OutputHandler {
-    #[doc = "Create a new `OutputHandler`."]
+    /// Create a new `OutputHandler`.
     #[must_use]
     pub fn new(_line_count: u16) -> Self {
         Self {
@@ -26,7 +26,7 @@ impl OutputHandler {
         }
     }
 
-    #[doc = "Get output callback for streaming output."]
+    /// Get output callback for streaming output.
     ///
     /// # Panics
     ///
@@ -46,7 +46,7 @@ impl OutputHandler {
         })
     }
 
-    #[doc = "Disable stdout output."]
+    /// Disable stdout output.
     ///
     /// # Panics
     ///
@@ -56,14 +56,14 @@ impl OutputHandler {
         *use_stdout = false;
     }
 
-    #[doc = "Render text to stdout."]
+    /// Render text to stdout.
     #[allow(clippy::unused_self, clippy::print_stdout)]
     pub fn render(&self, text: &str) {
         print!("{text}");
         let _ = std::io::Write::flush(&mut std::io::stdout());
     }
 
-    #[doc = "Finalize output."]
+    /// Finalize output.
     #[allow(clippy::unused_self)]
     pub fn finalize(self) {
         std::thread::sleep(std::time::Duration::from_millis(100));
@@ -92,7 +92,7 @@ impl EventHandler for OutputHandler {
             ChatEvent::ToolResult { content } => {
                 self.render(&format!("[工具结果] {content:#?}\n"));
             },
-            ChatEvent::Usage { .. } => {},
+            ChatEvent::Usage(_) => {},
             ChatEvent::Done => {
                 self.render("\n");
             },
@@ -100,8 +100,8 @@ impl EventHandler for OutputHandler {
     }
 }
 
-#[doc = "Trait for handling chat events."]
+/// Trait for handling chat events.
 pub trait EventHandler {
-    #[doc = "Handle a chat event."]
+    /// Handle a chat event.
     fn handle(&self, event: ChatEvent);
 }
