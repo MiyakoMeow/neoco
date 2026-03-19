@@ -1,3 +1,5 @@
+//! Tools and utilities.
+
 use rig::completion::ToolDefinition;
 use rig::tool::Tool;
 use serde::Deserialize;
@@ -59,12 +61,16 @@ pub struct CommandArgs {
     timeout: Option<u64>,
 }
 
+/// Errors that can occur during shell command execution.
 #[derive(Debug, thiserror::Error)]
 pub enum CommandError {
+    /// Failed to execute the command.
     #[error("Failed to execute command: {0}")]
     ExecuteError(#[from] std::io::Error),
+    /// Command execution timed out.
     #[error("Command timed out after {0} seconds")]
     Timeout(u64),
+    /// Command exited with a non-zero status code.
     #[error("Command failed with exit code {0}: {1}")]
     ExitError(i32, String),
 }
@@ -93,9 +99,12 @@ pub fn check_bash_available() -> std::result::Result<(), BashError> {
     Ok(())
 }
 
+/// Shell command execution tool.
 pub struct ShellTool;
 
 impl ShellTool {
+    /// Creates a new shell tool instance.
+    #[must_use]
     pub fn new() -> Self {
         Self
     }

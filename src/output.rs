@@ -1,7 +1,10 @@
+//! Output handling.
+
 use std::sync::Mutex;
 
 use crate::events::ChatEvent;
 
+/// Callback type for streaming output.
 pub type OutputCallback<'a> = Box<dyn Fn(&str) + Send + Sync + 'a>;
 
 /// Handler for output rendering.
