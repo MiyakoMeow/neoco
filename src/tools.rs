@@ -1,11 +1,33 @@
-use anyhow::{Context, Result};
 use rig::completion::ToolDefinition;
 use rig::tool::Tool;
 use serde::Deserialize;
+use thiserror::Error;
 use tokio::process::Command;
 use tokio::time::timeout;
 
 const COMMAND_TIMEOUT_SECS: u64 = 60;
+
+/// Errors that can occur when checking for or executing bash commands.
+#[derive(Debug, Error)]
+pub enum BashError {
+    /// Failed to execute the bash process.
+    #[error("Failed to execute bash at: {0}")]
+    Execute(String),
+
+    /// The bash version check command failed.
+    #[error("bash --version failed at: {0}")]
+    VersionCheck(String),
+
+    /// The default bash version check returned a non-zero exit status.
+    #[error("default bash --version returned non-zero exit status")]
+    DefaultBashFailed,
+}
+
+impl From<std::io::Error> for BashError {
+    fn from(e: std::io::Error) -> Self {
+        BashError::Execute(e.to_string())
+    }
+}
 
 /// Locates bash path from environment variables.
 ///
@@ -52,25 +74,23 @@ pub enum CommandError {
 /// # Errors
 ///
 /// Returns an error if bash cannot be found or fails to execute.
-pub fn check_bash_available() -> Result<()> {
+pub fn check_bash_available() -> std::result::Result<(), BashError> {
     if let Some(path) = get_bash_path() {
-        return std::process::Command::new(&path)
+        let output = std::process::Command::new(&path)
             .arg("--version")
-            .output()
-            .context(format!("Failed to execute bash at: {path}"))?
-            .status
-            .success()
-            .then_some(())
-            .context(format!("bash --version failed at: {path}"));
+            .output()?;
+        if !output.status.success() {
+            return Err(BashError::VersionCheck(path));
+        }
+        return Ok(());
     }
-    std::process::Command::new("bash")
+    let output = std::process::Command::new("bash")
         .arg("--version")
-        .output()
-        .context("Failed to execute default bash")?
-        .status
-        .success()
-        .then_some(())
-        .context("default bash --version returned non-zero exit status")
+        .output()?;
+    if !output.status.success() {
+        return Err(BashError::DefaultBashFailed);
+    }
+    Ok(())
 }
 
 pub struct ShellTool;

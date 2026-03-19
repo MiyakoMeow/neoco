@@ -1,4 +1,3 @@
-use anyhow::{Context, Result};
 use futures::{Stream, StreamExt};
 use rig::agent::{Agent, MultiTurnStreamItem, PromptHook};
 use rig::client::CompletionClient;
@@ -7,9 +6,12 @@ use rig::streaming::{StreamedAssistantContent, StreamingChat};
 use tracing::info;
 
 use crate::config::{Config, ProviderType};
+use crate::errors::ChatError;
 use crate::events::ChatEvent;
 use crate::output::EventHandler;
 use crate::tools::ShellTool;
+
+type Result<T> = std::result::Result<T, ChatError>;
 
 enum AnyAgent {
     OpenAICompletions(Agent<rig::providers::openai::CompletionModel>),
@@ -49,8 +51,7 @@ where
                     Ok(MultiTurnStreamItem::StreamAssistantItem(
                         StreamedAssistantContent::Reasoning(reasoning),
                     )) => {
-                        let content = serde_json::to_string(&reasoning.content)
-                            .context("JSON serialization failed for reasoning content")?;
+                        let content = serde_json::to_string(&reasoning.content)?;
                         yield Ok(ChatEvent::Reasoning(content));
                     },
                     Ok(MultiTurnStreamItem::StreamAssistantItem(
@@ -82,12 +83,11 @@ where
                     Ok(MultiTurnStreamItem::StreamUserItem(content)) => {
                         use rig::streaming::StreamedUserContent;
                         let StreamedUserContent::ToolResult { tool_result, .. } = content;
-                        let content_str = serde_json::to_string(&tool_result.content)
-                            .context("JSON serialization failed for tool result content")?;
+                        let content_str = serde_json::to_string(&tool_result.content)?;
                         yield Ok(ChatEvent::ToolResult { content: content_str });
                     },
                     Err(e) => {
-                        yield Err(anyhow::anyhow!("Stream error: {e}"));
+                        yield Err(ChatError::Stream(e.to_string()));
                     },
                     _ => {},
                 }
@@ -98,7 +98,7 @@ where
                     "Token usage - Input: {}, Output: {}, Total: {}",
                     usage.input_tokens, usage.output_tokens, usage.total_tokens
                 );
-                yield Ok(ChatEvent::Usage(Box::new(usage)));
+                yield Ok(ChatEvent::Usage(usage));
             }
 
             yield Ok(ChatEvent::Done);
@@ -141,7 +141,7 @@ impl AnyAgent {
                         full_response.push_str(text);
                     }
                     if let ChatEvent::Usage(usage) = event {
-                        token_usage = Some(*usage);
+                        token_usage = Some(usage);
                     } else {
                         handler.handle(event);
                     }
@@ -173,10 +173,11 @@ where
 {
     let provider_config = config
         .extract_provider(model_string)
-        .with_context(|| format!("Unknown provider for model: {model_string}"))?
+        .ok_or_else(|| ChatError::UnknownProvider(model_string.to_string()))?
         .clone();
 
-    let api_key = Config::get_api_key(&provider_config)?;
+    let api_key =
+        Config::get_api_key(&provider_config).map_err(|e| ChatError::ApiKey(e.to_string()))?;
 
     let model_name = match model_string.split('/').nth(1) {
         Some(s) => s.split('?').next().unwrap_or(s).to_string(),
@@ -184,7 +185,7 @@ where
     };
 
     if messages.is_empty() {
-        anyhow::bail!("No message provided. Use -M/--message to send a message.");
+        return Err(ChatError::NoMessage);
     }
 
     let mut agent = match provider_config.r#type {
@@ -194,7 +195,7 @@ where
                 .api_key(&api_key)
                 .base_url(&provider_config.base_url)
                 .build()
-                .context("Failed to create OpenAI Completions client")?;
+                .map_err(|e| ChatError::ClientCreation(e.to_string()))?;
             let ag = client
                 .agent(&model_name)
                 .tool(ShellTool::new())
@@ -208,7 +209,7 @@ where
                 .api_key(&api_key)
                 .base_url(&provider_config.base_url)
                 .build()
-                .context("Failed to create OpenAI Responses client")?;
+                .map_err(|e| ChatError::ClientCreation(e.to_string()))?;
             let ag = client
                 .agent(&model_name)
                 .tool(ShellTool::new())
@@ -223,7 +224,7 @@ where
                 .base_url(&provider_config.base_url)
                 .anthropic_version("2023-06-01")
                 .build()
-                .context("Failed to create Anthropic client")?;
+                .map_err(|e| ChatError::ClientCreation(e.to_string()))?;
             let ag = client
                 .agent(&model_name)
                 .tool(ShellTool::new())

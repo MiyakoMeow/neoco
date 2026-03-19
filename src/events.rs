@@ -26,7 +26,7 @@ pub enum ChatEvent {
         content: String,
     },
     /// Token usage statistics from the model.
-    Usage(Box<Usage>),
+    Usage(Usage),
     /// Stream has completed.
     Done,
 }
