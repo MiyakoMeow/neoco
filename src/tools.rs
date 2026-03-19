@@ -7,6 +7,11 @@ use tokio::time::timeout;
 
 const COMMAND_TIMEOUT_SECS: u64 = 60;
 
+/// Locates bash path from environment variables.
+///
+/// Only checks if the path is set and non-empty. The actual executable
+/// validation is performed later by `check_bash_available()` and `ShellTool::call()`,
+/// both of which use `timeout()` to prevent indefinite blocking.
 fn get_bash_path() -> Option<String> {
     let candidates = [
         "NEOCO_GIT_BASH_PATH",
@@ -17,10 +22,6 @@ fn get_bash_path() -> Option<String> {
     for env_name in &candidates {
         if let Ok(path) = std::env::var(env_name)
             && !path.is_empty()
-            && std::process::Command::new(&path)
-                .arg("--version")
-                .output()
-                .is_ok_and(|o| o.status.success())
         {
             return Some(path);
         }
