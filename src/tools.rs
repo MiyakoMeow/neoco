@@ -46,6 +46,11 @@ pub enum CommandError {
     ExitError(i32, String),
 }
 
+/// Check if bash is available in the system.
+///
+/// # Errors
+///
+/// Returns an error if bash cannot be found or fails to execute.
 pub fn check_bash_available() -> Result<()> {
     if let Some(path) = get_bash_path() {
         return std::process::Command::new(&path)

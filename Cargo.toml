@@ -6,6 +6,10 @@ edition = "2024"
 license = "Apache-2.0"
 authors = ["MiyakoMeow"]
 
+[[bin]]
+name = "neoco"
+path = "bin/neoco.rs"
+
 [dependencies]
 rig-core = "0.32"
 crossterm = "0.29"

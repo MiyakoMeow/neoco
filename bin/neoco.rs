@@ -4,15 +4,7 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-mod agent;
-mod config;
-mod output;
-mod tools;
-use config::Config;
-
-use agent::chat;
-use output::OutputHandler;
-use tools::check_bash_available;
+use neoco::{Config, OutputHandler, chat, check_bash_available};
 
 /// CLI arguments
 #[derive(Parser, Debug)]

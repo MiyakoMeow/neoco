@@ -126,6 +126,11 @@ where
     Ok((full_response, token_usage))
 }
 
+/// Send a chat message to the model and get responses.
+///
+/// # Errors
+///
+/// Returns an error if provider extraction, API key retrieval, or the chat request fails.
 pub async fn chat(
     config: &Config,
     model_string: &str,
