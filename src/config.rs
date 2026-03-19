@@ -1,11 +1,30 @@
 //! Configuration module for loading neoco.toml
 
-use anyhow::{Context, Result};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::env;
 use std::fs;
 use std::path::Path;
+
+use thiserror::Error;
+
+type Result<T> = std::result::Result<T, ConfigError>;
+
+/// Errors that can occur when loading or parsing configuration.
+#[derive(Debug, Error)]
+pub enum ConfigError {
+    /// Failed to read the config file from disk.
+    #[error("Failed to read config file: {0}")]
+    ReadFile(#[from] std::io::Error),
+
+    /// Failed to parse the config file as TOML.
+    #[error("Failed to parse config file: {0}")]
+    ParseToml(#[from] toml::de::Error),
+
+    /// The required API key environment variable is not set.
+    #[error("Missing API key: set {0} environment variable")]
+    MissingApiKey(String),
+}
 
 /// Provider type enum
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
@@ -71,10 +90,8 @@ impl Config {
     ///
     /// Returns an error if the file cannot be read or parsed as valid TOML.
     pub fn load(path: &Path) -> Result<Self> {
-        let content = fs::read_to_string(path)
-            .with_context(|| format!("Failed to read config file: {}", path.display()))?;
-        toml::from_str(&content)
-            .with_context(|| format!("Failed to parse config file: {}", path.display()))
+        let content = fs::read_to_string(path)?;
+        toml::from_str(&content).map_err(ConfigError::ParseToml)
     }
 
     /// Get model from model group
@@ -106,12 +123,8 @@ impl Config {
     ///
     /// Returns an error if the API key environment variable is not set.
     pub fn get_api_key(provider: &Provider) -> Result<String> {
-        env::var(&provider.api_key_env).with_context(|| {
-            format!(
-                "Missing API key: set {} environment variable",
-                provider.api_key_env
-            )
-        })
+        env::var(&provider.api_key_env)
+            .map_err(|_| ConfigError::MissingApiKey(provider.api_key_env.clone()))
     }
 }
 

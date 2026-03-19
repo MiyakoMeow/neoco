@@ -1,5 +1,4 @@
-use anyhow::{Context, Result};
-use futures::StreamExt;
+use futures::{Stream, StreamExt};
 use rig::agent::{Agent, MultiTurnStreamItem, PromptHook};
 use rig::client::CompletionClient;
 use rig::completion::{CompletionModel, GetTokenUsage, Message, Usage};
@@ -7,8 +6,12 @@ use rig::streaming::{StreamedAssistantContent, StreamingChat};
 use tracing::info;
 
 use crate::config::{Config, ProviderType};
-use crate::output::OutputCallback;
+use crate::errors::ChatError;
+use crate::events::ChatEvent;
+use crate::output::EventHandler;
 use crate::tools::ShellTool;
+
+type Result<T> = std::result::Result<T, ChatError>;
 
 enum AnyAgent {
     OpenAICompletions(Agent<rig::providers::openai::CompletionModel>),
@@ -16,133 +19,165 @@ enum AnyAgent {
     Anthropic(Agent<rig::providers::anthropic::completion::CompletionModel>),
 }
 
-impl AnyAgent {
-    async fn chat(
-        &mut self,
+trait ChatStreamer {
+    fn stream_chat_events(
+        &self,
         message: &str,
-        history: &[Message],
-        output_callback: Option<&OutputCallback<'_>>,
-    ) -> Result<(String, Option<Usage>)> {
-        match self {
-            Self::OpenAICompletions(agent) => {
-                chat_with_agent(agent, message, history, output_callback).await
-            },
-            Self::OpenAIResponses(agent) => {
-                chat_with_agent(agent, message, history, output_callback).await
-            },
-            Self::Anthropic(agent) => {
-                chat_with_agent(agent, message, history, output_callback).await
-            },
-        }
-    }
+        history: Vec<Message>,
+    ) -> impl Stream<Item = Result<ChatEvent>> + Send;
 }
 
-async fn chat_with_agent<M, P>(
-    agent: &Agent<M, P>,
-    message: &str,
-    history: &[Message],
-    output_callback: Option<&OutputCallback<'_>>,
-) -> Result<(String, Option<Usage>)>
+impl<M, P> ChatStreamer for Agent<M, P>
 where
     M: CompletionModel + 'static,
     P: PromptHook<M> + 'static,
 {
-    let mut stream = agent.stream_chat(message, history.to_vec()).await;
+    fn stream_chat_events(
+        &self,
+        message: &str,
+        history: Vec<Message>,
+    ) -> impl Stream<Item = Result<ChatEvent>> + Send {
+        async_stream::stream! {
+            let mut stream = self.stream_chat(message, history).await;
+            let mut token_usage: Option<Usage> = None;
 
-    let mut full_response = String::new();
-    let mut token_usage: Option<Usage> = None;
-
-    while let Some(item) = stream.next().await {
-        match item {
-            Ok(MultiTurnStreamItem::StreamAssistantItem(StreamedAssistantContent::Text(text))) => {
-                if let Some(cb) = output_callback {
-                    cb(&text.text);
-                }
-                full_response.push_str(&text.text);
-            },
-            Ok(MultiTurnStreamItem::StreamAssistantItem(StreamedAssistantContent::Reasoning(
-                reasoning,
-            ))) => {
-                if let Some(cb) = output_callback {
-                    cb(&format!("[思考] {:?}", reasoning.content));
-                }
-            },
-            Ok(MultiTurnStreamItem::StreamAssistantItem(StreamedAssistantContent::Final(
-                response,
-            ))) => {
-                token_usage = response.token_usage();
-            },
-            Ok(MultiTurnStreamItem::StreamAssistantItem(
-                StreamedAssistantContent::ReasoningDelta { reasoning, .. },
-            )) => {
-                if let Some(cb) = output_callback {
-                    cb(&format!("[思考] {reasoning}"));
-                }
-            },
-            Ok(MultiTurnStreamItem::StreamAssistantItem(StreamedAssistantContent::ToolCall {
-                tool_call,
-                internal_call_id: _,
-            })) => {
-                if let Some(cb) = output_callback {
-                    cb(&format!("[工具调用] {}: ", tool_call.function.name));
-                    cb(&tool_call.function.arguments.to_string());
-                }
-            },
-            Ok(MultiTurnStreamItem::StreamAssistantItem(
-                StreamedAssistantContent::ToolCallDelta { content, .. },
-            )) => {
-                if let Some(cb) = output_callback {
-                    cb(&format!("[工具调用] {content:?}"));
-                }
-            },
-            Ok(MultiTurnStreamItem::StreamUserItem(content)) => {
-                use rig::streaming::StreamedUserContent;
-                match content {
-                    StreamedUserContent::ToolResult { tool_result, .. } => {
-                        if let Some(cb) = output_callback {
-                            cb(&format!("[工具结果] {:#?}\n", tool_result.content));
-                        }
+            while let Some(item) = stream.next().await {
+                match item {
+                    Ok(MultiTurnStreamItem::StreamAssistantItem(
+                        StreamedAssistantContent::Text(text),
+                    )) => {
+                        yield Ok(ChatEvent::Text(text.text));
                     },
+                    Ok(MultiTurnStreamItem::StreamAssistantItem(
+                        StreamedAssistantContent::Reasoning(reasoning),
+                    )) => {
+                        let content = serde_json::to_string(&reasoning.content)?;
+                        yield Ok(ChatEvent::Reasoning(content));
+                    },
+                    Ok(MultiTurnStreamItem::StreamAssistantItem(
+                        StreamedAssistantContent::Final(response),
+                    )) => {
+                        token_usage = response.token_usage();
+                    },
+                    Ok(MultiTurnStreamItem::StreamAssistantItem(
+                        StreamedAssistantContent::ReasoningDelta { reasoning, .. },
+                    )) => {
+                        yield Ok(ChatEvent::ReasoningDelta(reasoning));
+                    },
+                    Ok(MultiTurnStreamItem::StreamAssistantItem(
+                        StreamedAssistantContent::ToolCall {
+                            tool_call,
+                            internal_call_id: _,
+                        },
+                    )) => {
+                        yield Ok(ChatEvent::ToolCall {
+                            name: tool_call.function.name,
+                            arguments: tool_call.function.arguments.to_string(),
+                        });
+                    },
+                    Ok(MultiTurnStreamItem::StreamAssistantItem(
+                        StreamedAssistantContent::ToolCallDelta { content, .. },
+                    )) => {
+                        yield Ok(ChatEvent::ToolCallDelta(format!("{content:?}")));
+                    },
+                    Ok(MultiTurnStreamItem::StreamUserItem(content)) => {
+                        use rig::streaming::StreamedUserContent;
+                        let StreamedUserContent::ToolResult { tool_result, .. } = content;
+                        let content_str = serde_json::to_string(&tool_result.content)?;
+                        yield Ok(ChatEvent::ToolResult { content: content_str });
+                    },
+                    Err(e) => {
+                        yield Err(ChatError::Stream(e.to_string()));
+                    },
+                    _ => {},
                 }
-            },
-            Err(e) => {
-                anyhow::bail!("Stream error: {e}");
-            },
-            _ => {},
+            }
+
+            if let Some(usage) = token_usage {
+                info!(
+                    "Token usage - Input: {}, Output: {}, Total: {}",
+                    usage.input_tokens, usage.output_tokens, usage.total_tokens
+                );
+                yield Ok(ChatEvent::Usage(usage));
+            }
+
+            yield Ok(ChatEvent::Done);
         }
     }
+}
 
-    if let Some(cb) = output_callback {
-        cb("\n");
+impl AnyAgent {
+    async fn chat<H>(
+        &mut self,
+        message: &str,
+        history: &[Message],
+        handler: &H,
+    ) -> Result<(String, Option<Usage>)>
+    where
+        H: EventHandler + ?Sized,
+    {
+        use futures::Stream;
+        use std::pin::Pin;
+
+        let history_vec = history.to_vec();
+        let stream: Pin<Box<dyn Stream<Item = Result<ChatEvent>> + Send>> = match self {
+            Self::OpenAICompletions(agent) => {
+                Box::pin(agent.stream_chat_events(message, history_vec))
+            },
+            Self::OpenAIResponses(agent) => {
+                Box::pin(agent.stream_chat_events(message, history_vec))
+            },
+            Self::Anthropic(agent) => Box::pin(agent.stream_chat_events(message, history_vec)),
+        };
+
+        let mut full_response = String::new();
+        let mut token_usage: Option<Usage> = None;
+
+        tokio::pin!(stream);
+        while let Some(event_result) = stream.next().await {
+            match event_result {
+                Ok(event) => {
+                    if let ChatEvent::Text(ref text) = event {
+                        full_response.push_str(text);
+                    }
+                    if let ChatEvent::Usage(usage) = event {
+                        token_usage = Some(usage);
+                    } else {
+                        handler.handle(event);
+                    }
+                },
+                Err(e) => {
+                    return Err(e);
+                },
+            }
+        }
+
+        Ok((full_response, token_usage))
     }
-
-    if let Some(usage) = token_usage {
-        info!(
-            "Token usage - Input: {}, Output: {}, Total: {}",
-            usage.input_tokens, usage.output_tokens, usage.total_tokens
-        );
-    }
-
-    Ok((full_response, token_usage))
 }
 
 /// Send a chat message to the model and get responses.
 ///
 /// # Errors
 ///
-/// Returns an error if provider extraction, API key retrieval, or the chat request fails.
-pub async fn chat(
+/// Returns an error if provider extraction fails, API key retrieval fails,
+/// or the chat request fails.
+pub async fn chat<H>(
     config: &Config,
     model_string: &str,
     messages: &[String],
-    output_callback: Option<&OutputCallback<'_>>,
-) -> Result<Vec<(String, Option<Usage>)>> {
+    handler: &H,
+) -> Result<Vec<(String, Option<Usage>)>>
+where
+    H: EventHandler + ?Sized,
+{
     let provider_config = config
         .extract_provider(model_string)
-        .with_context(|| format!("Unknown provider for model: {model_string}"))?
+        .ok_or_else(|| ChatError::UnknownProvider(model_string.to_string()))?
         .clone();
 
-    let api_key = Config::get_api_key(&provider_config)?;
+    let api_key =
+        Config::get_api_key(&provider_config).map_err(|e| ChatError::ApiKey(e.to_string()))?;
 
     let model_name = match model_string.split('/').nth(1) {
         Some(s) => s.split('?').next().unwrap_or(s).to_string(),
@@ -150,7 +185,7 @@ pub async fn chat(
     };
 
     if messages.is_empty() {
-        anyhow::bail!("No message provided. Use -M/--message to send a message.");
+        return Err(ChatError::NoMessage);
     }
 
     let mut agent = match provider_config.r#type {
@@ -160,7 +195,7 @@ pub async fn chat(
                 .api_key(&api_key)
                 .base_url(&provider_config.base_url)
                 .build()
-                .context("Failed to create OpenAI Completions client")?;
+                .map_err(|e| ChatError::ClientCreation(e.to_string()))?;
             let ag = client
                 .agent(&model_name)
                 .tool(ShellTool::new())
@@ -174,7 +209,7 @@ pub async fn chat(
                 .api_key(&api_key)
                 .base_url(&provider_config.base_url)
                 .build()
-                .context("Failed to create OpenAI Responses client")?;
+                .map_err(|e| ChatError::ClientCreation(e.to_string()))?;
             let ag = client
                 .agent(&model_name)
                 .tool(ShellTool::new())
@@ -189,7 +224,7 @@ pub async fn chat(
                 .base_url(&provider_config.base_url)
                 .anthropic_version("2023-06-01")
                 .build()
-                .context("Failed to create Anthropic client")?;
+                .map_err(|e| ChatError::ClientCreation(e.to_string()))?;
             let ag = client
                 .agent(&model_name)
                 .tool(ShellTool::new())
@@ -208,7 +243,7 @@ pub async fn chat(
     let mut results = Vec::new();
 
     for msg in messages {
-        let (response, usage) = agent.chat(msg, &history, output_callback).await?;
+        let (response, usage) = agent.chat(msg, &history, handler).await?;
 
         history.push(Message::user(msg));
         history.push(Message::assistant(&response));
