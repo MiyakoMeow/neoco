@@ -130,13 +130,10 @@ impl AgentTree {
     }
 
     pub fn get_active_spawn_count(&self) -> usize {
-        let mut total = 0;
-        for handle in self.handles.values() {
-            if handle.cancelled.load(Ordering::SeqCst) {
-                total += 1;
-            }
-        }
-        total
+        self.handles
+            .values()
+            .filter(|handle| !handle.cancelled.load(Ordering::SeqCst))
+            .count()
     }
 
     pub async fn add_pending_message(&self, target_id: Ulid, message: QueuedMessage) {
@@ -276,7 +273,13 @@ impl AgentTree {
 
         if let Some(_handle) = self.handles.get(&child_id) {
             let jh = tokio::spawn(task);
-            jh.await.ok();
+            if let Err(e) = jh.await {
+                warn!(
+                    agent_id = %child_id,
+                    error = %e,
+                    "Child agent task failed"
+                );
+            }
         }
     }
 }

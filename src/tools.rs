@@ -352,15 +352,18 @@ impl Tool for SpawnTool {
         let full_child_agent =
             build_agent_with_tools(build_config).map_err(SpawnError::CreateError)?;
 
+        let message = args.message;
         {
             let mut tree_lock = tree.lock().await;
             tree_lock
                 .add_child_with_id(parent_id, child_id, full_child_agent)
                 .await;
-            tree_lock
-                .run_child_agent(child_id, args.message, InsertMode::Queue)
-                .await;
         }
+
+        tree.lock()
+            .await
+            .run_child_agent(child_id, message, InsertMode::Queue)
+            .await;
 
         Ok(format!("child_{child_id}"))
     }
