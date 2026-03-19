@@ -1,3 +1,5 @@
+//! Agent and chat functionality.
+
 use futures::{Stream, StreamExt};
 use rig::agent::{Agent, MultiTurnStreamItem, PromptHook};
 use rig::client::CompletionClient;

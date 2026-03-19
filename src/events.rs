@@ -1,3 +1,5 @@
+//! Chat event types.
+
 use rig::completion::Usage;
 use serde::Serialize;
 

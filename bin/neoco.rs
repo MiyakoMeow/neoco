@@ -3,7 +3,13 @@
 use clap::Parser;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-use neoco::{BashError, ChatError, Config, ConfigError, OutputHandler, chat, check_bash_available};
+use neoco::{
+    agent::chat,
+    config::{Config, ConfigError},
+    errors::ChatError,
+    output::OutputHandler,
+    tools::{BashError, check_bash_available},
+};
 
 /// Errors that can occur during CLI execution.
 #[derive(Debug, thiserror::Error)]
