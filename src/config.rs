@@ -56,12 +56,20 @@ pub struct Config {
 
 impl Config {
     /// Load config from default path .neoco/neoco.toml
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the config file cannot be read or parsed.
     pub fn load_default() -> Result<Self> {
         let path = Path::new(".neoco").join("neoco.toml");
         Self::load(path.as_path())
     }
 
     /// Load config from specified path
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the file cannot be read or parsed as valid TOML.
     pub fn load(path: &Path) -> Result<Self> {
         let content = fs::read_to_string(path)
             .with_context(|| format!("Failed to read config file: {}", path.display()))?;
@@ -70,6 +78,7 @@ impl Config {
     }
 
     /// Get model from model group
+    #[must_use]
     pub fn get_model_from_group(&self, group: &str) -> Option<String> {
         self.model_groups
             .get(group)
@@ -77,6 +86,7 @@ impl Config {
     }
 
     /// Extract provider name from model string (e.g., "minimax-cn/MiniMax-M2.5" -> "minimax-cn")
+    #[must_use]
     pub fn extract_provider(&self, model: &str) -> Option<&Provider> {
         model.split('/').next().and_then(|provider_name| {
             // Try exact match first
@@ -91,6 +101,10 @@ impl Config {
     }
 
     /// Get API key from environment for the given provider
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the API key environment variable is not set.
     pub fn get_api_key(provider: &Provider) -> Result<String> {
         env::var(&provider.api_key_env).with_context(|| {
             format!(
