@@ -10,8 +10,8 @@ const COMMAND_TIMEOUT_SECS: u64 = 60;
 /// Locates bash path from environment variables.
 ///
 /// Only checks if the path is set and non-empty. The actual executable
-/// validation is performed later by `check_bash_available()` and `ShellTool::call()`,
-/// both of which use `timeout()` to prevent indefinite blocking.
+/// validation is performed by `check_bash_available()` (synchronous, no timeout)
+/// and `ShellTool::call()` (async with timeout).
 fn get_bash_path() -> Option<String> {
     let candidates = [
         "NEOCO_GIT_BASH_PATH",
