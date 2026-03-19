@@ -221,67 +221,46 @@ impl Tool for SpawnTool {
             None => model_string.clone(),
         };
 
-        // Create child agent with ShellTool only first (to build the tree structure)
-        let child_agent: AnyAgent = match provider_config.r#type {
-            ProviderType::OpenAICompletions => {
-                use rig::providers::openai::CompletionsClient;
-                let client = CompletionsClient::builder()
-                    .api_key(&api_key)
-                    .base_url(&provider_config.base_url)
-                    .build()
-                    .context("Failed to create OpenAI Completions client")?;
-                let ag = client
-                    .agent(&model_name)
-                    .tool(crate::tools::ShellTool::new())
-                    .default_max_turns(DEFAULT_MAX_TURNS)
-                    .build();
-                AnyAgent::OpenAICompletions(ag)
-            },
-            ProviderType::OpenAIResponses => {
-                use rig::providers::openai::Client as OpenAIClient;
-                let client = OpenAIClient::builder()
-                    .api_key(&api_key)
-                    .base_url(&provider_config.base_url)
-                    .build()
-                    .context("Failed to create OpenAI Responses client")?;
-                let ag = client
-                    .agent(&model_name)
-                    .tool(crate::tools::ShellTool::new())
-                    .default_max_turns(DEFAULT_MAX_TURNS)
-                    .build();
-                AnyAgent::OpenAIResponses(ag)
-            },
-            ProviderType::Anthropic => {
-                use rig::providers::anthropic::Client;
-                let client = Client::builder()
-                    .api_key(api_key.as_str())
-                    .base_url(&provider_config.base_url)
-                    .anthropic_version(&provider_config.anthropic_version)
-                    .build()
-                    .context("Failed to create Anthropic client")?;
-                let ag = client
-                    .agent(&model_name)
-                    .tool(crate::tools::ShellTool::new())
-                    .default_max_turns(DEFAULT_MAX_TURNS)
-                    .build();
-                AnyAgent::Anthropic(ag)
-            },
-        };
+        // Check agent spawning limits before creating the agent
+        {
+            let tree = self.agent_tree.lock().await;
 
+            let depth = tree.get_agent_depth(self.current_agent_id);
+            if depth >= self.config.agent_limits.tree_depth {
+                return Err(SpawnError::CreateError(anyhow::anyhow!(
+                    "Max tree depth {} exceeded (current: {})",
+                    self.config.agent_limits.tree_depth,
+                    depth
+                )));
+            }
+
+            let children_count = tree.get_children_count(self.current_agent_id);
+            if children_count >= self.config.agent_limits.children_per_parent {
+                return Err(SpawnError::CreateError(anyhow::anyhow!(
+                    "Max children per parent {} exceeded (current: {})",
+                    self.config.agent_limits.children_per_parent,
+                    children_count
+                )));
+            }
+
+            let active_count = tree.get_active_spawn_count();
+            if active_count >= self.config.agent_limits.concurrent_spawns {
+                return Err(SpawnError::CreateError(anyhow::anyhow!(
+                    "Max concurrent spawns {} exceeded (current: {})",
+                    self.config.agent_limits.concurrent_spawns,
+                    active_count
+                )));
+            }
+        }
+
+        // Pre-generate child_id before creating agent to avoid dual instantiation
+        let child_id = Ulid::new();
         let parent_id = self.current_agent_id;
         let message = args.message.clone();
         let agent_tree = self.agent_tree.clone();
 
-        // Add child to tree first to get the child_id
-        // Use async version to avoid blocking in async context
-        let child_id = {
-            let mut tree = agent_tree.lock().await;
-            tree.add_child_async(parent_id, child_agent).await
-        };
-
-        // Create full agent with all tools (outside of lock)
-        // Now create the agent with full tools (SpawnTool + SendTool)
-        // Child agents can spawn further children and send messages
+        // Create full child agent with all tools (SpawnTool + SendTool + ShellTool)
+        // This avoids creating a placeholder agent first and then replacing it
         let full_child_agent: AnyAgent = match provider_config.r#type {
             ProviderType::OpenAICompletions => {
                 use rig::providers::openai::CompletionsClient;
@@ -346,11 +325,11 @@ impl Tool for SpawnTool {
             },
         };
 
-        // Update the agent in the tree with the full version and run in single lock scope
-        // to avoid race condition where other code could see the placeholder agent
+        // Add child to tree and run in single lock scope to avoid race condition
         {
             let mut tree = agent_tree.lock().await;
-            tree.update_agent(child_id, full_child_agent);
+            tree.add_child_with_id(parent_id, child_id, full_child_agent)
+                .await;
             tree.run_child_agent(child_id, message, InsertMode::Queue);
         }
 

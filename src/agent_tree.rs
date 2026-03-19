@@ -28,7 +28,6 @@ pub enum InsertMode {
 pub struct QueuedMessage {
     pub content: String,
     pub mode: InsertMode,
-    #[expect(dead_code)]
     pub from_agent_id: Ulid,
 }
 
@@ -82,15 +81,26 @@ impl AgentTree {
         self.root_id
     }
 
+    #[expect(dead_code)]
     pub fn update_agent(&mut self, id: Ulid, agent: AnyAgent) {
         if let Some(existing) = self.agents.get_mut(&id) {
             *existing = Arc::new(agent);
         }
     }
 
+    #[expect(dead_code)]
     pub async fn add_child_async(&mut self, parent_id: Ulid, child_agent: AnyAgent) -> Ulid {
         let child_id = Ulid::new();
+        self.add_child_with_id(parent_id, child_id, child_agent)
+            .await
+    }
 
+    pub async fn add_child_with_id(
+        &mut self,
+        parent_id: Ulid,
+        child_id: Ulid,
+        child_agent: AnyAgent,
+    ) -> Ulid {
         let handle = AgentHandle {
             id: child_id,
             parent_id: Some(parent_id),
@@ -117,6 +127,45 @@ impl AgentTree {
 
     pub fn get_parent_id(&self, id: Ulid) -> Option<Ulid> {
         self.handles.get(&id).and_then(|h| h.parent_id)
+    }
+
+    pub fn get_agent_depth(&self, id: Ulid) -> usize {
+        let mut depth = 0;
+        let mut current_id = Some(id);
+        while let Some(cid) = current_id {
+            if let Some(handle) = self.handles.get(&cid) {
+                current_id = handle.parent_id;
+                if current_id.is_some() {
+                    depth += 1;
+                }
+            } else {
+                break;
+            }
+        }
+        depth
+    }
+
+    pub fn get_children_count(&self, parent_id: Ulid) -> usize {
+        self.handles
+            .get(&parent_id)
+            .map_or(0, |h| h.children.blocking_lock().len())
+    }
+
+    pub fn get_active_spawn_count(&self) -> usize {
+        self.handles
+            .values()
+            .map(|h| h.tasks.blocking_lock().len())
+            .sum()
+    }
+
+    #[expect(dead_code)]
+    pub async fn wait_for_child_tasks(&self, id: Ulid) {
+        let Some(handle) = self.handles.get(&id) else {
+            return;
+        };
+        let tasks = handle.tasks.clone();
+        let mut guard = tasks.lock().await;
+        while guard.join_next().await.is_some() {}
     }
 
     pub async fn add_pending_message(&self, target_id: Ulid, message: QueuedMessage) {

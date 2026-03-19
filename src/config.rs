@@ -40,6 +40,39 @@ fn default_anthropic_version() -> String {
     "2023-06-01".to_string()
 }
 
+/// Agent spawning limits
+#[derive(Debug, Clone, Deserialize)]
+pub struct AgentLimits {
+    #[serde(default = "default_max_tree_depth")]
+    pub tree_depth: usize,
+    #[serde(default = "default_max_children_per_parent")]
+    pub children_per_parent: usize,
+    #[serde(default = "default_max_concurrent_spawns")]
+    pub concurrent_spawns: usize,
+}
+
+fn default_max_tree_depth() -> usize {
+    10
+}
+
+fn default_max_children_per_parent() -> usize {
+    5
+}
+
+fn default_max_concurrent_spawns() -> usize {
+    50
+}
+
+impl Default for AgentLimits {
+    fn default() -> Self {
+        Self {
+            tree_depth: default_max_tree_depth(),
+            children_per_parent: default_max_children_per_parent(),
+            concurrent_spawns: default_max_concurrent_spawns(),
+        }
+    }
+}
+
 /// Model group configuration
 #[derive(Debug, Clone, Deserialize)]
 struct ModelGroup {
@@ -59,6 +92,9 @@ pub struct Config {
     /// Model providers: `provider_name` -> Provider config
     #[serde(rename = "model_providers")]
     pub model_providers: HashMap<String, Provider>,
+    /// Agent spawning limits
+    #[serde(default)]
+    pub agent_limits: AgentLimits,
 }
 
 impl Config {
@@ -131,6 +167,7 @@ mod tests {
             model_group: Some("balanced".to_string()),
             model_groups: HashMap::new(),
             model_providers: providers,
+            agent_limits: AgentLimits::default(),
         };
 
         let provider = config.extract_provider("minimax-cn/MiniMax-M2.5");
