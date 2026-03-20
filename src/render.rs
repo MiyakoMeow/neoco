@@ -107,7 +107,11 @@ impl OutputHandler {
             if !*use_stdout_guard {
                 return;
             }
-            if writeln!(io::stdout(), "{text}").is_err() {
+            let mut stdout = io::stdout();
+            if write!(stdout, "{text}")
+                .and_then(|()| stdout.flush())
+                .is_err()
+            {
                 error!("Output error: failed to write text");
             }
         })
@@ -125,7 +129,11 @@ impl OutputHandler {
     /// Render text to stdout with optional color.
     #[expect(clippy::unused_self)]
     fn render_with_color(&self, text: &str, color: &str) {
-        if write!(io::stdout(), "{color}{text}{ANSI_RESET}").is_err() {
+        let mut stdout = io::stdout();
+        if write!(stdout, "{color}{text}{ANSI_RESET}")
+            .and_then(|()| stdout.flush())
+            .is_err()
+        {
             error!("Output error: failed to write colored text");
         }
     }
