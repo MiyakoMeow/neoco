@@ -28,4 +28,24 @@ pub enum ChatError {
     /// An error occurred while streaming chat responses.
     #[error("Stream error: {0}")]
     Stream(String),
+
+    /// An error occurred during rendering.
+    #[error("Render error: {0}")]
+    Render(#[from] RenderError),
+}
+
+/// Errors that can occur during UI rendering.
+#[derive(Debug, Error)]
+pub enum RenderError {
+    /// IO error during rendering.
+    #[error("IO error: {0}")]
+    Io(#[from] std::io::Error),
+
+    /// Terminal error.
+    #[error("Terminal error: {0}")]
+    Terminal(String),
+
+    /// Render operation failed.
+    #[error("Render failed: {0}")]
+    RenderFailed(String),
 }

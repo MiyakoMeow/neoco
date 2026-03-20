@@ -1,50 +1,35 @@
-//! Output handling.
+//! CLI renderer implementation (stdout with ANSI colors).
 
 use std::io::{self, Write};
-use std::sync::Mutex;
 
 use tracing::error;
 
+use super::Renderer;
+use crate::errors::RenderError;
 use crate::events::ChatEvent;
-use tracing::trace;
 
 const ANSI_RESET: &str = "\x1b[0m";
 const ANSI_CYAN: &str = "\x1b[36m";
 const ANSI_YELLOW: &str = "\x1b[33m";
 const ANSI_GREEN: &str = "\x1b[32m";
-const ANSI_GREY: &str = "\x1b[90m";
 
-/// Callback type for streaming output.
-pub type OutputCallback<'a> = Box<dyn Fn(&str) + Send + Sync + 'a>;
-
-/// Handler for output rendering.
-pub struct OutputHandler {
-    use_stdout: Mutex<bool>,
+/// CLI renderer that outputs to stdout with ANSI colors.
+#[expect(dead_code)]
+pub struct CliRenderer {
+    use_color: bool,
 }
 
-impl Clone for OutputHandler {
-    fn clone(&self) -> Self {
-        let value = self.use_stdout.lock().map_or_else(
-            |_err| {
-                error!("Output error: failed to acquire lock during clone");
-                true
-            },
-            |guard| *guard,
-        );
-
-        Self {
-            use_stdout: Mutex::new(value),
-        }
-    }
-}
-
-impl OutputHandler {
-    /// Create a new `OutputHandler`.
+impl CliRenderer {
+    /// Create a new CLI renderer.
     #[must_use]
-    pub fn new(_line_count: u16) -> Self {
-        Self {
-            use_stdout: Mutex::new(true),
-        }
+    pub const fn new() -> Self {
+        Self { use_color: true }
+    }
+
+    /// Create a new CLI renderer without colors.
+    #[must_use]
+    pub const fn no_color() -> Self {
+        Self { use_color: false }
     }
 
     /// Queue colored output commands (must flush after calling).
@@ -94,88 +79,25 @@ impl OutputHandler {
 
         result
     }
+}
 
-    /// Get output callback for streaming output.
-    pub fn as_output_callback(&self) -> OutputCallback<'_> {
-        let use_stdout = &self.use_stdout;
-
-        Box::new(move |text: &str| {
-            let Ok(use_stdout_guard) = use_stdout.lock() else {
-                error!("Output error: failed to acquire lock for output callback");
-                return;
-            };
-            if !*use_stdout_guard {
-                return;
-            }
-            let mut stdout = io::stdout();
-            if write!(stdout, "{text}")
-                .and_then(|()| stdout.flush())
-                .is_err()
-            {
-                error!("Output error: failed to write text");
-            }
-        })
-    }
-
-    /// Disable stdout output.
-    pub fn disable_stdout(&self) {
-        let Ok(mut use_stdout) = self.use_stdout.lock() else {
-            error!("Output error: failed to acquire lock to disable stdout");
-            return;
-        };
-        *use_stdout = false;
-    }
-
-    /// Render text to stdout with optional color.
-    #[expect(clippy::unused_self)]
-    fn render_with_color(&self, text: &str, color: &str) {
-        let mut stdout = io::stdout();
-        if write!(stdout, "{color}{text}{ANSI_RESET}")
-            .and_then(|()| stdout.flush())
-            .is_err()
-        {
-            error!("Output error: failed to write colored text");
-        }
-    }
-
-    /// Render text to stdout (default grey color).
-    ///
-    /// Note: This method does not check the `use_stdout` flag.
-    /// For event-based rendering that respects the flag, use the `handle` method instead.
-    pub fn render(&self, text: &str) {
-        self.render_with_color(text, ANSI_GREY);
-    }
-
-    /// Finalize output.
-    ///
-    /// PERF: Wait for terminal buffer to flush before proceeding.
-    pub fn finalize(self) {
-        std::thread::sleep(std::time::Duration::from_millis(100));
+impl Default for CliRenderer {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
-impl EventHandler for OutputHandler {
-    fn handle(&self, event: ChatEvent) {
-        let Ok(use_stdout_guard) = self.use_stdout.lock() else {
-            error!("Output error: failed to acquire lock for event handling");
-            return;
-        };
-        let use_stdout = *use_stdout_guard;
-        drop(use_stdout_guard);
-
-        if !use_stdout {
-            return;
-        }
-
+impl Renderer for CliRenderer {
+    fn render_event(&mut self, event: &ChatEvent) -> Result<(), RenderError> {
         let mut stdout = io::stdout();
 
         let result = match event {
-            ChatEvent::Text(text) => Self::queue_text(&mut stdout, &text),
+            ChatEvent::Text(text) => Self::queue_text(&mut stdout, text),
             ChatEvent::Reasoning(content) | ChatEvent::ReasoningDelta(content) => {
                 Self::queue_colored(&mut stdout, &format!("[思考] {content}"), ANSI_CYAN)
             },
             ChatEvent::ToolCall { arguments } => {
-                if let Ok(cmd_obj) = serde_json::from_str::<serde_json::Value>(&arguments) {
+                if let Ok(cmd_obj) = serde_json::from_str::<serde_json::Value>(arguments) {
                     if let Some(command) = cmd_obj.get("command").and_then(|v| v.as_str()) {
                         Self::queue_colored(&mut stdout, &format!("[Bash] {command}"), ANSI_YELLOW)
                     } else {
@@ -197,7 +119,6 @@ impl EventHandler for OutputHandler {
                 structured,
             } => {
                 if let Some(data) = structured {
-                    trace!("完整工具结果 (JSON): {data:#?}");
                     if let (Some(stdout_str), Some(stderr), Some(exit_code)) = (
                         data.get("stdout").and_then(|v| v.as_str()),
                         data.get("stderr").and_then(|v| v.as_str()),
@@ -223,14 +144,29 @@ impl EventHandler for OutputHandler {
         if result.is_err() {
             error!("Output error: failed to write to stdout");
         }
-        let _ = stdout.flush();
+        stdout.flush()?;
+        Ok(())
     }
-}
 
-/// Trait for handling chat events.
-pub trait EventHandler {
-    /// Handle a chat event.
-    fn handle(&self, event: ChatEvent);
+    fn render_chunk(&mut self, chunk: &str, is_thinking: bool) -> Result<(), RenderError> {
+        let mut stdout = io::stdout();
+        if is_thinking {
+            Self::queue_colored(&mut stdout, chunk, ANSI_CYAN)?;
+        } else {
+            Self::queue_text(&mut stdout, chunk)?;
+        }
+        stdout.flush()?;
+        Ok(())
+    }
+
+    fn clear(&mut self) -> Result<(), RenderError> {
+        Ok(())
+    }
+
+    fn flush(&mut self) -> Result<(), RenderError> {
+        io::stdout().flush()?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -239,14 +175,14 @@ mod tests {
 
     #[test]
     fn test_format_command_result_empty() {
-        let result = OutputHandler::format_command_result("", "", 0);
+        let result = CliRenderer::format_command_result("", "", 0);
         assert_eq!(result, "");
     }
 
     #[test]
     fn test_format_command_result_only_stdout() {
         let stdout = "line1\nline2\nline3";
-        let result = OutputHandler::format_command_result(stdout, "", 0);
+        let result = CliRenderer::format_command_result(stdout, "", 0);
         assert!(result.contains("输出:"));
         assert!(result.contains("line1"));
         assert!(result.contains("line2"));
@@ -260,7 +196,7 @@ mod tests {
             .map(|i| format!("line{i}"))
             .collect::<Vec<_>>()
             .join("\n");
-        let result = OutputHandler::format_command_result(&long_output, "", 0);
+        let result = CliRenderer::format_command_result(&long_output, "", 0);
         assert!(result.contains("line0"));
         assert!(result.contains("line4"));
         assert!(result.contains("更多输出已省略"));
@@ -272,7 +208,7 @@ mod tests {
             .map(|i| format!("error{i}"))
             .collect::<Vec<_>>()
             .join("\n");
-        let result = OutputHandler::format_command_result("", &long_error, 0);
+        let result = CliRenderer::format_command_result("", &long_error, 0);
         assert!(result.contains("error0"));
         assert!(result.contains("error4"));
         assert!(result.contains("更多错误已省略"));
@@ -284,7 +220,7 @@ mod tests {
             .map(|i| format!("line{i}"))
             .collect::<Vec<_>>()
             .join("\n");
-        let result = OutputHandler::format_command_result(&long_output, "", 0);
+        let result = CliRenderer::format_command_result(&long_output, "", 0);
         let lines: Vec<&str> = result.lines().filter(|l| l.starts_with("  line")).collect();
         assert_eq!(lines.len(), 5);
     }
@@ -293,7 +229,7 @@ mod tests {
     fn test_format_command_result_both_streams() {
         let stdout = "output";
         let stderr = "error";
-        let result = OutputHandler::format_command_result(stdout, stderr, 0);
+        let result = CliRenderer::format_command_result(stdout, stderr, 0);
         assert!(result.contains("输出:"));
         assert!(result.contains("错误:"));
         assert!(result.contains("output"));
@@ -302,19 +238,19 @@ mod tests {
 
     #[test]
     fn test_format_command_result_with_exit_code() {
-        let result = OutputHandler::format_command_result("", "", 1);
+        let result = CliRenderer::format_command_result("", "", 1);
         assert!(result.contains("退出码: 1"));
     }
 
     #[test]
     fn test_format_command_result_zero_exit_code_not_shown() {
-        let result = OutputHandler::format_command_result("", "", 0);
+        let result = CliRenderer::format_command_result("", "", 0);
         assert!(!result.contains("退出码"));
     }
 
     #[test]
     fn test_format_command_result_negative_exit_code() {
-        let result = OutputHandler::format_command_result("", "", -1);
+        let result = CliRenderer::format_command_result("", "", -1);
         assert!(result.contains("退出码: -1"));
     }
 }

@@ -6,10 +6,12 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use neoco::{
     agent::chat,
     config::{Config, ConfigError},
-    errors::ChatError,
-    render::OutputHandler,
+    errors,
+    renderer::{Renderer, cli::CliRenderer, tui::TuiRenderer},
     tools::{BashError, check_bash_available},
 };
+
+use errors::{ChatError, RenderError};
 
 /// Errors that can occur during CLI execution.
 #[derive(Debug, thiserror::Error)]
@@ -33,6 +35,10 @@ pub enum CliError {
     /// An error occurred during chat interaction.
     #[error("Chat error: {0}")]
     Chat(#[from] ChatError),
+
+    /// A rendering error occurred.
+    #[error("Render error: {0}")]
+    Render(#[from] RenderError),
 }
 
 /// CLI arguments
@@ -82,9 +88,42 @@ async fn main() -> std::result::Result<(), CliError> {
         return Err(CliError::NoModel);
     };
 
-    let output_handler = OutputHandler::new(1);
+    // 模式选择：有-M参数使用CLI模式，否则使用TUI模式
+    if args.messages.is_empty() {
+        // TUI模式：交互式聊天
+        run_tui_mode(&config, &model_string).await?;
+    } else {
+        // CLI模式：一次性发送消息
+        let mut renderer = CliRenderer::new();
+        chat(&config, &model_string, &args.messages, &mut renderer).await?;
+        renderer.shutdown()?;
+    }
 
-    chat(&config, &model_string, &args.messages, &output_handler).await?;
+    Ok(())
+}
+
+/// Run TUI interactive mode.
+async fn run_tui_mode(config: &Config, model_string: &str) -> Result<(), CliError> {
+    let mut renderer = TuiRenderer::new()?;
+
+    loop {
+        match renderer.run() {
+            Ok(input) => {
+                let messages = vec![input];
+                if let Err(e) = chat(config, model_string, &messages, &mut renderer).await {
+                    renderer.render_event(&neoco::events::ChatEvent::Text(format!("错误: {e}")))?;
+                }
+            },
+            Err(RenderError::RenderFailed(msg)) if msg == "User quit" => {
+                renderer.shutdown()?;
+                break;
+            },
+            Err(e) => {
+                renderer.shutdown()?;
+                return Err(CliError::Render(e));
+            },
+        }
+    }
 
     Ok(())
 }

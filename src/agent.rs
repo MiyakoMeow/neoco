@@ -10,10 +10,10 @@ use tracing::info;
 use crate::config::{Config, ProviderType};
 use crate::errors::ChatError;
 use crate::events::ChatEvent;
-use crate::render::EventHandler;
+use crate::renderer::Renderer;
 use crate::tools::ShellTool;
 
-type Result<T> = std::result::Result<T, ChatError>;
+type ChatResult<T> = std::result::Result<T, ChatError>;
 
 /// Extract structured data from tool result content.
 ///
@@ -54,7 +54,7 @@ trait ChatStreamer {
         &self,
         message: &str,
         history: Vec<Message>,
-    ) -> impl Stream<Item = Result<ChatEvent>> + Send;
+    ) -> impl Stream<Item = ChatResult<ChatEvent>> + Send;
 }
 
 impl<M, P> ChatStreamer for Agent<M, P>
@@ -66,7 +66,7 @@ where
         &self,
         message: &str,
         history: Vec<Message>,
-    ) -> impl Stream<Item = Result<ChatEvent>> + Send {
+    ) -> impl Stream<Item = ChatResult<ChatEvent>> + Send {
         async_stream::stream! {
             let mut stream = self.stream_chat(message, history).await;
             let mut token_usage: Option<Usage> = None;
@@ -151,16 +151,17 @@ impl AnyAgent {
         &mut self,
         message: &str,
         history: &[Message],
-        handler: &H,
-    ) -> Result<(String, Option<Usage>)>
+        handler: &mut H,
+    ) -> ChatResult<(String, Option<Usage>)>
     where
-        H: EventHandler + ?Sized,
+        H: Renderer + ?Sized,
     {
-        use futures::Stream;
+        use futures::{Stream, StreamExt};
         use std::pin::Pin;
 
         let history_vec = history.to_vec();
-        let stream: Pin<Box<dyn Stream<Item = Result<ChatEvent>> + Send>> = match self {
+
+        let stream: Pin<Box<dyn Stream<Item = ChatResult<ChatEvent>> + Send>> = match self {
             Self::OpenAICompletions(agent) => {
                 Box::pin(agent.stream_chat_events(message, history_vec))
             },
@@ -183,7 +184,7 @@ impl AnyAgent {
                     if let ChatEvent::Usage(usage) = event {
                         token_usage = Some(usage);
                     } else {
-                        handler.handle(event);
+                        handler.render_event(&event)?;
                     }
                 },
                 Err(e) => {
@@ -206,10 +207,10 @@ pub async fn chat<H>(
     config: &Config,
     model_string: &str,
     messages: &[String],
-    handler: &H,
-) -> Result<Vec<(String, Option<Usage>)>>
+    handler: &mut H,
+) -> ChatResult<Vec<(String, Option<Usage>)>>
 where
-    H: EventHandler + ?Sized,
+    H: Renderer + ?Sized,
 {
     let provider_config = config
         .extract_provider(model_string)
