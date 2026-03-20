@@ -226,13 +226,6 @@ impl Tool for ShellTool {
                 let stderr = String::from_utf8_lossy(&output.stderr).to_string();
                 let exit_code = i64::from(output.status.code().unwrap_or(-1));
 
-                if !output.status.success() {
-                    return Err(CommandError::ExitError(
-                        exit_code,
-                        format!("{stdout}{stderr}"),
-                    ));
-                }
-
                 Ok(CommandResult {
                     command: args.command.clone(),
                     stdout,
