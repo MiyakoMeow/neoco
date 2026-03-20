@@ -3,12 +3,16 @@
 use std::io::{self, Write};
 use std::sync::Mutex;
 
-use crossterm::style::{Color, Print, ResetColor, SetForegroundColor};
-use crossterm::{ExecutableCommand, QueueableCommand};
 use tracing::error;
 
 use crate::events::ChatEvent;
 use tracing::trace;
+
+const ANSI_RESET: &str = "\x1b[0m";
+const ANSI_CYAN: &str = "\x1b[36m";
+const ANSI_YELLOW: &str = "\x1b[33m";
+const ANSI_GREEN: &str = "\x1b[32m";
+const ANSI_GREY: &str = "\x1b[90m";
 
 /// Callback type for streaming output.
 pub type OutputCallback<'a> = Box<dyn Fn(&str) + Send + Sync + 'a>;
@@ -44,17 +48,13 @@ impl OutputHandler {
     }
 
     /// Queue colored output commands (must flush after calling).
-    fn queue_colored(stdout: &mut impl Write, text: &str, color: Color) -> io::Result<()> {
-        stdout
-            .queue(SetForegroundColor(color))?
-            .queue(Print(text))?
-            .queue(ResetColor)
-            .map(|_| ())
+    fn queue_colored(stdout: &mut impl Write, text: &str, color: &str) -> io::Result<()> {
+        write!(stdout, "{color}{text}{ANSI_RESET}")
     }
 
     /// Queue text output without color (must flush after calling).
     fn queue_text(stdout: &mut impl Write, text: &str) -> io::Result<()> {
-        stdout.queue(Print(text)).map(|_| ())
+        write!(stdout, "{text}")
     }
 
     /// Format command result for display (first 5 lines of stdout/stderr).
@@ -107,7 +107,7 @@ impl OutputHandler {
             if !*use_stdout_guard {
                 return;
             }
-            if io::stdout().execute(Print(text)).is_err() {
+            if writeln!(io::stdout(), "{text}").is_err() {
                 error!("Output error: failed to write text");
             }
         })
@@ -124,13 +124,8 @@ impl OutputHandler {
 
     /// Render text to stdout with optional color.
     #[expect(clippy::unused_self)]
-    fn render_with_color(&self, text: &str, color: Color) {
-        if io::stdout()
-            .execute(SetForegroundColor(color))
-            .and_then(|s| s.execute(Print(text)))
-            .and_then(|s| s.execute(ResetColor))
-            .is_err()
-        {
+    fn render_with_color(&self, text: &str, color: &str) {
+        if write!(io::stdout(), "{color}{text}{ANSI_RESET}").is_err() {
             error!("Output error: failed to write colored text");
         }
     }
@@ -140,7 +135,7 @@ impl OutputHandler {
     /// Note: This method does not check the `use_stdout` flag.
     /// For event-based rendering that respects the flag, use the `handle` method instead.
     pub fn render(&self, text: &str) {
-        self.render_with_color(text, Color::Grey);
+        self.render_with_color(text, ANSI_GREY);
     }
 
     /// Finalize output.
@@ -169,29 +164,25 @@ impl EventHandler for OutputHandler {
         let result = match event {
             ChatEvent::Text(text) => Self::queue_text(&mut stdout, &text),
             ChatEvent::Reasoning(content) | ChatEvent::ReasoningDelta(content) => {
-                Self::queue_colored(&mut stdout, &format!("[思考] {content}"), Color::Cyan)
+                Self::queue_colored(&mut stdout, &format!("[思考] {content}"), ANSI_CYAN)
             },
             ChatEvent::ToolCall { arguments } => {
                 if let Ok(cmd_obj) = serde_json::from_str::<serde_json::Value>(&arguments) {
                     if let Some(command) = cmd_obj.get("command").and_then(|v| v.as_str()) {
-                        Self::queue_colored(
-                            &mut stdout,
-                            &format!("[Bash] {command}"),
-                            Color::Yellow,
-                        )
+                        Self::queue_colored(&mut stdout, &format!("[Bash] {command}"), ANSI_YELLOW)
                     } else {
                         Self::queue_colored(
                             &mut stdout,
                             &format!("[Bash] {arguments}"),
-                            Color::Yellow,
+                            ANSI_YELLOW,
                         )
                     }
                 } else {
-                    Self::queue_colored(&mut stdout, &format!("[Bash] {arguments}"), Color::Yellow)
+                    Self::queue_colored(&mut stdout, &format!("[Bash] {arguments}"), ANSI_YELLOW)
                 }
             },
             ChatEvent::ToolCallDelta(content) => {
-                Self::queue_colored(&mut stdout, &format!("[工具调用] {content}"), Color::Yellow)
+                Self::queue_colored(&mut stdout, &format!("[工具调用] {content}"), ANSI_YELLOW)
             },
             ChatEvent::ToolResult {
                 content,
@@ -205,20 +196,16 @@ impl EventHandler for OutputHandler {
                         data.get("exit_code").and_then(serde_json::Value::as_i64),
                     ) {
                         let formatted = Self::format_command_result(stdout_str, stderr, exit_code);
-                        Self::queue_colored(&mut stdout, &formatted, Color::Green)
+                        Self::queue_colored(&mut stdout, &formatted, ANSI_GREEN)
                     } else {
                         Self::queue_colored(
                             &mut stdout,
                             &format!("[工具结果] {content}\n"),
-                            Color::Green,
+                            ANSI_GREEN,
                         )
                     }
                 } else {
-                    Self::queue_colored(
-                        &mut stdout,
-                        &format!("[工具结果] {content}\n"),
-                        Color::Green,
-                    )
+                    Self::queue_colored(&mut stdout, &format!("[工具结果] {content}\n"), ANSI_GREEN)
                 }
             },
             ChatEvent::Usage(_) => Ok(()),
