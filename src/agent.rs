@@ -305,7 +305,7 @@ mod tests {
         let result = extract_structured_data(&value);
         assert!(result.is_some());
         let extracted = result.unwrap();
-        assert_eq!(extracted["key"], "value");
+        assert_eq!(extracted.get("key").and_then(|v| v.as_str()), Some("value"));
     }
 
     #[test]
@@ -315,9 +315,20 @@ mod tests {
         let result = extract_structured_data(&value);
         assert!(result.is_some());
         let extracted = result.unwrap();
-        assert_eq!(extracted["stdout"], "output");
-        assert_eq!(extracted["stderr"], "error");
-        assert_eq!(extracted["exit_code"], 0);
+        assert_eq!(
+            extracted.get("stdout").and_then(|v| v.as_str()),
+            Some("output")
+        );
+        assert_eq!(
+            extracted.get("stderr").and_then(|v| v.as_str()),
+            Some("error")
+        );
+        assert_eq!(
+            extracted
+                .get("exit_code")
+                .and_then(serde_json::Value::as_i64),
+            Some(0)
+        );
     }
 
     #[test]
