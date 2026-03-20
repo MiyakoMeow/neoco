@@ -7,7 +7,7 @@ use neoco::{
     agent::chat,
     config::{Config, ConfigError},
     errors::ChatError,
-    output::OutputHandler,
+    render::OutputHandler,
     tools::{BashError, check_bash_available},
 };
 

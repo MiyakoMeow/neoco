@@ -10,7 +10,7 @@ use tracing::info;
 use crate::config::{Config, ProviderType};
 use crate::errors::ChatError;
 use crate::events::ChatEvent;
-use crate::output::EventHandler;
+use crate::render::EventHandler;
 use crate::tools::ShellTool;
 
 type Result<T> = std::result::Result<T, ChatError>;
