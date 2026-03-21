@@ -5,17 +5,13 @@ use std::sync::Mutex;
 
 use tracing::error;
 
-use crate::events::ChatEvent;
+use neoco_types::{EventHandler, events::ChatEvent};
 use tracing::trace;
 
 const ANSI_RESET: &str = "\x1b[0m";
 const ANSI_CYAN: &str = "\x1b[36m";
 const ANSI_YELLOW: &str = "\x1b[33m";
 const ANSI_GREEN: &str = "\x1b[32m";
-const ANSI_GREY: &str = "\x1b[90m";
-
-/// Callback type for streaming output.
-pub type OutputCallback<'a> = Box<dyn Fn(&str) + Send + Sync + 'a>;
 
 /// Handler for output rendering.
 pub struct OutputHandler {
@@ -94,64 +90,6 @@ impl OutputHandler {
 
         result
     }
-
-    /// Get output callback for streaming output.
-    pub fn as_output_callback(&self) -> OutputCallback<'_> {
-        let use_stdout = &self.use_stdout;
-
-        Box::new(move |text: &str| {
-            let Ok(use_stdout_guard) = use_stdout.lock() else {
-                error!("Output error: failed to acquire lock for output callback");
-                return;
-            };
-            if !*use_stdout_guard {
-                return;
-            }
-            let mut stdout = io::stdout();
-            if write!(stdout, "{text}")
-                .and_then(|()| stdout.flush())
-                .is_err()
-            {
-                error!("Output error: failed to write text");
-            }
-        })
-    }
-
-    /// Disable stdout output.
-    pub fn disable_stdout(&self) {
-        let Ok(mut use_stdout) = self.use_stdout.lock() else {
-            error!("Output error: failed to acquire lock to disable stdout");
-            return;
-        };
-        *use_stdout = false;
-    }
-
-    /// Render text to stdout with optional color.
-    #[expect(clippy::unused_self)]
-    fn render_with_color(&self, text: &str, color: &str) {
-        let mut stdout = io::stdout();
-        if write!(stdout, "{color}{text}{ANSI_RESET}")
-            .and_then(|()| stdout.flush())
-            .is_err()
-        {
-            error!("Output error: failed to write colored text");
-        }
-    }
-
-    /// Render text to stdout (default grey color).
-    ///
-    /// Note: This method does not check the `use_stdout` flag.
-    /// For event-based rendering that respects the flag, use the `handle` method instead.
-    pub fn render(&self, text: &str) {
-        self.render_with_color(text, ANSI_GREY);
-    }
-
-    /// Finalize output.
-    ///
-    /// PERF: Wait for terminal buffer to flush before proceeding.
-    pub fn finalize(self) {
-        std::thread::sleep(std::time::Duration::from_millis(100));
-    }
 }
 
 impl EventHandler for OutputHandler {
@@ -216,8 +154,12 @@ impl EventHandler for OutputHandler {
                     Self::queue_colored(&mut stdout, &format!("[工具结果] {content}\n"), ANSI_GREEN)
                 }
             },
-            ChatEvent::Usage(_) => Ok(()),
+            ChatEvent::Usage(usage) => {
+                trace!("Token usage: {usage:?}");
+                Ok(())
+            },
             ChatEvent::Done => Self::queue_text(&mut stdout, "\n"),
+            _ => Ok(()),
         };
 
         if result.is_err() {
@@ -225,12 +167,6 @@ impl EventHandler for OutputHandler {
         }
         let _ = stdout.flush();
     }
-}
-
-/// Trait for handling chat events.
-pub trait EventHandler {
-    /// Handle a chat event.
-    fn handle(&self, event: ChatEvent);
 }
 
 #[cfg(test)]
