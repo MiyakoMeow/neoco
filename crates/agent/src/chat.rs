@@ -1,4 +1,4 @@
-//! Agent and chat functionality.
+//! Chat functionality.
 
 use futures::{Stream, StreamExt};
 use rig::agent::{Agent, MultiTurnStreamItem, PromptHook};
@@ -7,11 +7,11 @@ use rig::completion::{CompletionModel, GetTokenUsage, Message, Usage};
 use rig::streaming::{StreamedAssistantContent, StreamingChat};
 use tracing::info;
 
-use crate::config::{Config, ProviderType};
-use crate::errors::ChatError;
-use crate::events::ChatEvent;
-use crate::render::EventHandler;
-use crate::tools::ShellTool;
+use neoco_config::{Config, ProviderType};
+use neoco_tools::ShellTool;
+use neoco_types::EventHandler;
+use neoco_types::errors::ChatError;
+use neoco_types::events::ChatEvent;
 
 type Result<T> = std::result::Result<T, ChatError>;
 

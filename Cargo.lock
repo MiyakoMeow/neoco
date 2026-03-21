@@ -893,17 +893,69 @@ dependencies = [
 name = "neoco"
 version = "0.1.0"
 dependencies = [
- "async-stream",
  "clap",
+ "neoco-agent",
+ "neoco-cli",
+ "neoco-config",
+ "neoco-tools",
+ "neoco-types",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "neoco-agent"
+version = "0.1.0"
+dependencies = [
+ "async-stream",
  "futures",
+ "neoco-config",
+ "neoco-tools",
+ "neoco-types",
+ "rig-core",
+ "serde_json",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "neoco-cli"
+version = "0.1.0"
+dependencies = [
+ "neoco-types",
+ "serde_json",
+ "tracing",
+]
+
+[[package]]
+name = "neoco-config"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "thiserror 2.0.18",
+ "toml",
+]
+
+[[package]]
+name = "neoco-tools"
+version = "0.1.0"
+dependencies = [
  "rig-core",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
  "tokio",
- "toml",
- "tracing",
- "tracing-subscriber",
+]
+
+[[package]]
+name = "neoco-types"
+version = "0.1.0"
+dependencies = [
+ "rig-core",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
