@@ -10,8 +10,9 @@ workspace = true
 
 [dependencies]
 neoco-config.workspace = true
-neoco-types.workspace = true
+neoco-event.workspace = true
 neoco-tools.workspace = true
+neoco-errors.workspace = true
 rig-core.workspace = true
 futures.workspace = true
 serde_json.workspace = true

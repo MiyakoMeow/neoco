@@ -5,7 +5,8 @@ use std::sync::Mutex;
 
 use tracing::error;
 
-use neoco_types::{EventHandler, events::ChatEvent};
+use neoco_agent::EventHandler;
+use neoco_event::ChatEvent;
 use tracing::trace;
 
 const ANSI_RESET: &str = "\x1b[0m";

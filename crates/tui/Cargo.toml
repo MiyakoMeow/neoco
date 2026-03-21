@@ -1,0 +1,36 @@
+[package]
+name = "neoco-tui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+name = "neoco_tui"
+path = "src/lib.rs"
+
+[dependencies]
+neoco-config.workspace = true
+neoco-event.workspace = true
+neoco-agent.workspace = true
+neoco-errors.workspace = true
+
+ratatui = { version = "0.29", features = [
+    "scrolling-regions",
+    "unstable-widget-ref",
+] }
+crossterm = { version = "0.28", features = [
+    "bracketed-paste",
+    "event-stream",
+] }
+tokio = { workspace = true, features = ["io-std", "signal", "time"] }
+tokio-stream = { version = "0.1", features = ["sync"] }
+syntect = { version = "5", default-features = false, features = [
+    "default-fancy",
+] }
+
+[dev-dependencies]
+insta = "1"

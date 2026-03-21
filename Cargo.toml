@@ -11,10 +11,12 @@ path = "src/main.rs"
 
 [dependencies]
 neoco-config.workspace = true
-neoco-types.workspace = true
 neoco-tools.workspace = true
 neoco-agent.workspace = true
 neoco-cli.workspace = true
+neoco-tui.workspace = true
+neoco-event.workspace = true
+neoco-errors.workspace = true
 clap.workspace = true
 thiserror.workspace = true
 tracing-subscriber.workspace = true
@@ -24,20 +26,23 @@ tokio.workspace = true
 workspace = true
 
 [workspace]
-members = ["crates/config", "crates/types", "crates/tools", "crates/agent", "crates/cli"]
+members = ["crates/config", "crates/tools", "crates/agent", "crates/cli", "crates/tui", "crates/event", "crates/errors"]
 resolver = "2"
 
 [workspace.package]
+version = "0.1.0"
 edition = "2024"
 license = "Apache-2.0"
 authors = ["MiyakoMeow"]
 
 [workspace.dependencies]
 neoco-config = { path = "crates/config" }
-neoco-types = { path = "crates/types" }
 neoco-tools = { path = "crates/tools" }
 neoco-agent = { path = "crates/agent" }
 neoco-cli = { path = "crates/cli" }
+neoco-tui = { path = "crates/tui" }
+neoco-event = { path = "crates/event" }
+neoco-errors = { path = "crates/errors" }
 rig-core = "0.32"
 clap = { version = "4", features = ["derive"] }
 toml = "1"
@@ -45,6 +50,8 @@ serde = { version = "1", features = ["derive"] }
 thiserror = "2"
 serde_json = "1"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "process"] }
+tokio-stream = { version = "0.1", features = ["sync"] }
+crossterm = { version = "0.28", features = ["event-stream"] }
 futures = "0.3"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }

@@ -7,11 +7,10 @@ use rig::completion::{CompletionModel, GetTokenUsage, Message, Usage};
 use rig::streaming::{StreamedAssistantContent, StreamingChat};
 use tracing::info;
 
+use crate::{ChatError, EventHandler};
 use neoco_config::{Config, ProviderType};
+use neoco_event::ChatEvent;
 use neoco_tools::ShellTool;
-use neoco_types::EventHandler;
-use neoco_types::errors::ChatError;
-use neoco_types::events::ChatEvent;
 
 type Result<T> = std::result::Result<T, ChatError>;
 

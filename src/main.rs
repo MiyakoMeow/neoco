@@ -1,13 +1,17 @@
 //! Neoco CLI - Simple chat with LLM using rig-core
 
+// Suppress unused crate dependency warning
+#[allow(unused_imports)]
+use neoco_event as _;
+
 use clap::Parser;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use neoco_agent::chat;
 use neoco_cli::render::OutputHandler;
 use neoco_config::{Config, ConfigError};
+use neoco_errors::ChatError;
 use neoco_tools::{BashError, check_bash_available};
-use neoco_types::errors::ChatError;
 
 /// Errors that can occur during CLI execution.
 #[derive(Debug, thiserror::Error)]
@@ -31,6 +35,10 @@ pub enum CliError {
     /// An error occurred during chat interaction.
     #[error("Chat error: {0}")]
     Chat(#[from] ChatError),
+
+    /// An I/O error occurred.
+    #[error("I/O error: {0}")]
+    Io(#[from] std::io::Error),
 }
 
 /// CLI arguments
@@ -38,7 +46,8 @@ pub enum CliError {
 #[command(name = "neoco")]
 #[command(about = "Chat with LLM from command line")]
 struct Cli {
-    /// Message to send to the model (can be used multiple times for multi-turn)
+    /// Message to send to the model (can be used multiple times for multi-turn).
+    /// When provided, runs in CLI mode instead of TUI mode.
     #[arg(short = 'M', long = "message")]
     messages: Vec<String>,
 
@@ -80,9 +89,14 @@ async fn main() -> std::result::Result<(), CliError> {
         return Err(CliError::NoModel);
     };
 
-    let output_handler = OutputHandler::new(1);
-
-    chat(&config, &model_string, &args.messages, &output_handler).await?;
+    if args.messages.is_empty() {
+        // TUI mode (default)
+        neoco_tui::run_tui(&config, &model_string).await?;
+    } else {
+        // CLI mode (with -M parameter)
+        let output_handler = OutputHandler::new(1);
+        chat(&config, &model_string, &args.messages, &output_handler).await?;
+    }
 
     Ok(())
 }

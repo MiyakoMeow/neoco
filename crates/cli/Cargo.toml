@@ -13,6 +13,8 @@ name = "neoco_cli"
 path = "src/lib.rs"
 
 [dependencies]
-neoco-types.workspace = true
+neoco-agent.workspace = true
+neoco-event.workspace = true
+neoco-errors.workspace = true
 serde_json.workspace = true
 tracing.workspace = true
