@@ -1118,12 +1118,31 @@ dependencies = [
 name = "neoco"
 version = "0.1.0"
 dependencies = [
+ "clap",
+ "neoco-cli",
+ "neoco-core",
+ "neoco-tui",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "neoco-cli"
+version = "0.1.0"
+dependencies = [
+ "neoco-core",
+ "serde_json",
+ "tracing",
+]
+
+[[package]]
+name = "neoco-core"
+version = "0.1.0"
+dependencies = [
  "async-stream",
  "chrono",
- "clap",
- "crossterm",
  "futures",
- "ratatui",
  "rig-core",
  "serde",
  "serde_json",
@@ -1131,7 +1150,16 @@ dependencies = [
  "tokio",
  "toml",
  "tracing",
- "tracing-subscriber",
+]
+
+[[package]]
+name = "neoco-tui"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "crossterm",
+ "neoco-core",
+ "ratatui",
 ]
 
 [[package]]

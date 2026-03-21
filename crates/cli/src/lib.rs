@@ -4,9 +4,9 @@ use std::io::{self, Write};
 
 use tracing::error;
 
-use super::Renderer;
-use crate::errors::RenderError;
-use crate::events::ChatEvent;
+use neoco_core::errors::RenderError;
+use neoco_core::events::ChatEvent;
+use neoco_core::renderer::Renderer;
 
 const ANSI_RESET: &str = "\x1b[0m";
 const ANSI_CYAN: &str = "\x1b[36m";
@@ -137,8 +137,10 @@ impl Renderer for CliRenderer {
                     Self::queue_colored(&mut stdout, &format!("[工具结果] {content}\n"), ANSI_GREEN)
                 }
             },
+            #[expect(clippy::match_same_arms)]
             ChatEvent::Usage(_) => Ok(()),
             ChatEvent::Done => Self::queue_text(&mut stdout, "\n"),
+            _ => Ok(()),
         };
 
         if result.is_err() {

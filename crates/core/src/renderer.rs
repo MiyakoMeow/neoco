@@ -1,8 +1,5 @@
 //! Rendering abstraction layer.
 
-pub mod cli;
-pub mod tui;
-
 use crate::errors::RenderError;
 use crate::events::ChatEvent;
 

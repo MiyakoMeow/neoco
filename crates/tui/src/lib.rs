@@ -18,9 +18,9 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph, Wrap},
 };
 
-use super::Renderer;
-use crate::errors::RenderError;
-use crate::events::ChatEvent;
+use neoco_core::errors::RenderError;
+use neoco_core::events::ChatEvent;
+use neoco_core::renderer::Renderer;
 
 /// Message role.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -326,6 +326,7 @@ impl Renderer for TuiRenderer {
                 self.state.set_streaming(false);
                 self.draw()?;
             },
+            _ => {},
         }
         Ok(())
     }

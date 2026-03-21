@@ -1,4 +1,4 @@
-//! Neoco library crate.
+//! Neoco core library.
 
 pub mod agent;
 pub mod config;

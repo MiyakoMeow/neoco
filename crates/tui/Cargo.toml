@@ -1,0 +1,15 @@
+[package]
+name = "neoco-tui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+neoco-core = { workspace = true }
+ratatui = { workspace = true }
+crossterm = { workspace = true }
+chrono = { workspace = true }
+
+[lints]
+workspace = true

@@ -3,15 +3,15 @@
 use clap::Parser;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-use neoco::{
+use neoco_cli::CliRenderer;
+use neoco_core::errors::{ChatError, RenderError};
+use neoco_core::renderer::Renderer;
+use neoco_core::{
     agent::chat,
     config::{Config, ConfigError},
-    errors,
-    renderer::{Renderer, cli::CliRenderer, tui::TuiRenderer},
     tools::{BashError, check_bash_available},
 };
-
-use errors::{ChatError, RenderError};
+use neoco_tui::TuiRenderer;
 
 /// Errors that can occur during CLI execution.
 #[derive(Debug, thiserror::Error)]
@@ -111,7 +111,8 @@ async fn run_tui_mode(config: &Config, model_string: &str) -> Result<(), CliErro
             Ok(input) => {
                 let messages = vec![input];
                 if let Err(e) = chat(config, model_string, &messages, &mut renderer).await {
-                    renderer.render_event(&neoco::events::ChatEvent::Text(format!("错误: {e}")))?;
+                    renderer
+                        .render_event(&neoco_core::events::ChatEvent::Text(format!("错误: {e}")))?;
                 }
             },
             Err(RenderError::RenderFailed(msg)) if msg == "User quit" => {
